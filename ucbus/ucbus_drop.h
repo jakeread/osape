@@ -15,7 +15,7 @@ is; no warranty is provided, and users accept all liability.
 #ifndef UCBUS_DROP_H_
 #define UCBUS_DROP_H_
 
-#include "ucbus-config.h"
+#include "../../config.h"
 
 #ifdef UCBUS_IS_DROP
 
