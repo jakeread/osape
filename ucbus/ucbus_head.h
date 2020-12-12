@@ -25,7 +25,6 @@ is; no warranty is provided, and users accept all liability.
 #include "../utils/peripheral_nums.h"
 #include "../utils/syserror.h"
 #include "../utils/clocks_d51.h"
-#include "../utils/cobs.h"
 
 #define TIMER_A_GCLK_NUM 9
 #define TIMER_B_GCLK_NUM 10
@@ -62,6 +61,8 @@ is; no warranty is provided, and users accept all liability.
 
 #define UBH_BUFSIZE 1024
 
+// # of drops to look for 
+// count 15: 2^4 bits, with one case reserved for the clock reset 
 #define UBH_DROP_OPS 14
 
 #define UB_AK_GOTOPOS 91
@@ -82,6 +83,7 @@ class UCBus_Head {
     uint8_t inBuffer[UBH_DROP_OPS][UBH_BUFSIZE];
     volatile uint16_t inBufferRp[UBH_DROP_OPS];
     volatile uint16_t inBufferLen[UBH_DROP_OPS];
+    volatile boolean inLastHadToken[UBH_DROP_OPS];
     // transmit buffers for A / B Channels 
     uint8_t outBufferA[UBH_BUFSIZE];
     volatile uint16_t outBufferARp = 0;

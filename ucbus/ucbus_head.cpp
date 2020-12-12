@@ -167,10 +167,8 @@ void SERCOM1_0_Handler(void){
 }
 
 void UCBus_Head::txISR(void){
-  DEBUG2PIN_ON;
   UBH_SER_USART.DATA.reg = outWord[1]; // just services the next byte in the word: timer initiates 
   UBH_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_DRE; // turn this interrupt off 
-  DEBUG2PIN_OFF;
 }
 
 void SERCOM1_2_Handler(void){
@@ -187,6 +185,7 @@ void UCBus_Head::rxISR(void){
     return;
   } 
 	// cleared by reading out, but we are blind feed forward atm 
+  // get the byte, 
   uint8_t data = UBH_SER_USART.DATA.reg;
   if((data >> 7) == 0){
     inWord[0] = data;
@@ -197,16 +196,40 @@ void UCBus_Head::rxISR(void){
     inByte = ((inWord[0] << 4) & 0b11110000) | (inWord[1] & 0b00001111);
     // the drop reporting 
     uint8_t drop = inHeader & dropIdMask;
-    if(drop > UBH_DROP_OPS) return; // unknown drop ? 
-    // otherwise, load it 
-    inBuffer[drop][inBufferRp[drop]] = inByte;
-    if(inByte == 0){ // eop cobs encoded 
-      inBufferLen[drop] = inBufferRp[drop];
-    } else {
+    // if reported drop is greater than # of max drops, something strange,
+    if(drop > UBH_DROP_OPS) return;
+    // otherwise, should check if has a token, right? 
+    if(inHeader & tokenWordA){
+      DEBUG2PIN_ON;
+      inLastHadToken[drop] = true;
+      if(inBufferLen[drop] != 0){ // didn't read the last in time, will drop 
+        inBufferLen[drop] = 0;
+        inBufferRp[drop] = 0;
+      }
+      inBuffer[drop][inBufferRp[drop]] = inByte; // stuff bytes 
       inBufferRp[drop] += 1;
+    } else {
+      DEBUG2PIN_OFF;
+      if(inLastHadToken[drop]){ // falling edge, packet 
+        inBufferLen[drop] = inBufferRp[drop]; // this signals to outside observers that we are packet-ful
+      }
+      inLastHadToken[drop] = false;
     }
   }
 }
+
+// drop transmit like:
+/*
+if(outBufferLen > 0){
+        outByte = outBuffer[outBufferRp];
+        outHeader = headerMask & (tokenWord | (id & 0b00011111));
+      } else {
+        outByte = 0;
+        outHeader = headerMask & (noTokenWord | (id & 0b00011111));
+      }
+      outWord[0] = 0b00000000 | ((outHeader << 1) & 0b01110000) | (outByte >> 4);
+      outWord[1] = 0b10000000 | ((outHeader << 4) & 0b01110000) | (outByte & 0b00001111);
+*/
 
 // -------------------------------------------------------- API 
 
@@ -222,11 +245,12 @@ boolean UCBus_Head::ctr(uint8_t drop){
 size_t UCBus_Head::read(uint8_t drop, uint8_t *dest){
   if(!ctr(drop)) return 0;
   NVIC_DisableIRQ(SERCOM1_2_IRQn);
-  size_t decodeLen = cobsDecode(inBuffer[drop], inBufferLen[drop], dest);
+  size_t len = inBufferLen[drop];
+  memcpy(dest, inBuffer[drop], len);
   inBufferLen[drop] = 0;
   inBufferRp[drop] = 0;
   NVIC_EnableIRQ(SERCOM1_2_IRQn);
-  return decodeLen;
+  return len;
 }
 
 // mod cts(channel) and transmit(data, len, channel)
@@ -250,7 +274,6 @@ boolean UCBus_Head::cts_b(void){
 
 void UCBus_Head::transmit_a(uint8_t *data, uint16_t len){
 	if(!cts_a()) return;
-	//size_t encLen = cobsEncode(data, len, outBuffer);
   memcpy(outBufferA, data, len);
 	outBufferALen = len; //encLen;
 	outBufferARp = 0;
