@@ -25,7 +25,6 @@ is; no warranty is provided, and users accept all liability.
 #include "dip_ucbus_config.h"
 #include "../utils/peripheral_nums.h"
 #include "../utils/syserror.h"
-#include "../utils/cobs.h"
 
 #define UBD_SER_USART SERCOM1->USART
 #define UBD_SERCOM_CLK SERCOM1_GCLK_ID_CORE
@@ -47,9 +46,9 @@ is; no warranty is provided, and users accept all liability.
 // 0 for max-speed 3MHz
 #define UBD_BAUD_VAL 0
 
-#define UBD_DE_PIN 16 // driver output enable: set HI to enable, LO to tri-state the driver 
+#define UBD_DE_PIN 19 // driver output enable: set HI to enable, LO to tri-state the driver 
 #define UBD_DE_BM (uint32_t)(1 << UBD_DE_PIN)
-#define UBD_DE_PORT PORT->Group[1] 
+#define UBD_DE_PORT PORT->Group[0] 
 #define UBD_DRIVER_ENABLE UBD_DE_PORT.OUTSET.reg = UBD_DE_BM
 #define UBD_DRIVER_DISABLE UBD_DE_PORT.OUTCLR.reg = UBD_DE_BM
 #define UBD_RE_PIN 19 // receiver output enable, set LO to enable the RO, set HI to tri-state RO 

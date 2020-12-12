@@ -31,13 +31,6 @@ UCBus_Drop* ucBusDrop = UCBus_Drop::getInstance();
 
 UCBus_Drop::UCBus_Drop(void) {}
 
-// so, first thing, I've some confusion about what might be the best way (again) to implement 
-// multiple similar drivers. I did this before w/ the cobserialport, I might again want to 
-// do it, but by writing more static hardware drivers that another parent class (the bus) forwards to 
-// so the init codes / etc could all be verbatim with hardware registers, instead of this infinite list of defines 
-
-// yeah, this kind of stuff is morning work: focus, tracking little details. go to bed. 
-
 void UCBus_Drop::init(boolean useDipPick, uint8_t ID) {
   dip_init();
   if(useDipPick){
@@ -126,8 +119,9 @@ void UCBus_Drop::rxISR(void){
     return;
   } 
 	// cleared by reading out, but we are blind feed forward atm 
+  // get the data 
   uint8_t data = UBD_SER_USART.DATA.reg;
-  // for now, just running the clk, on every 0th bit 
+  // for now, just running the clk on every word 
   if((data >> 7) == 0){ // timer bit, on every 0th bit, and beginning of word 
     inWord[0] = data;
     timeTick ++;
@@ -143,6 +137,7 @@ void UCBus_Drop::rxISR(void){
     inHeader = ((inWord[0] >> 1) & 0b00111000) | ((inWord[1] >> 4) & 0b00000111);
     inByte = ((inWord[0] << 4) & 0b11110000) | (inWord[1] & 0b00001111);
     // now check incoming data, 
+    // could speed this up to not re-evaluate (inHeader & 0b00110000) every time 
     if((inHeader & 0b00110000) == 0b00100000){ // has-token, CHA
       lastWordAHadToken = true;
       if(inBufferALen != 0){ // in this case, we didn't read-out of the buffer in time, 
@@ -153,7 +148,7 @@ void UCBus_Drop::rxISR(void){
       inBufferARp ++;
     } else if ((inHeader & 0b00110000) == 0b00000000) { // no-token, CHA
       if(lastWordAHadToken){
-        inBufferALen = inBufferARp - 1;
+        inBufferALen = inBufferARp;
         onPacketARx();
       }
       lastWordAHadToken = false;
@@ -168,15 +163,18 @@ void UCBus_Drop::rxISR(void){
       inBufferBRp ++;
     } else if ((inHeader & 0b00110000) == 0b00010000) { // no-token, CHB
       if(lastWordBHadToken){
-        inBufferBLen = inBufferARp - 1;
+        inBufferBLen = inBufferARp;
         //onPacketBRx(); // b-channel handled in loop, yah 
       }
       lastWordBHadToken = false;
-    } 
+    }
     // now check if outgoing tick is ours, 
+    // possible bugfarm: if we (potentially) fire the onPacketARx() handler up there, 
+    // and then return here to also do all of this work, we might have a l e n g t h y interrupt 
     if((inHeader & dropIdMask) == id){
       // our transmit 
       if(outBufferLen > 0){
+        DEBUG2PIN_ON;
         outByte = outBuffer[outBufferRp];
         outHeader = headerMask & (tokenWord | (id & 0b00011111));
       } else {
@@ -223,7 +221,7 @@ void UCBus_Drop::txcISR(void){
   UBD_SER_USART.INTFLAG.bit.TXC = 1; // clear the flag by writing 1 
   UBD_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_TXC; // turn off the interrupt 
   UBD_DRIVER_DISABLE; // turn off the driver, 
-  //DEBUGPIN_TOGGLE;
+  DEBUG2PIN_OFF;
 }
 
 // -------------------------------------------------------- ASYNC API
@@ -277,8 +275,8 @@ boolean UCBus_Drop::cts(void){
 
 void UCBus_Drop::transmit(uint8_t *data, uint16_t len){
   if(!cts()) return;
-  size_t encLen = cobsEncode(data, len, outBuffer);
-  outBufferLen = encLen;
+  memcpy(outBuffer, data, len);
+  outBufferLen = len;
   outBufferRp = 0;
 }
 
