@@ -1,5 +1,5 @@
 /*
-osap/vport.cpp
+osap/vport_usbserial.cpp
 
 virtual port, p2p
 
@@ -14,10 +14,8 @@ no warranty is provided, and users accept all liability.
 
 #include "vport_usbserial.h"
 
-VPort_USBSerial::VPort_USBSerial()
-:VPort("usb serial"){
+VPort_USBSerial::VPort_USBSerial():VPort("usb serial"){
   description = "vport wrap on arduino Serial object";
-  // ok, just calls super-constructor
 }
 
 void VPort_USBSerial::init(void){

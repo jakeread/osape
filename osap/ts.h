@@ -54,6 +54,8 @@ no warranty is provided, and users accept all liability.
 #define AK_READCALIB 122 
 #define AK_SET_TC 123 
 
+#define AK_BUSECHO 131
+
 // -------------------------------------------------------- MVC Endpoints
 
 #define EP_ERRKEY 150

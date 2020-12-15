@@ -30,11 +30,6 @@ boolean OSAP::addVPort(VPort* vPort){
   }
 }
 
-void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp){
-  sysError("NO FWD CODE YET");
-  vp->clearPacket(pwp);
-}
-
 void OSAP::write77(uint8_t *pck, VPort *vp){
   uint16_t one = 1;
   pck[0] = PK_PPACK; // the '77'
@@ -333,6 +328,12 @@ void OSAP::appReply(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, V
   }
 }
 
+
+void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp){
+  sysError("NO FWD CODE YET");
+  vp->clearPacket(pwp);
+}
+
 // frame: the buffer, ptr: the location of the ptr (ack or pack),
 // vp: port received on, fwp: frame-write-ptr,
 // so vp->frames[fwp] = frame, though that isn't exposed here
@@ -390,12 +391,6 @@ void OSAP::instructionSwitch(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp,
 
 void OSAP::loop(){
   /*
-  Also a note - the vp->getFrame(); (which is called often in the loop) doesn't have to be a virtual f.
-  VPorts can have private \_frames** ptrs-to, and when we start up a vport class,
-  point that at some statically allocated heap.
-  also, set a \_numFrames and ahn \_writePtrs*.
-  */
-  /*
   another note 
   this was measured around 25us (long!) 
   so it would be *tite* if that coule be decreased, especially in recognizing the no-op cases, 
@@ -404,15 +399,13 @@ void OSAP::loop(){
   unsigned long pat = 0; // packet arrival time 
   VPort* vp;        // vp of vports
   unsigned long now = millis();
-  // pull one frame per loop per port,
-  // TODO: can increase speed by pulling more frames per loop ?? 
   for(uint8_t p = 0; p < _numVPorts; p ++){
     vp = _vPorts[p];
     vp->loop(); // affordance to run phy code,
-    for(uint8_t t = 0; t < 4; t ++){ // count # of packets to process per port per turn 
+    for(uint8_t t = 0; t < 4; t ++){ // handles 4 packets per port per turn 
       uint8_t* pck;     // the packet we are handling
       uint16_t pl = 0;  // length of that packet
-      uint8_t pwp = 0;  // packet write pointer: where it was, to write-back clearance
+      uint8_t pwp = 0;  // packet write pointer: where it was (in vp, which space), so that we can instruct vp to clear it later 
       vp->getPacket(&pck, &pl, &pwp, &pat); // gimme the bytes
       if(pl > 0){ // have length, will try,
         // check prune stale, 

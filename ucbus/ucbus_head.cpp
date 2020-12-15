@@ -124,6 +124,7 @@ void UCBus_Head::timerISR(void){
     }
   } else if (outBufferBLen > 0){
     if(outBufferBRp >= outBufferBLen){
+      DEBUG2PIN_OFF;
       // CHB EOP frame 
       outByte = 0;
       outHeader = headerMask & (noTokenWordB | (outReceiveCall & dropIdMask));
@@ -131,6 +132,7 @@ void UCBus_Head::timerISR(void){
       outBufferBRp = 0;
       outBufferBLen = 0;
     } else {
+      DEBUG2PIN_ON;
       // ahn regular CHB frame 
       outByte = outBufferB[outBufferBRp];
       outHeader = headerMask & (tokenWordB | (outReceiveCall & dropIdMask));
@@ -200,7 +202,6 @@ void UCBus_Head::rxISR(void){
     if(drop > UBH_DROP_OPS) return;
     // otherwise, should check if has a token, right? 
     if(inHeader & tokenWordA){
-      DEBUG2PIN_ON;
       inLastHadToken[drop] = true;
       if(inBufferLen[drop] != 0){ // didn't read the last in time, will drop 
         inBufferLen[drop] = 0;
@@ -209,7 +210,6 @@ void UCBus_Head::rxISR(void){
       inBuffer[drop][inBufferRp[drop]] = inByte; // stuff bytes 
       inBufferRp[drop] += 1;
     } else {
-      DEBUG2PIN_OFF;
       if(inLastHadToken[drop]){ // falling edge, packet 
         inBufferLen[drop] = inBufferRp[drop]; // this signals to outside observers that we are packet-ful
       }
