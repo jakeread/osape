@@ -157,13 +157,12 @@ void UCBus_Drop::rxISR(void){
       lastWordBHadToken = true;
       if(inBufferBLen != 0){
         inBufferBLen = 0;
-        inBufferBRp = 0;
       }
       inBufferB[inBufferBRp] = inByte;
       inBufferBRp ++;
     } else if ((inHeader & 0b00110000) == 0b00010000) { // no-token, CHB
       if(lastWordBHadToken){
-        inBufferBLen = inBufferARp;
+        inBufferBLen = inBufferBRp;
         //onPacketBRx(); // b-channel handled in loop, yah 
       }
       lastWordBHadToken = false;
