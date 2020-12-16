@@ -35,7 +35,11 @@ void VPort_USBSerial::loop(void){
       // indicate we recv'd zero
       // CLKLIGHT_TOGGLE;
       // decode from rx-ing frame to interface frame,
-      status = true; // re-assert open whenever received packet incoming 
+      // TODO: usb port status never changes, even if USB is unplugged
+      // this will only cause problems in the case we are trying to read system upstream 
+      // of a USB, or otherwise transmit over USB while it's closed. would be nice to have 
+      // state here to know if messages destined for USB port can simply be deleted or not 
+      status = EP_PORTSTATUS_OPEN; // re-assert open whenever received packet incoming 
       size_t dcl = cobsDecode(_encodedPacket[_pwp], _bwp, _packet[_pwp]);
       _pl[_pwp] = dcl; // this frame now available, has this length,
       _packetArrivalTimes[_pwp] = millis(); // time this thing arrived 

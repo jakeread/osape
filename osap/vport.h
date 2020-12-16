@@ -16,6 +16,7 @@ no warranty is provided, and users accept all liability.
 #define VPORT_H_
 
 #include <arduino.h>
+#include "ts.h"
 #include "./osape/utils/syserror.h"
 
 class VPort {
@@ -25,7 +26,7 @@ public:
   VPort(String vPortName);
   String name;
   String description = "undescribed vport";
-  uint8_t portTypeKey = PK_PORTF_KEY;
+  uint8_t portTypeKey = EP_PORTTYPEKEY_DUPLEX;
   uint16_t maxSegLength = 0;
   virtual void init(void) = 0;
   virtual void loop(void) = 0;
@@ -41,7 +42,7 @@ public:
   virtual uint16_t getBufSpace(void) = 0;
   virtual uint16_t getBufSize(void) = 0;
   // dish outgoing frames, and check if open to send them?
-  boolean status = false; // open / closed-ness -> OSAP can set, VP can set. 
+  uint8_t status = EP_PORTSTATUS_CLOSED; // open / closed-ness -> OSAP can set, VP can set. 
   virtual boolean cts(void); // is a connection established & is the reciprocal buffer nonzero?
   virtual void sendPacket(uint8_t* pck, uint16_t pl) = 0; // take this frame, copying out of the buffer I pass you
   // internal state,

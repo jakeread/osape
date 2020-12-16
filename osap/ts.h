@@ -74,6 +74,15 @@ no warranty is provided, and users accept all liability.
 #define EP_PORTBUFSPACE 186
 #define EP_PORTBUFSIZE 187
 
+#define EP_PORTSTATUS_CLOSED 0
+#define EP_PORTSTATUS_OPEN 1
+#define EP_PORTSTATUS_CLOSING 2
+#define EP_PORTSTATUS_OPENING 3 
+
+#define EP_PORTTYPEKEY_DUPLEX 191
+#define EP_PORTTYPEKEY_BUSHEAD 192
+#define EP_PORTTYPEKEY_BUSDROP 193 
+
 #define EP_NUMVMODULES 201
 #define EP_VMODULE 202
 

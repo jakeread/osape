@@ -80,9 +80,9 @@ class UCBus_Head {
     volatile uint8_t inWord[2];
     volatile uint8_t inHeader;
     volatile uint8_t inByte;
-    uint8_t inBuffer[UBH_DROP_OPS][UBH_BUFSIZE];
-    volatile uint16_t inBufferRp[UBH_DROP_OPS];
-    volatile uint16_t inBufferLen[UBH_DROP_OPS];
+    uint8_t inBuffer[UBH_DROP_OPS][UBH_BUFSIZE];  // per-drop incoming bytes 
+    volatile uint16_t inBufferWp[UBH_DROP_OPS];   // per-drop incoming write pointer
+    volatile uint16_t inBufferLen[UBH_DROP_OPS];  // per-drop incoming bytes, len of, set when EOP detected
     volatile boolean inLastHadToken[UBH_DROP_OPS];
     // transmit buffers for A / B Channels 
     uint8_t outBufferA[UBH_BUFSIZE];
@@ -93,17 +93,17 @@ class UCBus_Head {
     volatile uint16_t outBufferBLen = 0;
     // doublet 
     volatile uint8_t outWord[2];
-    volatile uint8_t outReceiveCall = 0;
+    volatile uint8_t currentDropTap = 0; // drop we are currently 'txing' to / drop that will reply on this cycle
     volatile uint8_t outHeader;
     volatile uint8_t outByte;
     const uint8_t headerMask =    0b00111111;
     const uint8_t dropIdMask =    0b00001111; 
-                          // 0b00|token|channel|4bit id
+                                  // 0b00|token|channel|4bit id
     const uint8_t tokenWordA =    0b00100000; // CHA, data byte present 
     const uint8_t noTokenWordA =  0b00000000; // CHA, data byte not present 
     const uint8_t tokenWordB =    0b00110000; // CHB, data byte present 
     const uint8_t noTokenWordB =  0b00010000; // CHB, data byte not present 
-    volatile uint8_t lastSpareEOP = 0;
+    volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
     // uart 
     void startupUART(void);
    public:
@@ -113,14 +113,16 @@ class UCBus_Head {
     void timerISR(void);
     void rxISR(void);
     void txISR(void);
+    // reciprocal recieve buffer spaces 
+    volatile uint8_t rcrxb[UBH_DROP_OPS];
     // handles 
     void init(void);
     boolean ctr(uint8_t drop); // is there ahn packet to read at this drop 
     size_t read(uint8_t drop, uint8_t *dest);  // get 'them bytes fam 
 		boolean cts_a(void);  // return true if TX complete / buffer ready
-    boolean cts_b(void);
-    void transmit_a(uint8_t *data, uint16_t len);  // ship les bytos
-    void transmit_b(uint8_t *data, uint16_t len);
+    boolean cts_b(uint8_t drop);
+    void transmit_a(uint8_t *data, uint16_t len);  // ship bytes: broadcast to all 
+    void transmit_b(uint8_t *data, uint16_t len, uint8_t drop);  // ship bytes: 0-14: individual drop, 15: broadcast
 };
 
 extern UCBus_Head* ucBusHead;

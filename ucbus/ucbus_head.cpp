@@ -93,14 +93,14 @@ void UCBus_Head::init(void) {
   // clear buffers to begin,
   for(uint8_t d = 0; d < UBH_DROP_OPS; d ++){
     inBufferLen[d] = 0;
-    inBufferRp[d] = 0;
+    inBufferWp[d] = 0;
   }
   startupUART();
 }
 
 void UCBus_Head::timerISR(void){
   // debug zero
-  if(outReceiveCall == 0){
+  if(currentDropTap == 0){
     //DEBUG1PIN_TOGGLE;
   }
   // so, would formulate the out bytes,
@@ -112,14 +112,14 @@ void UCBus_Head::timerISR(void){
     if(outBufferARp >= outBufferALen){
       // this is the EOP frame, 
       outByte = 0;
-      outHeader = headerMask & (noTokenWordA | (outReceiveCall & dropIdMask));
+      outHeader = headerMask & (noTokenWordA | (currentDropTap & dropIdMask));
       // now it's clear, 
       outBufferARp = 0;
       outBufferALen = 0;
     } else {
       // this is a regular frame 
       outByte = outBufferA[outBufferARp];
-      outHeader = headerMask & (tokenWordA | (outReceiveCall & dropIdMask));
+      outHeader = headerMask & (tokenWordA | (currentDropTap & dropIdMask));
       outBufferARp ++; // increment for next byte, 
     }
   } else if (outBufferBLen > 0){
@@ -127,7 +127,7 @@ void UCBus_Head::timerISR(void){
       DEBUG2PIN_OFF;
       // CHB EOP frame 
       outByte = 0;
-      outHeader = headerMask & (noTokenWordB | (outReceiveCall & dropIdMask));
+      outHeader = headerMask & (noTokenWordB | (currentDropTap & dropIdMask));
       // now is clear, 
       outBufferBRp = 0;
       outBufferBLen = 0;
@@ -135,18 +135,23 @@ void UCBus_Head::timerISR(void){
       DEBUG2PIN_ON;
       // ahn regular CHB frame 
       outByte = outBufferB[outBufferBRp];
-      outHeader = headerMask & (tokenWordB | (outReceiveCall & dropIdMask));
+      outHeader = headerMask & (tokenWordB | (currentDropTap & dropIdMask));
       outBufferBRp ++;
     }
   } else {
     // no token, no EOP on either channel 
+    // transmit our recieve buffer spaces available to this drop using the out byte 
+    if(inBufferLen[currentDropTap] == 0 && inBufferWp[currentDropTap] == 0){
+      outByte = 1;
+    } else {
+      outByte = 0;
+    }
     // alternate channels, in case spurious packets not closed on one ... ensure close 
-    outByte = 0;
     if(lastSpareEOP == 0){
-      outHeader = headerMask & (noTokenWordA | (outReceiveCall & dropIdMask));
+      outHeader = headerMask & (noTokenWordA | (currentDropTap & dropIdMask));
       lastSpareEOP = 1;
     } else {
-      outHeader = headerMask & (noTokenWordB | (outReceiveCall & dropIdMask));
+      outHeader = headerMask & (noTokenWordB | (currentDropTap & dropIdMask));
       lastSpareEOP = 0;
     }
   }
@@ -157,9 +162,9 @@ void UCBus_Head::timerISR(void){
   // and setup the interrupt to handle the second, 
   UBH_SER_USART.INTENSET.bit.DRE = 1;
   // and loop through returns, 
-  outReceiveCall ++;
-  if(outReceiveCall >= UBH_DROP_OPS){
-    outReceiveCall = 0;
+  currentDropTap ++;
+  if(currentDropTap >= UBH_DROP_OPS){
+    currentDropTap = 0;
   }
 }
 
@@ -201,19 +206,23 @@ void UCBus_Head::rxISR(void){
     // if reported drop is greater than # of max drops, something strange,
     if(drop > UBH_DROP_OPS) return;
     // otherwise, should check if has a token, right? 
-    if(inHeader & tokenWordA){
+    if(inHeader & tokenWordA){ // token, 
       inLastHadToken[drop] = true;
       if(inBufferLen[drop] != 0){ // didn't read the last in time, will drop 
         inBufferLen[drop] = 0;
-        inBufferRp[drop] = 0;
+        inBufferWp[drop] = 0;
       }
-      inBuffer[drop][inBufferRp[drop]] = inByte; // stuff bytes 
-      inBufferRp[drop] += 1;
-    } else {
-      if(inLastHadToken[drop]){ // falling edge, packet 
-        inBufferLen[drop] = inBufferRp[drop]; // this signals to outside observers that we are packet-ful
+      inBuffer[drop][inBufferWp[drop]] = inByte; // stuff bytes 
+      inBufferWp[drop] += 1;
+    } else { // no token, 
+      if(inLastHadToken[drop]){ // falling edge, packet delineation 
+        rcrxb[drop] = inBuffer[drop][0]; // 1st byte of the packet was the rcrxb (reciprocal recieve buffer size)
+        inBufferLen[drop] = inBufferWp[drop]; // this signals to outside observers that we are packet-ful
       }
       inLastHadToken[drop] = false;
+      // on token-less words, the data byte is the rcrxb: that way this is always updating if 
+      // out-of-packet spaces exist. otherwise it updates w/ the first byte of each packet 
+      rcrxb[drop] = inByte;
     }
   }
 }
@@ -245,10 +254,11 @@ boolean UCBus_Head::ctr(uint8_t drop){
 size_t UCBus_Head::read(uint8_t drop, uint8_t *dest){
   if(!ctr(drop)) return 0;
   NVIC_DisableIRQ(SERCOM1_2_IRQn);
-  size_t len = inBufferLen[drop];
-  memcpy(dest, inBuffer[drop], len);
+  // byte 1 is the drop's rcrxb transmitted with this packet
+  size_t len = inBufferLen[drop] - 1;
+  memcpy(dest, &(inBuffer[drop][1]), len);
   inBufferLen[drop] = 0;
-  inBufferRp[drop] = 0;
+  inBufferWp[drop] = 0;
   NVIC_EnableIRQ(SERCOM1_2_IRQn);
   return len;
 }
@@ -257,15 +267,15 @@ size_t UCBus_Head::read(uint8_t drop, uint8_t *dest){
 // then do an example for channel-b-write currents, then do drop code, then test 
 
 boolean UCBus_Head::cts_a(void){
-	if(outBufferALen != 0){
+	if(outBufferALen > 0){ // only condition is that our transmit buffer is zero, are not currently tx'ing on this channel 
 		return false;
 	} else {
 		return true;
 	}
 }
 
-boolean UCBus_Head::cts_b(void){
-  if(outBufferBLen != 0){
+boolean UCBus_Head::cts_b(uint8_t drop){
+  if(outBufferBLen > 0 || rcrxb[drop] == 0){
     return false; 
   } else {
     return true;
@@ -279,10 +289,18 @@ void UCBus_Head::transmit_a(uint8_t *data, uint16_t len){
 	outBufferARp = 0;
 }
 
-void UCBus_Head::transmit_b(uint8_t *data, uint16_t len){\
-  if(!cts_b()) return;
-  memcpy(outBufferB, data, len);
-  outBufferBLen = len;
+void UCBus_Head::transmit_b(uint8_t *data, uint16_t len, uint8_t drop){
+  if(!cts_b(drop)) return;
+  // 1st byte: drop identifier 
+  outBufferB[0] = drop;
+  // 2nd byte: number of spaces here drop can transmit into, at the moment this is 1 or 0 
+  if(inBufferLen[drop] == 0 && inBufferWp[drop] == 0){
+    outBufferB[1] = 1;  // no packet awaiting read (len-full) or currently writing into (wp-full)
+  } else {
+    outBufferB[1] = 0;  // packet either mid-recieve (wp nonzero) or is awaiting read (len-full)
+  }
+  memcpy(&outBufferB[2], data, len);
+  outBufferBLen = len + 2; // + 1 for the drop + 1 for the spaces 
   outBufferBRp = 0;
 }
 

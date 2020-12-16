@@ -106,6 +106,7 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint
   }
   // following route-copy-in,
   // TODO mod this for busses,
+  #warning no bus reversal here 
   wptr -= 4;
   _res[wptr ++] = PK_PORTF_KEY; /// write in departure key type,
   ts_writeUint16(vpi, _res, &wptr); // write in departure port,
@@ -186,7 +187,7 @@ void OSAP::readRequestVPort(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t rp
         break;
       case EP_PORTSTATUS:
         _res[(*wptr) ++] = EP_PORTSTATUS;
-        ts_writeBoolean(vp->status, _res, wptr);
+        _res[(*wptr) ++] = vp->status;
         rptr ++;
         break;
       case EP_PORTBUFSPACE:
@@ -329,8 +330,52 @@ void OSAP::appReply(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, V
 }
 
 
+// pck[ptr] == PK_PORTF_KEY or PK_BUSF_KEY or PK_BUSB_KEY 
 void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp){
-  sysError("NO FWD CODE YET");
+  sysError("FWD CODE");
+  // vport to fwd on 
+  uint8_t fwType = pck[ptr ++]; // get at ptr, *then* increment ptr 
+  uint16_t indice;
+  ts_readUint16(&indice, pck, &ptr); // ptr now at bytes succeeding the ptr, read increments 
+  // find the vport, 
+  if(_numVPorts <= indice){ // doesn't exist 
+    sysError("no vport here at indice " + String(indice));
+    vp->clearPacket(pwp);
+    return;
+  }
+  VPort *fvp = _vPorts[indice];
+  if(fvp->portTypeKey != fwType){ // bad type 
+    // write the bus head vport, arrive at forwarding onto it, do the checks etc... 
+    // then at the drop, same, and see if you can reverse the route there, to ack an app. msg w/ OK ? 
+    #warning needs to check for bus-forward or bus-broadcast: bb only allowed if is bus head 
+    sysError("bad vport type match at fwd indice " + String(indice));
+    vp->clearPacket(pwp);
+    return;
+  }
+  // have correct VPort type, 
+  // do the packet walk (put arrival info in where fwd info was, move ptr) 
+  if(fvp->cts()){
+    // currently like:
+    //                      [pck[ptr]]
+    // [77:3][route][pk.ptr][portf.key][b1][b0][next_instruc]
+    // want to do
+    // [77:3][route][arrival][b1][b0][pk.ptr][next_instruc]
+    // that's a swap in the fixed length, destroying information about where it was forwarded from
+    // could be:
+    //                      [pck[ptr]]
+    // [77:3][route][pk.ptr][busf.key][b3][b2][b1][b0][next_instruc]
+    // want to do
+    // [77:3][route][arrival][b1][b0][pk.ptr][next_instruc]
+    // that's a swap in the fixed length, destroying information about where it was forwarded from
+  } else {
+    if(fvp->status == EP_PORTSTATUS_OPEN){
+      // open, await 
+      // todo, though... bus state ambiguous, as are all simple PHYs, maybe delete status from osap? 
+    } else {
+      // closed, clear 
+      vp->clearPacket(pwp);
+    }
+  }
   vp->clearPacket(pwp);
 }
 

@@ -40,6 +40,7 @@ private:
 public:
   VPort_USBSerial();
   // props
+  uint8_t portTypeKey = EP_PORTTYPEKEY_DUPLEX;
   uint16_t maxSegLength = VPUSB_SPACE_SIZE - 6;
   // code
   void init(void);
