@@ -79,11 +79,11 @@ class UCBus_Drop {
     volatile uint8_t inByte;
     volatile boolean lastWordAHadToken = false;
     uint8_t inBufferA[UBD_BUFSIZE];
-    volatile uint16_t inBufferARp = 0;
+    volatile uint16_t inBufferAWp = 0;
     volatile uint16_t inBufferALen = 0; // writes at terminal zero, 
     volatile boolean lastWordBHadToken = false;
     uint8_t inBufferB[UBD_BUFSIZE];
-    volatile uint16_t inBufferBRp = 0;
+    volatile uint16_t inBufferBWp = 0;
     volatile uint16_t inBufferBLen = 0;
     // output, 
     volatile uint8_t outWord[2];
@@ -111,6 +111,7 @@ class UCBus_Drop {
     //void onPacketBRx(void);
     // our physical bus address, 
     volatile uint8_t id = 0;
+    volatile uint8_t rcrxb = 0; // reciprocal rx buffer 0: head has no room to rx, donot send, 1: has room
     // the api, eh 
     void init(boolean useDipPick, uint8_t ID);
 		boolean ctr_a(void);  // return true if RX complete / buffer ready 

@@ -142,13 +142,13 @@ void UCBus_Drop::rxISR(void){
       lastWordAHadToken = true;
       if(inBufferALen != 0){ // in this case, we didn't read-out of the buffer in time, 
         inBufferALen = 0;    // so we reset it, missing the last packet !
-        inBufferARp = 0;
+        inBufferAWp = 0;
       }
-      inBufferA[inBufferARp] = inByte;
-      inBufferARp ++;
+      inBufferA[inBufferAWp] = inByte;
+      inBufferAWp ++;
     } else if ((inHeader & 0b00110000) == 0b00000000) { // no-token, CHA
       if(lastWordAHadToken){
-        inBufferALen = inBufferARp;
+        inBufferALen = inBufferAWp;
         onPacketARx();
       }
       lastWordAHadToken = false;
@@ -158,11 +158,18 @@ void UCBus_Drop::rxISR(void){
       if(inBufferBLen != 0){
         inBufferBLen = 0;
       }
-      inBufferB[inBufferBRp] = inByte;
-      inBufferBRp ++;
+      inBufferB[inBufferBWp] = inByte;
+      inBufferBWp ++;
     } else if ((inHeader & 0b00110000) == 0b00010000) { // no-token, CHB
       if(lastWordBHadToken){
-        inBufferBLen = inBufferBRp;
+        inBufferBLen = inBufferBWp;
+        //check if pck is for us and update reciprocal buffer len 
+        if(inBufferB[0] == id){ // packet is for us 
+          rcrxb = inBufferB[1];
+        } else {  // packet is not ours, ignore, ready for next read 
+          inBufferBWp = 0;
+          inBufferBLen = 0;
+        }
         //onPacketBRx(); // b-channel handled in loop, yah 
       }
       lastWordBHadToken = false;
@@ -174,10 +181,16 @@ void UCBus_Drop::rxISR(void){
       // our transmit 
       if(outBufferLen > 0){
         DEBUG2PIN_ON;
+        // ongoing / starting transmit of bytes from our outbuffer onto the line, 
         outByte = outBuffer[outBufferRp];
         outHeader = headerMask & (tokenWord | (id & 0b00011111));
       } else {
-        outByte = 0;
+        // whenever free space on the line, transmit our recieve buffer # spaces available 
+        if(inBufferBLen == 0 && inBufferBWp == 0){
+          outByte = 1;  // have clear space available, communicate that to partner 
+        } else {
+          outByte = 0;  // currently receiving or have packet awaiting handling 
+        }
         outHeader = headerMask & (noTokenWord | (id & 0b00011111));
       }
       outWord[0] = 0b00000000 | ((outHeader << 1) & 0b01110000) | (outByte >> 4);
@@ -248,7 +261,7 @@ size_t UCBus_Drop::read_a(uint8_t *dest){
   memcpy(dest, inBufferA, inBufferALen);
   size_t len = inBufferALen;
   inBufferALen = 0;
-  inBufferARp = 0;
+  inBufferAWp = 0;
   NVIC_EnableIRQ(SERCOM1_2_IRQn);
   return len;
 }
@@ -256,16 +269,17 @@ size_t UCBus_Drop::read_a(uint8_t *dest){
 size_t UCBus_Drop::read_b(uint8_t *dest){
   if(!ctr_b()) return 0;
   NVIC_DisableIRQ(SERCOM1_2_IRQn);
-  memcpy(dest, inBufferB, inBufferBLen);
-  size_t len = inBufferBLen;
+  // bytes 0 and 1 are the ID and rcrxb, respectively, so app. is concerned with the rest 
+  size_t len = inBufferBLen - 2;
+  memcpy(dest, &inBufferB[2], len);
   inBufferBLen = 0;
-  inBufferBRp = 0;
+  inBufferBWp = 0;
   NVIC_EnableIRQ(SERCOM1_2_IRQn);
   return len;
 }
 
 boolean UCBus_Drop::cts(void){
-  if(outBufferLen > 0){
+  if(outBufferLen > 0 || rcrxb == 0){
     return false;
   } else {
     return true;
@@ -274,8 +288,16 @@ boolean UCBus_Drop::cts(void){
 
 void UCBus_Drop::transmit(uint8_t *data, uint16_t len){
   if(!cts()) return;
-  memcpy(outBuffer, data, len);
-  outBufferLen = len;
+  // 1st byte: num of spaces we have to rx messages at this drop, i.e. buffer space 
+  if(inBufferBLen == 0 && inBufferBWp == 0){ // nothing currently reading in, nothing awaiting handle 
+    outBuffer[0] = 1;
+  } else { // are either currently recieving, or have recieved an unhandled packet 
+    outBuffer[1] = 0;
+  }
+  // also decriment our accounting of their rcrxb
+  rcrxb -= 1;
+  memcpy(&outBuffer[1], data, len);
+  outBufferLen = len + 1; // + 1 for the buffer space 
   outBufferRp = 0;
 }
 
