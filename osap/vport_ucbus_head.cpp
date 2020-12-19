@@ -42,17 +42,18 @@ void VPort_UCBus_Head::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned 
     return;
 }
 
-void VPort_UCBus_Head::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* drop){
+void VPort_UCBus_Head::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* rxAddr){
     // track last-drop-dished, increment thru to find next w/ occupied space 
     uint8_t dr = 0; // drop recieved 
     *pl = ucBusHead->readPtr(&dr, pck, pat);
-    *drop = dr;
-    *pwp = dr; // quick hack, at the moment pwp is just the drop ... see note in clear 
+    *rxAddr = dr + 1;
+    *pwp = dr + 1; // quick hack, at the moment pwp is just the drop ... see note in clear 
     return;
 }
 
 void VPort_UCBus_Head::clear(uint8_t pwp){
-    ucBusHead->clearPtr(pwp); // eventually, should be drop, pwp: if we ever buffer more than 1 space in each drop space
+    // eventually, should be drop, pwp: if we ever buffer more than 1 space in each drop space
+    ucBusHead->clearPtr(pwp - 1);
 }
 
 // placeholder, virtualf, duplex 
@@ -60,8 +61,12 @@ boolean VPort_UCBus_Head::cts(void){
     return false;
 }
 
-boolean VPort_UCBus_Head::cts(uint8_t drop){
-    return ucBusHead->cts_b(drop);
+boolean VPort_UCBus_Head::cts(uint8_t rxAddr){
+    if(rxAddr == 0){
+        sysError("attempt to read cts of self");
+        return false;
+    }
+    return ucBusHead->cts_b(rxAddr - 1);
 }
 
 // placeholder, virtualf, duplex 
@@ -69,8 +74,14 @@ void VPort_UCBus_Head::send(uint8_t* pck, uint16_t pl){
     return;
 }
 
-void VPort_UCBus_Head::send(uint8_t* pck, uint16_t pl, uint8_t drop){
-    ucBusHead->transmit_b(pck, pl, drop);
+void VPort_UCBus_Head::send(uint8_t* pck, uint16_t pl, uint8_t rxAddr){
+    // logical address is drop + 1: 0th 'drop' is the head in address space. 
+    // this might be a bugfarm, but the bit is extra address space, so it lives... 
+    if(rxAddr == 0){
+        sysError("attempt to busf from head to self");
+        return;
+    }
+    ucBusHead->transmit_b(pck, pl, rxAddr - 1);
 }
 
 #endif 

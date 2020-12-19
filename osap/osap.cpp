@@ -157,7 +157,7 @@ void OSAP::busforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8
   uint16_t busRxAddr;
   ts_readUint16(&busRxAddr, pck, &ptr); // advances ptr by 2 
   // now, have busRxAddr (drop of the bus we're forwarding to)
-  sysError("fwd to bus drop " + String(busRxAddr));
+  // sysError("fwd to bus addr " + String(busRxAddr));
   // check that bus-drop is not fwding to anything other than bus-head 
   if(fwvp->portTypeKey == EP_PORTTYPEKEY_BUSDROP && busRxAddr != 0){
     sysError("cannot fwd from drop to drop, must pass thru bus head");
@@ -171,8 +171,6 @@ void OSAP::busforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8
   }
   // ready to fwd, bring ptr back so that pck[ptr] == busf 
   ptr -= 5;
-  // have currently 
-  sysError("pck ptr " + String(ptr) + " is: " + String(pck[ptr]));
   //      [pck[ptr]]
   // [ptr][busf_departure][b0][b1][b2][b3]
   if(avp->portTypeKey == EP_PORTTYPEKEY_DUPLEX){
@@ -343,7 +341,6 @@ void OSAP::loop(){
       }
       // if we have a packet, do stuff 
       if(pl > 0){
-        sysError("pl: " + String(pl));
         // check prune stale, 
         if(pat + OSAP_STALETIMEOUT < now){
           sysError("stale pck on " + String(p));

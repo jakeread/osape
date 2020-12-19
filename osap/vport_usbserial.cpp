@@ -83,7 +83,7 @@ void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned l
 }
 
 // bus virtualf placeholder 
-void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat, uint8_t* drop){
+void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat, uint8_t* rxAddr){
   *pl = 0;
   return;
 }
@@ -104,7 +104,7 @@ boolean VPort_USBSerial::cts(void){
 }
 
 // bus virtualf placeholder 
-boolean VPort_USBSerial::cts(uint8_t drop){
+boolean VPort_USBSerial::cts(uint8_t rxAddr){
   return false;
 }
 
@@ -120,7 +120,7 @@ void VPort_USBSerial::send(uint8_t *pck, uint16_t pl){
 }
 
 // bus virtualf placeholder 
-void VPort_USBSerial::send(uint8_t *pck, uint16_t pl, uint8_t drop){
+void VPort_USBSerial::send(uint8_t *pck, uint16_t pl, uint8_t rxAddr){
   return; 
 }
 
