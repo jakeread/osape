@@ -14,8 +14,6 @@ no warranty is provided, and users accept all liability.
 
 #include "osap.h"
 
-uint8_t ringFrame[1028];
-
 OSAP::OSAP(String nodeName){
   name = nodeName;
 }
@@ -30,18 +28,11 @@ boolean OSAP::addVPort(VPort* vPort){
   }
 }
 
-void OSAP::write77(uint8_t *pck, VPort *vp){
-  uint16_t one = 1;
-  pck[0] = PK_PPACK; // the '77'
-  uint16_t bufSpace = vp->getBufSpace();
-  ts_writeUint16(bufSpace, pck, &one);
-  vp->lastRXBufferSpaceTransmitted = bufSpace;
-  vp->rxSinceTx = 0;
-}
-
 // packet to read from, response to write into, write pointer, maximum response length
 // assumes header won't be longer than received max seg length, if it arrived ...
 // ptr = DK_x, ptr - 5 = PK_DEST, ptr - 6 = PK_PTR
+// effectively the reverse-route routine. 
+// bit of a wreck, could do better to separate reverseRoute algorithm & others, 
 boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, uint16_t checksum, VPort *vp, uint16_t vpi){
   // sanity check, this should be pingreq key
   // sysError("FRH pck[ptr]: " + String(pck[ptr]));
@@ -57,13 +48,14 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint
   // leaves space until pck[3] for the 77-ack, which will write in later on,
   // to do this, we read forwarding steps from e1 (incrementing read-ptr)
   // and write in tail-to-head, (decrementing write ptr)
+  #warning this probably breaks when reversing a route w/ some bus fwd in it 
   uint16_t wptr = ptr - 5; // to beginning of dest, segsize, checksum block
   _res[wptr ++] = PK_DEST;
   ts_writeUint16(segsize, _res, &wptr);
   ts_writeUint16(checksum, _res, &wptr);
   wptr -= 5; // back to start of this block,
   // now find rptr beginning,
-  uint16_t rptr = 3; // departure port was trailing 77,
+  uint16_t rptr = 0; // departure port was start of pck 
   switch(pck[rptr]){ // walk to e1, ignoring original departure information
     case PK_PORTF_KEY:
       rptr += PK_PORTF_INC;
@@ -111,206 +103,12 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint
   _res[wptr ++] = PK_PORTF_KEY; /// write in departure key type,
   ts_writeUint16(vpi, _res, &wptr); // write in departure port,
   _res[wptr ++] = PK_PTR; // ptr follows departure key,
-  // to check, wptr should now be at 7: for 77(3), departure(3:portf), ptr(1)
-  if(wptr != 7){ // wptr != 7
+  // to check, wptr should now be at 4: for departure(3:portf), ptr(1)
+  if(wptr != 4){ // wptr != 7
     sysError("bad response header write");
     return false;
   } else {
     return true;
-  }
-}
-
-/*
-await osap.query(nextRoute, 'name', 'numVPorts')
-await osap.query(nextRoute, 'vport', np, 'name', 'portTypeKey', 'portStatus', 'maxSegLength')
-*/
-
-void OSAP::writeQueryDown(uint16_t *wptr){
-  sysError("QUERYDOWN");
-  _res[(*wptr) ++] = EP_ERRKEY;
-  _res[(*wptr) ++] = EP_ERRKEY_QUERYDOWN;
-}
-
-void OSAP::writeEmpty(uint16_t *wptr){
-  sysError("EMPTY");
-  _res[(*wptr) ++] = EP_ERRKEY;
-  _res[(*wptr) ++] = EP_ERRKEY_EMPTY;
-}
-
-// queries for ahn vport,
-void OSAP::readRequestVPort(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t rptr, uint16_t *wptr, uint16_t segsize, VPort* vp){
-  // could be terminal, could read into endpoints (input / output) of the vport,
-  for(uint8_t i = 0; i < 16; i ++){
-    if(rptr >= pl){
-      return;
-    }
-    if(*wptr > segsize){
-      sysError("QUERYDOWN wptr: " + String(*wptr) + " segsize: " + String(segsize));
-      *wptr = ptr;
-      writeQueryDown(wptr);
-      return;
-    }
-    switch(pck[rptr]){
-      case EP_NUMINPUTS:
-        _res[(*wptr) ++] = EP_NUMINPUTS;
-        ts_writeUint16(0, _res, wptr); // TODO: vports can have inputs / outputs,
-        rptr ++;
-        break;
-      case EP_NUMOUTPUTS:
-        _res[(*wptr) ++] = EP_NUMOUTPUTS;
-        ts_writeUint16(0, _res, wptr);
-        rptr ++;
-        break;
-      case EP_INPUT:
-      case EP_OUTPUT:
-        writeEmpty(wptr); // ATM, these just empty - and then return, further args would be for dive
-        return;
-      case EP_NAME:
-        _res[(*wptr) ++] = EP_NAME;
-        ts_writeString(vp->name, _res, wptr);
-        rptr ++;
-        break;
-      case EP_DESCRIPTION:
-        _res[(*wptr) ++] = EP_DESCRIPTION;
-        ts_writeString(vp->description, _res, wptr);
-        rptr ++;
-        break;
-      case EP_PORTTYPEKEY:
-        _res[(*wptr) ++] = EP_PORTTYPEKEY; // TODO for busses
-        _res[(*wptr) ++] = vp->portTypeKey;
-        rptr ++;
-        break;
-      case EP_MAXSEGLENGTH:
-        _res[(*wptr) ++] = EP_MAXSEGLENGTH;
-        ts_writeUint32(vp->maxSegLength, _res, wptr);
-        rptr ++;
-        break;
-      case EP_PORTSTATUS:
-        _res[(*wptr) ++] = EP_PORTSTATUS;
-        _res[(*wptr) ++] = vp->status;
-        rptr ++;
-        break;
-      case EP_PORTBUFSPACE:
-        _res[(*wptr) ++] = EP_PORTBUFSPACE;
-        ts_writeUint16(vp->getBufSpace(), _res, wptr);
-        rptr ++;
-        break;
-      case EP_PORTBUFSIZE:
-        _res[(*wptr) ++] = EP_PORTBUFSIZE;
-        ts_writeUint16(vp->getBufSize(), _res, wptr);
-        rptr ++;
-        break;
-      default:
-        writeEmpty(wptr);
-        return;
-    }
-  }
-}
-
-void OSAP::handleReadRequest(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t pwp){
-  if(vp->cts()){
-    // resp. code,
-    // readptr,
-    uint16_t rptr = ptr + 1; // this will pass the RREQ and ID bytes, next is first query key
-    uint16_t wptr = ptr;
-    _res[wptr ++] = DK_RRES;
-    _res[wptr ++] = pck[rptr ++];
-    _res[wptr ++] = pck[rptr ++];
-    // read items,
-    // ok, walk those keys
-    uint16_t indice = 0;
-    for(uint8_t i = 0; i < 16; i ++){
-      if(rptr >= pl){
-        goto endwalk;
-      }
-      if(wptr > segsize){
-        sysError("QUERYDOWN wptr: " + String(wptr) + " segsize: " + String(segsize));
-        wptr = ptr;
-        writeQueryDown(&wptr);
-        goto endwalk;
-      }
-      switch(pck[rptr]){
-        // first up, handle dives which downselect the tree
-        case EP_VPORT:
-          rptr ++;
-          ts_readUint16(&indice, pck, &rptr);
-          if(indice < _numVPorts){
-            _res[wptr ++] = EP_VPORT;
-            ts_writeUint16(indice, _res, &wptr);
-            readRequestVPort(pck, pl, ptr, rptr, &wptr, segsize, _vPorts[indice]);
-          } else {
-            writeEmpty(&wptr);
-          }
-          goto endwalk;
-        case EP_VMODULE:
-          writeEmpty(&wptr);
-          goto endwalk;
-        // for reading any top-level item,
-        case EP_NUMVPORTS:
-          _res[wptr ++] = EP_NUMVPORTS;
-          ts_writeUint16(_numVPorts, _res, &wptr);
-          rptr ++;
-          break;
-        case EP_NUMVMODULES:
-          _res[wptr ++] = EP_NUMVMODULES;
-          ts_writeUint16(_numVModules, _res, &wptr);
-          rptr ++;
-          break;
-        case EP_NAME:
-          _res[wptr ++] = EP_NAME;
-          ts_writeString(name, _res, &wptr);
-          rptr ++;
-          break;
-        case EP_DESCRIPTION:
-          _res[wptr ++] = EP_DESCRIPTION;
-          ts_writeString(description, _res, &wptr);
-          rptr ++;
-          break;
-        // the default: unclear keys nullify entire response
-        default:
-          writeEmpty(&wptr);
-          goto endwalk;
-      } // end 1st switch
-    }
-    endwalk: ;
-    //sysError("QUERY ENDWALK, ptr: " + String(ptr) + " wptr: " + String(wptr));
-    if(formatResponseHeader(pck, pl, ptr, segsize, wptr - ptr, vp, vpi)){
-      vp->clearPacket(pwp);
-      write77(_res, vp);
-      vp->sendPacket(_res, wptr);
-      vp->decrimentRecipBufSpace();
-    } else {
-      sysError("bad response format");
-      vp->clearPacket(pwp);
-    }
-  } else {
-    vp->clearPacket(pwp);
-  }
-}
-
-// pck[ptr] == DK_PINGREQ
-void OSAP::handlePingRequest(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t pwp){
-  if(vp->cts()){ // resp. path is clear, can write resp. and ship it
-    // the reversed header will be *the same length* as the received header,
-    // which was from 0-ptr! - this is great news, we can say:
-    uint16_t wptr = ptr; // start writing here, leaves room for the header,
-    _res[wptr ++] = DK_PINGRES; // write in whatever the response is, here just the ping-res key and id
-    _res[wptr ++] = pck[ptr + 1];
-    _res[wptr ++] = pck[ptr + 2];
-    // this'll be the 'std' response formatting codes,
-    // formatResponseHeader doesn't need the _res, that's baked in, and it writes 0-ptr,
-    // since we wrote into _res following ptr, (header lengths identical), this is safe,
-    if(formatResponseHeader(pck, pl, ptr, segsize, 3, vp, vpi)){ // write the header: this goes _resp[3] -> _resp[ptr]
-      vp->clearPacket(pwp);                                   // can now rm the packet, have gleaned all we need from it,
-      write77(_res, vp);                                 // and *after* rm'ing it, report open space _resp[0] -> _resp[3];
-      vp->sendPacket(_res, wptr); // this fn' call should copy-out of our buffer
-      vp->decrimentRecipBufSpace();
-    } else {
-      sysError("bad response format");
-      vp->clearPacket(pwp);
-    }
-  } else {
-    vp->clearPacket(pwp);
   }
 }
 
@@ -321,68 +119,140 @@ void OSAP::appReply(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, V
     _res[wptr ++] = reply[i];
   }
   if(formatResponseHeader(pck, pl, ptr, segsize, rl, vp, vpi)){
-    write77(_res, vp);
-    vp->sendPacket(_res, wptr);
-    vp->decrimentRecipBufSpace();
+    vp->send(_res, wptr);
   } else {
     sysError("bad response format");
   }
 }
 
+void OSAP::portforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8_t avpi, uint8_t pwp, VPort* fwvp, uint8_t fwvpi){
+  // have correct VPort type, 
+  // check if forwarding is clear, 
+  if(!fwvp->cts()){
+    if(fwvp->status() != EP_PORTSTATUS_OPEN){ avp->clear(pwp); }
+    return;
+  }
+  // ready, drop arrival information in 
+  // have currently 
+  //      [pck[ptr]]
+  // [ptr][portf_departure][b0][b1]
+  // do
+  // [portf_arrival][b0][b1][ptr]
+  pck[ptr - 1] = PK_PORTF_KEY;
+  ts_writeUint16(avpi, pck, &ptr);
+  pck[ptr] = PK_PTR;
+  // now we can transmit 
+  fwvp->send(pck, pl);
+  avp->clear(pwp);
+}
+
+// pck[ptr] == busf / busb 
+void OSAP::busforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8_t avpi, uint8_t pwp, VPort* fwvp, uint8_t fwvpi){
+  DEBUG2PIN_TOGGLE;
+  uint16_t busRxAddr;
+  ptr += 3;
+  ts_readUint16(&busRxAddr, pck, &ptr);
+  // now, have busRxAddr (drop of the bus we're forwarding to)
+  sysError("fwd to bus drop " + String(busRxAddr));
+  // check that bus-drop is not fwding to anything other than bus-head 
+  if(fwvp->portTypeKey == EP_PORTTYPEKEY_BUSDROP && busRxAddr != 0){
+    sysError("cannot fwd from drop to drop, must pass thru bus head");
+    avp->clear(pwp);
+    return;
+  }
+  // check clear,
+  if(!(fwvp->cts(busRxAddr))){ 
+    if(fwvp->status() != EP_PORTSTATUS_OPEN){ avp->clear(pwp); } // pop on closed ports 
+    return; 
+  }
+  // ready to fwd, 
+  // have currently 
+  //      [pck[ptr]]
+  // [ptr][busf_departure][b0][b1][b2][b3]
+  if(avp->portTypeKey == EP_PORTTYPEKEY_DUPLEX){
+    // do
+    // [portf_arrival][b0][b1][?][?][ptr]
+    pck[ptr - 1] = PK_PORTF_KEY;
+    ts_writeUint16(avpi, pck, &ptr);
+    pck[ptr ++] = PK_BUS_FWD_SPACE_2;
+    pck[ptr ++] = PK_BUS_FWD_SPACE_1;
+  } else {
+    // do
+    // [busf_arrival][b0][b1][b2][b3][ptr]
+    pck[ptr - 1] = PK_BUSF_KEY;
+    // exclude this for now, can add in later, at the moment bus-to-bus fwd unlikely 
+    #warning no bus-to-bus fwd code yet 
+    sysError("bus to bus forwarding currently unsupported");
+    avp->clear(pwp);
+    return;
+    //ts_writeUint16(avp->getTransmitterDropForPack(pwp), pck, &ptr);
+    //ts_writeUint16(avp->getDropId(), pck, &ptr);
+  }
+  pck[ptr] = PK_PTR; // in front of next instruction 
+  // pck is setup, can forward
+  fwvp->send(pck, pl, busRxAddr);
+  avp->clear(pwp);
+}
 
 // pck[ptr] == PK_PORTF_KEY or PK_BUSF_KEY or PK_BUSB_KEY 
 void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp){
-  sysError("FWD CODE");
   // vport to fwd on 
-  uint8_t fwType = pck[ptr ++]; // get at ptr, *then* increment ptr 
-  uint16_t indice;
-  ts_readUint16(&indice, pck, &ptr); // ptr now at bytes succeeding the ptr, read increments 
+  uint8_t fwtype = pck[ptr ++]; // get at ptr, *then* increment ptr 
+  uint16_t fwvpi;
+  ts_readUint16(&fwvpi, pck, &ptr); // ptr now at bytes succeeding the ptr, read increments 
+  // reset ptr so pck[ptr] == pk_porf_key / pk_busf_key etc, for next fwding functions 
+  ptr -= 3;
   // find the vport, 
-  if(_numVPorts <= indice){ // doesn't exist 
-    sysError("no vport here at indice " + String(indice));
-    vp->clearPacket(pwp);
+  if(_numVPorts <= fwvpi){ // doesn't exist 
+    sysError("during fwd, no vport here at indice " + String(fwvpi));
+    vp->clear(pwp);
     return;
   }
-  VPort *fvp = _vPorts[indice];
-  if(fvp->portTypeKey != fwType){ // bad type 
-    // write the bus head vport, arrive at forwarding onto it, do the checks etc... 
-    // then at the drop, same, and see if you can reverse the route there, to ack an app. msg w/ OK ? 
-    #warning needs to check for bus-forward or bus-broadcast: bb only allowed if is bus head 
-    sysError("bad vport type match at fwd indice " + String(indice));
-    vp->clearPacket(pwp);
-    return;
+  // pull it, do stuff 
+  VPort *fwvp = _vPorts[fwvpi];
+  // check port type suits forward type
+  sysError("fwd " + String(fwtype));
+  switch(fwtype){
+    case PK_PORTF_KEY:
+      if(fwvp->portTypeKey != EP_PORTTYPEKEY_DUPLEX){
+        vp->clear(pwp);
+        return;
+      } else {
+        portforward(pck, pl, ptr, vp, vpi, pwp, fwvp, fwvpi);
+      }
+      break;
+    case PK_BUSF_KEY:
+      if(fwvp->portTypeKey != EP_PORTTYPEKEY_BUSHEAD && fwvp->portTypeKey != EP_PORTTYPEKEY_BUSDROP){
+        vp->clear(pwp);
+        return;
+      } else {
+        busforward(pck, pl, ptr, vp, vpi, pwp, fwvp, fwvpi);
+      }
+      break;
+    case PK_BUSB_KEY:
+      if(fwvp->portTypeKey != EP_PORTTYPEKEY_BUSHEAD){
+        vp->clear(pwp);
+        return;
+      } else {
+        // would do this here, but 
+        // also... bug... this sysError message doesn't escape? que? 
+        sysError("no support for osap broadcasts yet");
+        vp->clear(pwp);
+        return;
+      }
+      break;
+    default:
+      sysError("bad fwd type key: " + String(fwtype));
+      vp->clear(pwp);
+      return;
   }
-  // have correct VPort type, 
-  // do the packet walk (put arrival info in where fwd info was, move ptr) 
-  if(fvp->cts()){
-    // currently like:
-    //                      [pck[ptr]]
-    // [77:3][route][pk.ptr][portf.key][b1][b0][next_instruc]
-    // want to do
-    // [77:3][route][arrival][b1][b0][pk.ptr][next_instruc]
-    // that's a swap in the fixed length, destroying information about where it was forwarded from
-    // could be:
-    //                      [pck[ptr]]
-    // [77:3][route][pk.ptr][busf.key][b3][b2][b1][b0][next_instruc]
-    // want to do
-    // [77:3][route][arrival][b1][b0][pk.ptr][next_instruc]
-    // that's a swap in the fixed length, destroying information about where it was forwarded from
-  } else {
-    if(fvp->status == EP_PORTSTATUS_OPEN){
-      // open, await 
-      // todo, though... bus state ambiguous, as are all simple PHYs, maybe delete status from osap? 
-    } else {
-      // closed, clear 
-      vp->clearPacket(pwp);
-    }
-  }
-  vp->clearPacket(pwp);
-}
+} // end forward 
 
 // frame: the buffer, ptr: the location of the ptr (ack or pack),
 // vp: port received on, fwp: frame-write-ptr,
 // so vp->frames[fwp] = frame, though that isn't exposed here
 void OSAP::instructionSwitch(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp){
+  DEBUG1PIN_TOGGLE;
   // we must *do* something, and (ideally) pop this thing,
   switch(pck[ptr]){
     case PK_PORTF_KEY:
@@ -398,7 +268,7 @@ void OSAP::instructionSwitch(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp,
         ts_readUint16(&checksum, pck, &ptr);
         if(checksum != pl - ptr){
           sysError("bad checksum, count: " + String(pl - ptr) + " checksum: " + String(checksum));
-          vp->clearPacket(pwp);
+          vp->clear(pwp);
         } else {
           switch(pck[ptr]){
             case DK_APP:
@@ -416,11 +286,11 @@ void OSAP::instructionSwitch(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp,
             case DK_RRES: // not issuing requests from embedded, same
             case DK_WRES: // not issuing write requests from embedded, again
               sysError("WREQ or RES received in embedded, popping");
-              vp->clearPacket(pwp);
+              vp->clear(pwp);
               break;
             default:
               sysError("non-recognized destination key, popping");
-              vp->clearPacket(pwp);
+              vp->clear(pwp);
               break;
           }
         }
@@ -429,97 +299,67 @@ void OSAP::instructionSwitch(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp,
     default:
       // packet is unrecognized,
       sysError("unrecognized instruction key");
-      vp->clearPacket(pwp);
+      vp->clear(pwp);
       break;
   }
 }
 
 void OSAP::loop(){
-  /*
-  another note 
-  this was measured around 25us (long!) 
-  so it would be *tite* if that coule be decreased, especially in recognizing the no-op cases, 
-  where execution could be very - very - small. 
-  */
-  unsigned long pat = 0; // packet arrival time 
-  VPort* vp;        // vp of vports
+  // temporary items, as e check packets 
+  uint8_t* pck;
+  uint16_t ptr = 0;
+  uint16_t pl = 0;
+  uint8_t pwp = 0;
+  unsigned long pat = 0;  
   unsigned long now = millis();
+  // loop over vports 
+  VPort* vp;              // vport 
   for(uint8_t p = 0; p < _numVPorts; p ++){
     vp = _vPorts[p];
     vp->loop(); // affordance to run phy code,
     for(uint8_t t = 0; t < 4; t ++){ // handles 4 packets per port per turn 
-      uint8_t* pck;     // the packet we are handling
-      uint16_t pl = 0;  // length of that packet
-      uint8_t pwp = 0;  // packet write pointer: where it was (in vp, which space), so that we can instruct vp to clear it later 
-      vp->getPacket(&pck, &pl, &pwp, &pat); // gimme the bytes
-      if(pl > 0){ // have length, will try,
+      // reset counters, check for packet 
+      pl = 0;
+      ptr = 0;
+      vp->read(&pck, &pl, &pwp, &pat);
+      // if we have a packet, do stuff 
+      if(pl > 0){
         // check prune stale, 
         if(pat + OSAP_STALETIMEOUT < now){
-          //this untested, but should work, yeah? 
-          //sysError("prune stale message on " + String(vp->name));
-          vp->clearPacket(pwp);
-          continue;
+          vp->clear(pwp);
+          continue; // next packet in port 
         }
-        // check / handle pck
-        uint16_t ptr = 0;
-        // new rcrbx?
-        if(pck[ptr] == PK_PPACK){
-          ptr ++;
-          uint16_t rcrxs;
-          ts_readUint16(&rcrxs, pck, &ptr);
-          vp->setRecipRxBufSpace(rcrxs);
-        }
-        // anything else?
-        if(ptr < pl){
-          // walk through for instruction,
-          for(uint8_t i = 0; i < 16; i ++){
-            switch(pck[ptr]){
-              case PK_PTR:
-                instructionSwitch(pck, pl, ptr + 1, vp, p, pwp);
-                goto endWalk;
-              case PK_PORTF_KEY: // previous instructions, walk over,
-                ptr += PK_PORTF_INC;
-                break;
-              case PK_BUSF_KEY:
-                ptr += PK_BUSF_INC;
-                break;
-              case PK_BUSB_KEY:
-                ptr += PK_BUSF_INC;
-                break;
-              case PK_LLERR:
-                // someone forwarded us an err-escape,
-                // we are kind of helpless to help, just escp.
-                vp->clearPacket(pwp);
-                goto endWalk;
-              default:
-                sysError("bad walk for ptr: key " + String(pck[ptr]) + " at: " + String(ptr));
-                vp->clearPacket(pwp);
-                goto endWalk;
-            } // end switch
-          } // end loop for ptr walk,
-        } else {
-          // that was just the rcrbx then,
-          vp->clearPacket(pwp);
-        }
+        // walk through for instruction ptr (max 16-hop packet then)
+        for(uint8_t i = 0; i < 16; i ++){
+          switch(pck[ptr]){
+            case PK_PTR:
+              instructionSwitch(pck, pl, ptr + 1, vp, p, pwp);
+              goto endWalk;
+            case PK_PORTF_KEY: // previous instructions, walk over,
+              ptr += PK_PORTF_INC;
+              break;
+            case PK_BUSF_KEY:
+              ptr += PK_BUSF_INC;
+              break;
+            case PK_BUSB_KEY:
+              ptr += PK_BUSF_INC;
+              break;
+            case PK_LLERR:
+              // someone forwarded us an err-escape,
+              // since this leg is embedded & has no display, just wipe it 
+              vp->clear(pwp);
+              goto endWalk;
+            default:
+              sysError("bad walk for ptr: key " + String(pck[ptr]) + " at: " + String(ptr));
+              vp->clear(pwp);
+              goto endWalk;
+          } // end switch
+        } // end loop for ptr walk,
       } else {
         break;
       } // no frames in this port,
       // end of this-port-scan,
       endWalk: ;
-    } // end up-to-8-packets-per-turn 
+    } // end packets-per-port-per-turn 
   } // end loop over ports (handling rx) 
-  // loop for keepalive conditions, 
-  for(uint8_t p = 0; p < _numVPorts; p ++){
-    vp = _vPorts[p];
-    // check if needs to tx keepalive, 
-    uint16_t currentRXBufferSpace = vp->getBufSpace();
-    if(currentRXBufferSpace > vp->lastRXBufferSpaceTransmitted || vp->lastTxTime + OSAP_TXKEEPALIVEINTERVAL < now){
-      // has open space not reported, or needs to ping for port keepalive 
-      if(vp->cts()){
-        write77(_res, vp);
-        vp->sendPacket(_res, 3);
-        vp->decrimentRecipBufSpace();
-      } 
-    }
-  } // end loop over ports (keepalive)
 }

@@ -20,34 +20,32 @@ no warranty is provided, and users accept all liability.
 #include "./osape/utils/syserror.h"
 
 class VPort {
-private:
-  uint16_t _recipRxBufSpace = 1;
 public:
+  // constructor 
   VPort(String vPortName);
-  String name;
+  // properties 
+  String name = "unnamed vport";
   String description = "undescribed vport";
   uint8_t portTypeKey = EP_PORTTYPEKEY_DUPLEX;
   uint16_t maxSegLength = 0;
-  virtual void init(void) = 0;
+  // startup 
+  virtual void init(void) = 0;  
+  // runtime 
   virtual void loop(void) = 0;
-  // keepalive log 
-  uint16_t lastRXBufferSpaceTransmitted = 0;
-  uint16_t rxSinceTx = 0; // debugging: count packets received since last spaces txd 
-  unsigned long lastTxTime = 0;
-  // handling incoming frames,
-  virtual void getPacket(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat) = 0;
-  // *be sure* that getPacket sets pl to zero if no packet emerges, 
-  // consider making boolean return, true if packet? 
-  virtual void clearPacket(uint8_t pwp) = 0;
-  virtual uint16_t getBufSpace(void) = 0;
-  virtual uint16_t getBufSize(void) = 0;
-  // dish outgoing frames, and check if open to send them?
-  uint8_t status = EP_PORTSTATUS_CLOSED; // open / closed-ness -> OSAP can set, VP can set. 
-  virtual boolean cts(void); // is a connection established & is the reciprocal buffer nonzero?
-  virtual void sendPacket(uint8_t* pck, uint16_t pl) = 0; // take this frame, copying out of the buffer I pass you
-  // internal state,
-  void setRecipRxBufSpace(uint16_t len);
-  void decrimentRecipBufSpace(void);
+  // status: 0: closed, 1: open, 2: closing, 3: opening (defines in ts.h)
+  // TODO: make status polymorphic for busses, status(uint8_t busAddr);
+  virtual uint8_t status(void) = 0;
+  // give OSAP the data (set pl = 0 if no data)
+  virtual void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat) = 0; // duplex type 
+  virtual void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t drop) = 0; // bus type 
+  // this packet can be deleted, has been forwarded / dealt with 
+  virtual void clear(uint8_t pwp) = 0;
+  // clear to send? backpressure OK and port open?
+  virtual boolean cts(void) = 0;
+  virtual boolean cts(uint8_t drop) = 0;
+  // transmit these bytes, 
+  virtual void send(uint8_t* pck, uint16_t pl) = 0;
+  virtual void send(uint8_t* pck, uint16_t pl, uint8_t drop) = 0;
 };
 
 #endif

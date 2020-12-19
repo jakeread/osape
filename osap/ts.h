@@ -26,6 +26,8 @@ no warranty is provided, and users accept all liability.
 #define PK_BUSF_INC 5
 #define PK_BUSB_KEY 14
 #define PK_BUSB_INC 5
+#define PK_BUS_FWD_SPACE_1 87 // ptr is next space
+#define PK_BUS_FWD_SPACE_2 86 // ptr is 2 spaces away 
 
 // -------------------------------------------------------- Destination Keys (arrival layer)
 
@@ -71,8 +73,6 @@ no warranty is provided, and users accept all liability.
 #define EP_PORTTYPEKEY 183
 #define EP_MAXSEGLENGTH 184
 #define EP_PORTSTATUS 185
-#define EP_PORTBUFSPACE 186
-#define EP_PORTBUFSIZE 187
 
 #define EP_PORTSTATUS_CLOSED 0
 #define EP_PORTSTATUS_OPEN 1

@@ -217,12 +217,14 @@ void UCBus_Head::rxISR(void){
     } else { // no token, 
       if(inLastHadToken[drop]){ // falling edge, packet delineation 
         rcrxb[drop] = inBuffer[drop][0]; // 1st byte of the packet was the rcrxb (reciprocal recieve buffer size)
+        lastrc[drop] = millis();
         inBufferLen[drop] = inBufferWp[drop]; // this signals to outside observers that we are packet-ful
       }
       inLastHadToken[drop] = false;
       // on token-less words, the data byte is the rcrxb: that way this is always updating if 
       // out-of-packet spaces exist. otherwise it updates w/ the first byte of each packet 
       rcrxb[drop] = inByte;
+      lastrc[drop] = millis();
     }
   }
 }
@@ -261,6 +263,17 @@ size_t UCBus_Head::read(uint8_t drop, uint8_t *dest){
   inBufferWp[drop] = 0;
   NVIC_EnableIRQ(SERCOM1_2_IRQn);
   return len;
+}
+
+size_t UCBus_Head::readPtr(uint8_t drop, uint8_t** dest){
+  if(!ctr(drop)) return 0;
+  *dest = inBuffer[drop];
+  return inBufferLen[drop];
+}
+
+void UCBus_Head::clearPtr(uint8_t drop){
+  inBufferLen[drop] = 0;
+  inBufferWp[drop] = 0;
 }
 
 // mod cts(channel) and transmit(data, len, channel)

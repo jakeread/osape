@@ -17,24 +17,3 @@ no warranty is provided, and users accept all liability.
 VPort::VPort(String vPortName){
   name = vPortName;
 }
-
-void VPort::setRecipRxBufSpace(uint16_t len){
-  _recipRxBufSpace = len;
-}
-
-void VPort::decrimentRecipBufSpace(void){
-  if(_recipRxBufSpace < 1){
-    _recipRxBufSpace = 0;
-  } else {
-    _recipRxBufSpace --;
-  }
-  lastTxTime = millis();
-}
-
-boolean VPort::cts(void){
-  if(_recipRxBufSpace > 0 && status){
-    return true;
-  } else {
-    return false;
-  }
-}

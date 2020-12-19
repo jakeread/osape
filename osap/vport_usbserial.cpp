@@ -23,29 +23,24 @@ void VPort_USBSerial::init(void){
   for(uint8_t i = 0; i < VPUSB_NUM_SPACES; i ++){
     _pl[i] = 0;
   }
+  // start arduino serial object 
   Serial.begin(9600);
 }
 
 void VPort_USBSerial::loop(void){
   while(Serial.available()){
-    _encodedPacket[_pwp][_bwp] = Serial.read();
-    if(_encodedPacket[_pwp][_bwp] == 0){
-      rxSinceTx ++;
-      // sysError(String(getBufSpace()) + " " + String(_bwp));
-      // indicate we recv'd zero
-      // CLKLIGHT_TOGGLE;
-      // decode from rx-ing frame to interface frame,
-      // TODO: usb port status never changes, even if USB is unplugged
-      // this will only cause problems in the case we are trying to read system upstream 
-      // of a USB, or otherwise transmit over USB while it's closed. would be nice to have 
-      // state here to know if messages destined for USB port can simply be deleted or not 
-      status = EP_PORTSTATUS_OPEN; // re-assert open whenever received packet incoming 
-      size_t dcl = cobsDecode(_encodedPacket[_pwp], _bwp, _packet[_pwp]);
-      _pl[_pwp] = dcl; // this frame now available, has this length,
+    _inBuffer[_bwp] = Serial.read();
+    if(_inBuffer[_bwp] == 0){
+      // end of COBS-encoded frame, 
+      // count # of packets rx'd since we last transmitted, and re-assert open status 
+      _rxSinceTx ++;
+      _status = EP_PORTSTATUS_OPEN;
+      // decode into packet slot, record length (to mark fullness) and record arrival time 
+      size_t dcl = cobsDecode(_inBuffer, _bwp, _packet[_pwp]); 
+      _pl[_pwp] = dcl;
       _packetArrivalTimes[_pwp] = millis(); // time this thing arrived 
-      // reset byte write pointer
+      // reset byte write pointer, and find the next empty packet write space 
       _bwp = 0;
-      // find next empty frame, that's new frame write pointer
       boolean set = false;
       for(uint8_t i = 0; i <= VPUSB_NUM_SPACES; i ++){
         _pwp ++;
@@ -55,37 +50,25 @@ void VPort_USBSerial::loop(void){
           break; // this _pwp is next empty frame,
         }
       }
-      if(!set){
-        sysError("no empty slot for serial read, protocol error!");
-        uint16_t apparentSpace = getBufSpace();
-        sysError("reads: " + String(apparentSpace));
-        sysError("last txd recip: " + String(lastRXBufferSpaceTransmitted));
-        sysError("rxd since last tx: " + String(rxSinceTx));
-        sysError(String(_pl[0]));
-        sysError(String(_pl[1]));
-        sysError(String(_pl[2]));
-        sysError(String(_pl[3]));
-        sysError(String(_pl[4]));
-        sysError(String(_pl[5]));
-        sysError(String(_pl[6]));
-        sysError(String(_pl[7]));
-        sysError(String(_pl[8]));
-        delay(5000);
-      }
+      if(!set){ sysError("no empty slot for serial read, protocol error!");}
     } else {
       _bwp ++;
     }
   }
 }
 
-void VPort_USBSerial::getPacket(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat){
+uint8_t VPort_USBSerial::status(void){
+  return _status;
+}
+
+void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat){
   uint8_t p = _lastPacket; // the last one we delivered,
   boolean retrieved = false;
   for(uint8_t i = 0; i <= VPUSB_NUM_SPACES; i ++){
     p ++;
     if(p >= VPUSB_NUM_SPACES) { p = 0; }
     if(_pl[p] > 0){ // this is an occupied packet, deliver that
-      *pck = _packet[p]; // same, is this passing the ptr, yeah?
+      *pck = _packet[p]; // osap will look directly into our buffer ! 
       *pl = _pl[p]; // I *think* this is how we do this in c?
       *pwp = p; // packet write pointer ? the indice of the packet, to clear 
       *pat = _packetArrivalTimes[p];
@@ -99,45 +82,71 @@ void VPort_USBSerial::getPacket(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsig
   }
 }
 
-void VPort_USBSerial::clearPacket(uint8_t pwp){
+// bus virtualf placeholder 
+void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat, uint8_t drop){
+  *pl = 0;
+  return;
+}
+
+void VPort_USBSerial::clear(uint8_t pwp){
   // frame consumed, clear to write-in,
-  //sysError("clear " + String(pwp));
   _pl[pwp] = 0;
   _packetArrivalTimes[pwp] = 0;
 }
 
-uint16_t VPort_USBSerial::getBufSize(void){
-  return VPUSB_NUM_SPACES;
+boolean VPort_USBSerial::cts(void){
+  // no 77 yet, so 
+  if(_status == EP_PORTSTATUS_OPEN){
+    return true;
+  } else {
+    return false;
+  }
 }
 
-uint16_t VPort_USBSerial::getBufSpace(void){
-  uint16_t sum = 0;
-  // any zero-length frame is not full,
-  for(uint16_t i = 0; i < VPUSB_NUM_SPACES; i++){
-    if(_pl[i] == 0){
-      sum ++;
-    }
-  }
-  // but one is being written into,
-  //if(_bwp > 0){
-  sum --;
-  //}
-  // if we're very full this might wrap / invert, so
-  if(sum > VPUSB_NUM_SPACES){
-    sum = 0;
-  }
-  // arrivaderci
-  return sum;
+// bus virtualf placeholder 
+boolean VPort_USBSerial::cts(uint8_t drop){
+  return false;
 }
 
-void VPort_USBSerial::sendPacket(uint8_t *pck, uint16_t pl){
+void VPort_USBSerial::send(uint8_t *pck, uint16_t pl){
+  if(!cts()) return;
   size_t encLen = cobsEncode(pck, pl, _encodedOut);
   if(Serial.availableForWrite()){
-    //DEBUG1PIN_ON;
     Serial.write(_encodedOut, encLen);
     Serial.flush();
-    //DEBUG1PIN_OFF;
   } else {
     sysError("NOT AVAILABLE");
   }
 }
+
+// bus virtualf placeholder 
+void VPort_USBSerial::send(uint8_t *pck, uint16_t pl, uint8_t drop){
+  return; 
+}
+
+/*
+void OSAP::write77(uint8_t *pck, VPort *vp){
+  uint16_t one = 1;
+  pck[0] = PK_PPACK; // the '77'
+  uint16_t bufSpace = vp->getBufSpace();
+  ts_writeUint16(bufSpace, pck, &one);
+  vp->lastRXBufferSpaceTransmitted = bufSpace;
+  vp->rxSinceTx = 0;
+}
+*/
+
+/*
+  // loop for keepalive conditions, 
+  for(uint8_t p = 0; p < _numVPorts; p ++){
+    vp = _vPorts[p];
+    // check if needs to tx keepalive, 
+    uint16_t currentRXBufferSpace = vp->getBufSpace();
+    if(currentRXBufferSpace > vp->lastRXBufferSpaceTransmitted || vp->lastTxTime + OSAP_TXKEEPALIVEINTERVAL < now){
+      // has open space not reported, or needs to ping for port keepalive 
+      if(vp->cts()){
+        write77(_res, vp);
+        vp->send(_res, 3);
+      } 
+    }
+  } // end loop over ports (keepalive)
+*/

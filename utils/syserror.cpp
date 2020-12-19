@@ -29,7 +29,7 @@ void sysError(String msg){
   errBuf[2] = (len >> 8) & 255;
   errBuf[3] = (len >> 16) & 255;
   errBuf[4] = (len >> 24) & 255;
-  msg.getBytes(&errBuf[5], len + 1);
+  msg.getBytes(&(errBuf[5]), len + 1);
   size_t ecl = cobsEncode(errBuf, len + 5, errEncoded);
   if(Serial.availableForWrite() > (int64_t)ecl){
     Serial.write(errEncoded, ecl);

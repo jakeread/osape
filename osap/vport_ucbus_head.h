@@ -28,20 +28,23 @@ class VPort_UCBus_Head : public VPort {
     private:
     public:
         VPort_UCBus_Head();
-        uint8_t portTypeKey = EP_PORTTYPEKEY_BUSHEAD;
-        uint16_t maxSegLength = UBH_BUFSIZE;
-        // basics
+        // startup / runtime 
         void init(void);
         void loop(void);
-        // to handle frames 
-        // fills in the packet, it's length, write pointer (to clear), and packet arrival time 
-        void getPacket(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat);
-        void clearPacket(uint8_t pwp);
-        // info 
-        uint16_t getBufSize(void); // 'spaces' count
-        uint16_t getBufSpace(void);// num of spaces unoccupied 
-        // transmit packet, length, 
-        void sendPacket(uint8_t *pck, uint16_t pl, uint8_t drop);
+        uint8_t status(void); // this polymorphic also? or just always open ATM, lose 'em into the abyss? 
+        // read ... from each drop ? 
+        // might have to count # drops also, no? 
+        // bus-drops just report 1 drop: the head 
+        void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat); // placeholder, virtualf, duplex
+        void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t drop);
+        void clear(uint8_t pwp);
+        // cts(uint8_t drop); !
+        boolean cts(void); // placeholder, virtualf, duplex
+        boolean cts(uint8_t drop);
+        // don't know how to do virtual overriding etc 
+        // send(pck, pl, drop);
+        void send(uint8_t *pck, uint16_t pl); // placeholder, virtualf, duplex 
+        void send(uint8_t *pck, uint16_t pl, uint8_t drop);
 };
 
 #endif

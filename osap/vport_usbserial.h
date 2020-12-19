@@ -26,32 +26,35 @@ class VPort_USBSerial : public VPort {
 private:
   // unfortunately, looks like we need to write-in to temp,
   // and decode out of that
-  uint8_t _encodedPacket[VPUSB_NUM_SPACES][VPUSB_SPACE_SIZE];
-  uint8_t _packet[VPUSB_NUM_SPACES][VPUSB_SPACE_SIZE];
+  uint8_t _inBuffer[VPUSB_SPACE_SIZE];
+  uint8_t _packet[VPUSB_NUM_SPACES][VPUSB_SPACE_SIZE]; 
   volatile uint16_t _pl[VPUSB_NUM_SPACES];
   unsigned long _packetArrivalTimes[VPUSB_NUM_SPACES];
   uint8_t _pwp = 0; // packet write pointer,
   uint16_t _bwp = 0; // byte write pointer,
-  uint8_t _lastPacket = 0; // last packet written into
+  uint8_t _lastPacket = 0; // last packet we delivered to osap: tracks round-robin packet handling 
   // outgoing cobs-copy-in,
   uint8_t _encodedOut[VPUSB_SPACE_SIZE];
-  // this is just for debug,
-  uint8_t _ringPacket[VPUSB_SPACE_SIZE];
+  // tracking / keepalive
+  uint16_t _lastRXBufferSpaceTransmitted = 0; 
+  uint16_t _rxSinceTx = 0;
+  unsigned long _lastTxTime = 0;
+  // internal status 
+  uint8_t _status = EP_PORTSTATUS_CLOSED;
 public:
   VPort_USBSerial();
-  // props
   uint8_t portTypeKey = EP_PORTTYPEKEY_DUPLEX;
   uint16_t maxSegLength = VPUSB_SPACE_SIZE - 6;
-  // code
   void init(void);
   void loop(void);
-  // handle incoming frames
-  void getPacket(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat);
-  void clearPacket(uint8_t pwp);
-  uint16_t getBufSize(void);
-  uint16_t getBufSpace(void);
-  // dish outgoing frames, and check if cts
-  void sendPacket(uint8_t *pck, uint16_t pl);
+  uint8_t status(void);
+  void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat);
+  void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t drop); // same as below: placeholder
+  void clear(uint8_t pwp);
+  boolean cts(void);
+  boolean cts(uint8_t drop); // for bus, placeholder, not a pro with virtual fns 
+  void send(uint8_t *pck, uint16_t pl);
+  void send(uint8_t *pck, uint16_t pl, uint8_t drop);
 };
 
 #endif

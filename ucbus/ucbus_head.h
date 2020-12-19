@@ -114,11 +114,14 @@ class UCBus_Head {
     void rxISR(void);
     void txISR(void);
     // reciprocal recieve buffer spaces 
-    volatile uint8_t rcrxb[UBH_DROP_OPS];
+    volatile uint8_t rcrxb[UBH_DROP_OPS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    volatile unsigned long lastrc[UBH_DROP_OPS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     // handles 
     void init(void);
     boolean ctr(uint8_t drop); // is there ahn packet to read at this drop 
     size_t read(uint8_t drop, uint8_t *dest);  // get 'them bytes fam 
+    size_t readPtr(uint8_t drop, uint8_t** dest); // vport interface 
+    void clearPtr(uint8_t drop);
 		boolean cts_a(void);  // return true if TX complete / buffer ready
     boolean cts_b(uint8_t drop);
     void transmit_a(uint8_t *data, uint16_t len);  // ship bytes: broadcast to all 
