@@ -1,5 +1,5 @@
 /*
-osap/vport_ucbus_had.h
+osap/vport_ucbus_head.h
 
 virtual port, bus head, ucbus 
 

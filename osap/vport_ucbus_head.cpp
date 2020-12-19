@@ -20,7 +20,7 @@ VPort_UCBus_Head::VPort_UCBus_Head():VPort("ucbus head"){
     // set props here, if defined in .h, they inherit from parent ! 
     description = "vport wrap on ucbus head";
     portTypeKey = EP_PORTTYPEKEY_BUSHEAD;
-    maxSegLength = UBH_BUFSIZE - 1; // 1st byte in each rx buffer is the rcrxb !
+    maxSegLength = UBH_BUFSIZE - 2; // (1) is drop id, (2) is rcrxb
 }
 
 void VPort_UCBus_Head::init(void){
