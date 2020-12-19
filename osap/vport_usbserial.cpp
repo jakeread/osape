@@ -83,7 +83,7 @@ void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned l
 }
 
 // bus virtualf placeholder 
-void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat, uint8_t drop){
+void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat, uint8_t* drop){
   *pl = 0;
   return;
 }

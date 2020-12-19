@@ -83,6 +83,7 @@ class UCBus_Head {
     uint8_t inBuffer[UBH_DROP_OPS][UBH_BUFSIZE];  // per-drop incoming bytes 
     volatile uint16_t inBufferWp[UBH_DROP_OPS];   // per-drop incoming write pointer
     volatile uint16_t inBufferLen[UBH_DROP_OPS];  // per-drop incoming bytes, len of, set when EOP detected
+    volatile unsigned long inArrivalTime[UBH_DROP_OPS];
     volatile boolean inLastHadToken[UBH_DROP_OPS];
     // transmit buffers for A / B Channels 
     uint8_t outBufferA[UBH_BUFSIZE];
@@ -106,6 +107,8 @@ class UCBus_Head {
     volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
     // uart 
     void startupUART(void);
+    // tracking ptr dishes 
+    uint8_t _lastDropHandled = 0;
    public:
     UCBus_Head();
 		static UCBus_Head* getInstance(void);
@@ -120,7 +123,7 @@ class UCBus_Head {
     void init(void);
     boolean ctr(uint8_t drop); // is there ahn packet to read at this drop 
     size_t read(uint8_t drop, uint8_t *dest);  // get 'them bytes fam 
-    size_t readPtr(uint8_t drop, uint8_t** dest); // vport interface 
+    size_t readPtr(uint8_t* drop, uint8_t** dest, unsigned long *pat); // vport interface, get next to handle... 
     void clearPtr(uint8_t drop);
 		boolean cts_a(void);  // return true if TX complete / buffer ready
     boolean cts_b(uint8_t drop);

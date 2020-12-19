@@ -25,7 +25,6 @@ no warranty is provided, and users accept all liability.
 #include "../ucbus/ucbus_head.h"
 
 class VPort_UCBus_Head : public VPort {
-    private:
     public:
         VPort_UCBus_Head();
         // startup / runtime 
@@ -36,7 +35,7 @@ class VPort_UCBus_Head : public VPort {
         // might have to count # drops also, no? 
         // bus-drops just report 1 drop: the head 
         void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat); // placeholder, virtualf, duplex
-        void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t drop);
+        void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* drop);
         void clear(uint8_t pwp);
         // cts(uint8_t drop); !
         boolean cts(void); // placeholder, virtualf, duplex

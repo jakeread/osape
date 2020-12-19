@@ -37,7 +37,7 @@ public:
   virtual uint8_t status(void) = 0;
   // give OSAP the data (set pl = 0 if no data)
   virtual void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat) = 0; // duplex type 
-  virtual void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t drop) = 0; // bus type 
+  virtual void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* drop) = 0; // bus type 
   // this packet can be deleted, has been forwarded / dealt with 
   virtual void clear(uint8_t pwp) = 0;
   // clear to send? backpressure OK and port open?

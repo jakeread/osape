@@ -217,7 +217,9 @@ void UCBus_Head::rxISR(void){
     } else { // no token, 
       if(inLastHadToken[drop]){ // falling edge, packet delineation 
         rcrxb[drop] = inBuffer[drop][0]; // 1st byte of the packet was the rcrxb (reciprocal recieve buffer size)
-        lastrc[drop] = millis();
+        unsigned long arrivalTime = millis();
+        lastrc[drop] = arrivalTime;
+        inArrivalTime[drop] = arrivalTime;
         inBufferLen[drop] = inBufferWp[drop]; // this signals to outside observers that we are packet-ful
       }
       inLastHadToken[drop] = false;
@@ -265,10 +267,22 @@ size_t UCBus_Head::read(uint8_t drop, uint8_t *dest){
   return len;
 }
 
-size_t UCBus_Head::readPtr(uint8_t drop, uint8_t** dest){
-  if(!ctr(drop)) return 0;
-  *dest = inBuffer[drop];
-  return inBufferLen[drop];
+size_t UCBus_Head::readPtr(uint8_t* drop, uint8_t** dest, unsigned long *pat){
+  // loop thru drops, find next occupied 
+  uint8_t d = _lastDropHandled;
+  for(uint8_t i = 0; i < UBH_DROP_OPS; i ++){
+    d ++;
+    if(d >= UBH_DROP_OPS) { d = 0; }
+    if(ctr(d)){
+      *drop = d;
+      _lastDropHandled = d;
+      *dest = &(inBuffer[d][1]); // 1st byte of each inbuffer is the rcrxb transmitted along with pck
+      *pat = inArrivalTime[d];
+      return inBufferLen[d] - 1;
+    }
+  }
+  // if we reach here, no len 
+  return 0;
 }
 
 void UCBus_Head::clearPtr(uint8_t drop){

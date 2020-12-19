@@ -49,7 +49,7 @@ public:
   void loop(void);
   uint8_t status(void);
   void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat);
-  void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t drop); // same as below: placeholder
+  void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t *drop); // same as below: placeholder
   void clear(uint8_t pwp);
   boolean cts(void);
   boolean cts(uint8_t drop); // for bus, placeholder, not a pro with virtual fns 

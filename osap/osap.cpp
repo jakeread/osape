@@ -67,7 +67,7 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint
       rptr += PK_BUSB_INC;
       break;
     default:
-      sysError("nonreq departure key on reverse route, bailing");
+      sysError("nonrecognized departure key on reverse route, bailing " + String(pck[rptr]));
       return false;
   }
   // end switch, now pck[rptr] is at port-type-key of next fwd instruction
@@ -132,6 +132,8 @@ void OSAP::portforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint
     if(fwvp->status() != EP_PORTSTATUS_OPEN){ avp->clear(pwp); }
     return;
   }
+  sysError("portf");
+  // fwd... and check js, which finds the 88 (ptr) where it expects instruction ? 
   // ready, drop arrival information in 
   // have currently 
   //      [pck[ptr]]
@@ -149,9 +151,11 @@ void OSAP::portforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint
 // pck[ptr] == busf / busb 
 void OSAP::busforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8_t avpi, uint8_t pwp, VPort* fwvp, uint8_t fwvpi){
   DEBUG2PIN_TOGGLE;
-  uint16_t busRxAddr;
+  //                  [ptr]
+  // advance [ptr(88)][busf][b0_depart][b1_depart][b0_rxaddr][b1_rxaddr]
   ptr += 3;
-  ts_readUint16(&busRxAddr, pck, &ptr);
+  uint16_t busRxAddr;
+  ts_readUint16(&busRxAddr, pck, &ptr); // advances ptr by 2 
   // now, have busRxAddr (drop of the bus we're forwarding to)
   sysError("fwd to bus drop " + String(busRxAddr));
   // check that bus-drop is not fwding to anything other than bus-head 
@@ -165,8 +169,10 @@ void OSAP::busforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8
     if(fwvp->status() != EP_PORTSTATUS_OPEN){ avp->clear(pwp); } // pop on closed ports 
     return; 
   }
-  // ready to fwd, 
+  // ready to fwd, bring ptr back so that pck[ptr] == busf 
+  ptr -= 5;
   // have currently 
+  sysError("pck ptr " + String(ptr) + " is: " + String(pck[ptr]));
   //      [pck[ptr]]
   // [ptr][busf_departure][b0][b1][b2][b3]
   if(avp->portTypeKey == EP_PORTTYPEKEY_DUPLEX){
@@ -211,7 +217,6 @@ void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t v
   // pull it, do stuff 
   VPort *fwvp = _vPorts[fwvpi];
   // check port type suits forward type
-  sysError("fwd " + String(fwtype));
   switch(fwtype){
     case PK_PORTF_KEY:
       if(fwvp->portTypeKey != EP_PORTTYPEKEY_DUPLEX){
@@ -310,6 +315,7 @@ void OSAP::loop(){
   uint16_t ptr = 0;
   uint16_t pl = 0;
   uint8_t pwp = 0;
+  uint8_t drop = 0;
   unsigned long pat = 0;  
   unsigned long now = millis();
   // loop over vports 
@@ -321,15 +327,29 @@ void OSAP::loop(){
       // reset counters, check for packet 
       pl = 0;
       ptr = 0;
-      vp->read(&pck, &pl, &pwp, &pat);
+      switch(vp->portTypeKey){
+        case EP_PORTTYPEKEY_DUPLEX:
+          vp->read(&pck, &pl, &pwp, &pat);
+          break;
+        case EP_PORTTYPEKEY_BUSHEAD:
+        case EP_PORTTYPEKEY_BUSDROP:
+          vp->read(&pck, &pl, &pwp, &pat, &drop);
+          break;
+        default:
+          sysError("broken vport, bad type");
+          return;
+      }
       // if we have a packet, do stuff 
       if(pl > 0){
+        sysError("pl: " + String(pl));
         // check prune stale, 
         if(pat + OSAP_STALETIMEOUT < now){
+          sysError("stale pck on " + String(p));
           vp->clear(pwp);
           continue; // next packet in port 
         }
         // walk through for instruction ptr (max 16-hop packet then)
+        #warning another walk that likely breaks w/ bus-fwd 86 and 87 
         for(uint8_t i = 0; i < 16; i ++){
           switch(pck[ptr]){
             case PK_PTR:

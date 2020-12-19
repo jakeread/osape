@@ -20,7 +20,7 @@ VPort_UCBus_Head::VPort_UCBus_Head():VPort("ucbus head"){
     // set props here, if defined in .h, they inherit from parent ! 
     description = "vport wrap on ucbus head";
     portTypeKey = EP_PORTTYPEKEY_BUSHEAD;
-    maxSegLength = UBH_BUFSIZE;
+    maxSegLength = UBH_BUFSIZE - 1; // 1st byte in each rx buffer is the rcrxb !
 }
 
 void VPort_UCBus_Head::init(void){
@@ -42,13 +42,17 @@ void VPort_UCBus_Head::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned 
     return;
 }
 
-void VPort_UCBus_Head::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t drop){
-    *pl = ucBusHead->readPtr(drop, pck);
+void VPort_UCBus_Head::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* drop){
+    // track last-drop-dished, increment thru to find next w/ occupied space 
+    uint8_t dr = 0; // drop recieved 
+    *pl = ucBusHead->readPtr(&dr, pck, pat);
+    *drop = dr;
+    *pwp = dr; // quick hack, at the moment pwp is just the drop ... see note in clear 
     return;
 }
 
 void VPort_UCBus_Head::clear(uint8_t pwp){
-    ucBusHead->clearPtr(pwp);
+    ucBusHead->clearPtr(pwp); // eventually, should be drop, pwp: if we ever buffer more than 1 space in each drop space
 }
 
 // placeholder, virtualf, duplex 
