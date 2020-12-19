@@ -38,6 +38,7 @@ no warranty is provided, and users accept all liability.
 #define DK_RRES 112     // read response
 #define DK_WREQ 113     // write request
 #define DK_WRES 114     // write response
+#define DK_LLBYTES 121  // routed byte escape 
 
 // -------------------------------------------------------- Application Keys 
 
