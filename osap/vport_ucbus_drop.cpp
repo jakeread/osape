@@ -24,7 +24,8 @@ VPort_UCBus_Drop::VPort_UCBus_Drop():VPort("ucbus drop"){
 
 void VPort_UCBus_Drop::init(void){
     #warning needs to init w/ args...
-    ucBusDrop->init(false, 14); // for now, this here?
+    // id == 6, so rxAddr = 7 
+    ucBusDrop->init(false, 6); // for now, this here?
 }
 
 void VPort_UCBus_Drop::loop(void){
@@ -51,7 +52,7 @@ void VPort_UCBus_Drop::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned 
 }
 
 void VPort_UCBus_Drop::clear(uint8_t pwp){
-    ucBusDrop->clear_b_ptr(); // pwp is meaningless, should really amend this code mess (sorry) 
+    ucBusDrop->clear_b_ptr(); // pwp is meaningless, should really amend this code mess
 }
 
 // placeholder 
@@ -73,6 +74,7 @@ void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl){
 }
 
 void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl, uint8_t drop){
+    if(!cts(drop)) return;
     ucBusDrop->transmit(pck, pl);
 }
 

@@ -35,7 +35,7 @@ void UCBus_Drop::init(boolean useDipPick, uint8_t ID) {
   dip_init();
   if(useDipPick){
     // set our id, 
-    id = dip_read_lower_five();
+    id = dip_read_lower_five(); // should read lower 4, now that cha / chb 
   } else {
     id = ID;
   }
