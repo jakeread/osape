@@ -333,6 +333,8 @@ void OSAP::loop(){
           break;
         case EP_PORTTYPEKEY_BUSHEAD:
         case EP_PORTTYPEKEY_BUSDROP:
+          ERRLIGHT_TOGGLE;
+          // read, and learn which bus addr transmitted 
           vp->read(&pck, &pl, &pwp, &pat, &drop);
           break;
         default:

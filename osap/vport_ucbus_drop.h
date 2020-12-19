@@ -1,0 +1,47 @@
+/*
+osap/vport_ucbus_drop.h
+
+virtual port, bus drop, ucbus 
+
+Jake Read at the Center for Bits and Atoms
+(c) Massachusetts Institute of Technology 2020
+
+This work may be reproduced, modified, distributed, performed, and
+displayed for any purpose, but must acknowledge the squidworks and ponyo projects.
+Copyright is retained and must be preserved. The work is provided as is;
+no warranty is provided, and users accept all liability.
+*/
+
+#ifndef VPORT_UCBUS_HEAD_H_
+#define VPORT_UCBUS_HEAD_H_
+
+#include "../../config.h"
+
+#ifdef UCBUS_IS_DROP
+
+#include <Arduino.h>
+#include "vport.h"
+#include "../../drivers/indicators.h"
+#include "../ucbus/ucbus_drop.h"
+
+class VPort_UCBus_Drop : public VPort {
+    public:
+        VPort_UCBus_Drop();
+        // startup / run 
+        void init(void);
+        void loop(void);
+        uint8_t status(void);
+        // read, 
+        void read(uint8_t **pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat); // placeholder
+        void read(uint8_t **pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* drop); // bus
+        void clear(uint8_t pwp);
+        // check 
+        boolean cts(void); // placeholder 
+        boolean cts(uint8_t drop);
+        // transmit 
+        void send(uint8_t* pck, uint16_t pl); // placeholder 
+        void send(uint8_t* pck, uint16_t pl, uint8_t drop);
+};
+
+#endif 
+#endif 

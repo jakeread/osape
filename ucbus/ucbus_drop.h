@@ -85,6 +85,7 @@ class UCBus_Drop {
     uint8_t inBufferB[UBD_BUFSIZE];
     volatile uint16_t inBufferBWp = 0;
     volatile uint16_t inBufferBLen = 0;
+    volatile unsigned long inBArrival = 0;
     // output, 
     volatile uint8_t outWord[2];
     volatile uint8_t outHeader;
@@ -119,6 +120,8 @@ class UCBus_Drop {
     boolean ctr_b(void);
     size_t read_a(uint8_t *dest);  // ship les bytos
     size_t read_b(uint8_t *dest);
+    size_t read_b_ptr(uint8_t** dest, unsigned long *pat);
+    void clear_b_ptr(void);
     boolean cts(void); // true if tx buffer empty, 
     void transmit(uint8_t *data, uint16_t len);
 };

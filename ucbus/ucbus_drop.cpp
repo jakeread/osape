@@ -166,7 +166,8 @@ void UCBus_Drop::rxISR(void){
         inBufferBLen = inBufferBWp;
         if(inBufferB[0] == id){ //check if pck is for us and update reciprocal buffer len 
           rcrxb = inBufferB[1];
-          //lastrc = millis(); 
+          lastrc = millis(); 
+          inBArrival = lastrc;
         } else {  // packet is not ours, ignore, ready for next read 
           inBufferBWp = 0;
           inBufferBLen = 0;
@@ -181,7 +182,7 @@ void UCBus_Drop::rxISR(void){
       // this drop is currently 'tapped' - if it's token less, the data byte was rcrxb for us 
       if(!(inHeader & 0b00100000)){
         rcrxb = inByte;
-        //lastrc = millis();
+        lastrc = millis();
       }
       // our transmit 
       if(outBufferLen > 0){
@@ -279,6 +280,20 @@ size_t UCBus_Drop::read_b(uint8_t *dest){
   inBufferBWp = 0;
   NVIC_EnableIRQ(SERCOM1_2_IRQn);
   return len;
+}
+
+size_t UCBus_Drop::read_b_ptr(uint8_t** dest, unsigned long* pat){
+  if(ctr_b()){
+    *dest = &(inBufferB[2]);
+    *pat = inBArrival;
+    return inBufferBLen - 2;
+  }
+  return 0;
+}
+
+void UCBus_Drop::clear_b_ptr(void){
+  inBufferBLen = 0;
+  inBufferBWp = 0;
 }
 
 boolean UCBus_Drop::cts(void){
