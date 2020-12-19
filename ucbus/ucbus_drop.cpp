@@ -110,6 +110,7 @@ void SERCOM1_2_Handler(void){
 }
 
 void UCBus_Drop::rxISR(void){
+  DEBUG2PIN_ON;
   // check parity bit,
   uint16_t perr = UBD_SER_USART.STATUS.bit.PERR;
   if(perr){
@@ -161,16 +162,15 @@ void UCBus_Drop::rxISR(void){
       inBufferB[inBufferBWp] = inByte;
       inBufferBWp ++;
     } else if ((inHeader & 0b00110000) == 0b00010000) { // no-token, CHB
-      if(lastWordBHadToken){
+      if(lastWordBHadToken){ // falling edge, packet delineation 
         inBufferBLen = inBufferBWp;
-        //check if pck is for us and update reciprocal buffer len 
-        if(inBufferB[0] == id){ // packet is for us 
+        if(inBufferB[0] == id){ //check if pck is for us and update reciprocal buffer len 
           rcrxb = inBufferB[1];
+          //lastrc = millis(); 
         } else {  // packet is not ours, ignore, ready for next read 
           inBufferBWp = 0;
           inBufferBLen = 0;
         }
-        //onPacketBRx(); // b-channel handled in loop, yah 
       }
       lastWordBHadToken = false;
     }
@@ -178,9 +178,13 @@ void UCBus_Drop::rxISR(void){
     // possible bugfarm: if we (potentially) fire the onPacketARx() handler up there, 
     // and then return here to also do all of this work, we might have a l e n g t h y interrupt 
     if((inHeader & dropIdMask) == id){
+      // this drop is currently 'tapped' - if it's token less, the data byte was rcrxb for us 
+      if(!(inHeader & 0b00100000)){
+        rcrxb = inByte;
+        //lastrc = millis();
+      }
       // our transmit 
       if(outBufferLen > 0){
-        DEBUG2PIN_ON;
         // ongoing / starting transmit of bytes from our outbuffer onto the line, 
         outByte = outBuffer[outBufferRp];
         outHeader = headerMask & (tokenWord | (id & 0b00011111));
@@ -212,8 +216,8 @@ void UCBus_Drop::rxISR(void){
       timeTick = 0;
     }
   } // end 1th bit case, 
-  // do every-tick stuff
-}
+  DEBUG2PIN_OFF;
+} // end rx-isr 
 
 void SERCOM1_0_Handler(void){
 	ucBusDrop->dreISR();
@@ -233,7 +237,6 @@ void UCBus_Drop::txcISR(void){
   UBD_SER_USART.INTFLAG.bit.TXC = 1; // clear the flag by writing 1 
   UBD_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_TXC; // turn off the interrupt 
   UBD_DRIVER_DISABLE; // turn off the driver, 
-  DEBUG2PIN_OFF;
 }
 
 // -------------------------------------------------------- ASYNC API

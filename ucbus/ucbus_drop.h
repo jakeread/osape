@@ -112,6 +112,7 @@ class UCBus_Drop {
     // our physical bus address, 
     volatile uint8_t id = 0;
     volatile uint8_t rcrxb = 0; // reciprocal rx buffer 0: head has no room to rx, donot send, 1: has room
+    volatile unsigned long lastrc = 0;
     // the api, eh 
     void init(boolean useDipPick, uint8_t ID);
 		boolean ctr_a(void);  // return true if RX complete / buffer ready 
