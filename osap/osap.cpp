@@ -28,48 +28,49 @@ boolean OSAP::addVPort(VPort* vPort){
   }
 }
 
-// packet to read from, response to write into, write pointer, maximum response length
-// assumes header won't be longer than received max seg length, if it arrived ...
-// ptr = DK_x, ptr - 5 = PK_DEST, ptr - 6 = PK_PTR
-// effectively the reverse-route routine. 
-// bit of a wreck, could do better to separate reverseRoute algorithm & others, 
+// packet to read from, response to write into (global _res)
+// apparent position of pck[ptr] == DK_(?), maximum response length, checksum to write, 
+// vport rx'd on, indice of vport rx'd on
+// this reverses the route, to transmit back on the vport rx'd on
+// and writes the checksum, seglength, but not the data 
 boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, uint16_t checksum, VPort *vp, uint16_t vpi){
-  // sanity check, this should be pingreq key
-  // sysError("FRH pck[ptr]: " + String(pck[ptr]));
-  // buf[(*ptr) ++] = val & 255
-  // pck like:
-  //             [rptr]      [rend]                                     [ptr]
-  // [77:3][dep0][e1][e2][e3][pk_ptr][pk_dest][acksegsize:2][checksum:2][dkey-req]
-  // response (will be) like:
-  //                                                                    [wptr]
-  //                                                                    [ptr]
-  // [77:3][dep0][pk_ptr][p3][p2][p1][pk_dest][acksegsize:2][checksum:2][dkey-res]
-  // ptr here will always indicate end of the header,
-  // leaves space until pck[3] for the 77-ack, which will write in later on,
-  // to do this, we read forwarding steps from e1 (incrementing read-ptr)
-  // and write in tail-to-head, (decrementing write ptr)
-  #warning this probably breaks when reversing a route w/ some bus fwd in it 
-  uint16_t wptr = ptr - 5; // to beginning of dest, segsize, checksum block
-  _res[wptr ++] = PK_DEST;
-  ts_writeUint16(segsize, _res, &wptr);
-  ts_writeUint16(checksum, _res, &wptr);
-  wptr -= 5; // back to start of this block,
-  // now find rptr beginning,
-  uint16_t rptr = 0; // departure port was start of pck 
-  switch(pck[rptr]){ // walk to e1, ignoring original departure information
-    case PK_PORTF_KEY:
-      rptr += PK_PORTF_INC;
+  // when called, pck[ptr] == 1st byte of datagram (destination key)
+  // read pointer *will* become where we read from, 
+  uint16_t rptr = ptr - 5;  // now pck[wptr] == PK_DEST, pck[wptr + 1] starts the segsize, pck[wptr + 3] the checksum 
+  _res[rptr ++] = PK_DEST;  // re-assert pck[wptr] == PK_DEST 
+  ts_writeUint16(segsize, _res, &rptr); // write in route segsize 
+  ts_writeUint16(checksum, _res, &rptr);  // write in response checksum 
+  // so we have currently 
+  //                                                 [pck[ptr]]
+  // [departure_0][arrival_1][arrival_...][arrival_n][pk_dest][segsize:2][checksum:2][payload]
+  // prep to reverse packet, 
+  rptr -= 5; // return to the start of that block, pck[wptr] == PK_DEST again 
+  uint16_t wptr = 0; // write pointer, from the beginning 
+  uint16_t rend = rptr; // if we pass this while reading, past end of route head 
+  // now we write our departure port, 
+  switch(vp->portTypeKey){
+    case EP_PORTTYPEKEY_DUPLEX:
+      pck[wptr ++] = PK_PORTF_KEY;
+      ts_writeUint16(vpi, pck, &wptr);
       break;
-    case PK_BUSF_KEY:
-      rptr += PK_BUSF_INC;
-      break;
-    case PK_BUSB_KEY:
-      rptr += PK_BUSB_INC;
+    case EP_PORTTYPEKEY_BUSHEAD:
+    case EP_PORTTYPEKEY_BUSDROP:
+      pck[wptr ++] = PK_BUSF_KEY;
+      ts_writeUint16(vpi, pck, &wptr);
+      ts_writeUint16(vp->getTransmitterDropForPck(pwp));
       break;
     default:
-      sysError("nonrecognized departure key on reverse route, bailing " + String(pck[rptr]));
-      return false;
+      vp->clear(pwp);
+      return;
   }
+  here 
+  // considering the above: requirement to carry thru now *also* the 
+  // transmitter drop, etc, the move might be to 
+  // just write these things into the pck on arrival, 
+  // *then* handle them, then all of these fn's just read out of the pck again 
+  // go know what-all is going on... time saved is probably negligible from carrying 
+  // all of this stuff thru, and it's a hot mess, hugely stateful. micros are strong now. 
+  
   // end switch, now pck[rptr] is at port-type-key of next fwd instruction
   // walk rptr forwards, wptr backwards, copying in forwarding segments, max. 16 hops
   uint16_t rend = ptr - 6;  // read-end per static pck-at-dest end block: 6 for checksum(2) acksegsize(2), dest and ptr
@@ -331,7 +332,6 @@ void OSAP::loop(){
           break;
         case EP_PORTTYPEKEY_BUSHEAD:
         case EP_PORTTYPEKEY_BUSDROP:
-          ERRLIGHT_TOGGLE;
           // read, and learn which bus addr transmitted 
           vp->read(&pck, &pl, &pwp, &pat, &drop);
           break;
@@ -357,6 +357,12 @@ void OSAP::loop(){
             case PK_PORTF_KEY: // previous instructions, walk over,
               ptr += PK_PORTF_INC;
               break;
+            case PK_BUS_FWD_SPACE_1:
+              ptr += 1;
+              break;
+            case PK_BUS_FWD_SPACE_2:
+              ptr += 2;
+              break;
             case PK_BUSF_KEY:
               ptr += PK_BUSF_INC;
               break;
@@ -369,6 +375,9 @@ void OSAP::loop(){
               vp->clear(pwp);
               goto endWalk;
             default:
+              // ok, lawd, now the improved ptr walk for 86, 87 keys. should get us to the instruction switch, 
+              // then to the ring.
+              // will cut up the exhaust now, then return here in the cold. 
               sysError("bad walk for ptr: key " + String(pck[ptr]) + " at: " + String(ptr));
               vp->clear(pwp);
               goto endWalk;

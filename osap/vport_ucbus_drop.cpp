@@ -45,7 +45,7 @@ void VPort_UCBus_Drop::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned 
 
 // busses 
 void VPort_UCBus_Drop::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* drop){
-    ucBusDrop->read_b_ptr(pck, pat);
+    *pl = ucBusDrop->read_b_ptr(pck, pat);
     *pwp = 0;  // pwp just == drop rx'd on for now... single size buffer 
     *drop = 0; // drops always recieve from the head 
     return;
