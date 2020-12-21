@@ -37,17 +37,15 @@ uint8_t VPort_UCBus_Drop::status(void){
     return EP_PORTSTATUS_OPEN;
 }
 
-// placeholder 
-void VPort_UCBus_Drop::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat){
-    *pl = 0;
-    return;
-}
-
 // busses 
-void VPort_UCBus_Drop::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* drop){
-    *pl = ucBusDrop->read_b_ptr(pck, pat);
-    *pwp = 0;  // pwp just == drop rx'd on for now... single size buffer 
-    *drop = 0; // drops always recieve from the head 
+void VPort_UCBus_Drop::read(uint8_t** pck, pckm_t* pckm){
+    unsigned long pat = 0;
+    pckm->vpa = this;
+    pckm->len = ucBusDrop->read_b_ptr(pck, &pat);
+    pckm->at = pat;
+    pckm->location = 0;
+    pckm->txAddr = 0; // the head transmitted to us, 
+    pckm->rxAddr = ucBusDrop->id + 1;
     return;
 }
 
@@ -60,8 +58,8 @@ boolean VPort_UCBus_Drop::cts(void){
     return false;
 }
 
-boolean VPort_UCBus_Drop::cts(uint8_t drop){
-    if(drop == 0 && ucBusDrop->ctr_b()){
+boolean VPort_UCBus_Drop::cts(uint8_t rxAddr){
+    if(rxAddr == 0 && ucBusDrop->ctr_b()){
         return true;
     } else {
         return false;
@@ -73,8 +71,8 @@ void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl){
     return;
 }
 
-void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl, uint8_t drop){
-    if(!cts(drop)) return;
+void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl, uint8_t rxAddr){
+    if(!cts(rxAddr)) return;
     ucBusDrop->transmit(pck, pl);
 }
 

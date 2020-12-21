@@ -64,7 +64,7 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint
       vp->clear(pwp);
       return;
   }
-  here 
+  #warning this is where you left off, above, getTransmitterDrop ... etc 
   // considering the above: requirement to carry thru now *also* the 
   // transmitter drop, etc, the move might be to 
   // just write these things into the pck on arrival, 
@@ -336,7 +336,7 @@ void OSAP::loop(){
         for(uint8_t i = 0; i < 16; i ++){
           switch(pck[ptr]){
             case PK_PTR:
-              instructionSwitch(pck, &pckm, ptr + 1);
+              //instructionSwitch(pck, &pckm, ptr + 1);
               goto endWalk;
             case PK_PORTF_KEY: // previous instructions, walk over,
               ptr += PK_PORTF_INC;

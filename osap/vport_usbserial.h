@@ -48,13 +48,12 @@ public:
   void init(void);
   void loop(void);
   uint8_t status(void);
-  void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat);
-  void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t *drop); // same as below: placeholder
-  void clear(uint8_t pwp);
+  void read(uint8_t** pck, pckm_t* pckm);
+  void clear(uint8_t location);
   boolean cts(void);
-  boolean cts(uint8_t drop); // for bus, placeholder, not a pro with virtual fns 
+  boolean cts(uint8_t rxAddr); // for bus, placeholder, not a pro with virtual fns 
   void send(uint8_t *pck, uint16_t pl);
-  void send(uint8_t *pck, uint16_t pl, uint8_t drop);
+  void send(uint8_t *pck, uint16_t pl, uint8_t rxAddr);
 };
 
 #endif

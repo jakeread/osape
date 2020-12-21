@@ -34,16 +34,15 @@ class VPort_UCBus_Head : public VPort {
         // read ... from each drop ? 
         // might have to count # drops also, no? 
         // bus-drops just report 1 drop: the head 
-        void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat); // placeholder, virtualf, duplex
-        void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* drop);
-        void clear(uint8_t pwp);
+        void read(uint8_t** pck, pckm_t* pckm);
+        void clear(uint8_t location);
         // cts(uint8_t drop); !
         boolean cts(void); // placeholder, virtualf, duplex
-        boolean cts(uint8_t drop);
+        boolean cts(uint8_t rxAddr);
         // don't know how to do virtual overriding etc 
         // send(pck, pl, drop);
         void send(uint8_t *pck, uint16_t pl); // placeholder, virtualf, duplex 
-        void send(uint8_t *pck, uint16_t pl, uint8_t drop);
+        void send(uint8_t *pck, uint16_t pl, uint8_t rxAddr);
 };
 
 #endif

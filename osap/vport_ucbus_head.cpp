@@ -36,22 +36,20 @@ uint8_t VPort_UCBus_Head::status(void){
     return EP_PORTSTATUS_OPEN;
 }
 
-// placeholder, virtualf, duplex 
-void VPort_UCBus_Head::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat){
-    *pl = 0;
-    return;
-}
-
-void VPort_UCBus_Head::read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* rxAddr){
+void VPort_UCBus_Head::read(uint8_t** pck, pckm_t* pckm){
     // track last-drop-dished, increment thru to find next w/ occupied space 
-    uint8_t dr = 0; // drop recieved 
-    *pl = ucBusHead->readPtr(&dr, pck, pat);
-    *rxAddr = dr + 1;
-    *pwp = dr + 1; // quick hack, at the moment pwp is just the drop ... see note in clear 
+    uint8_t dr = 0; // drop recieved: ubh->readPtr() fills this in, 
+    unsigned long pat = 0;
+    pckm->vpa = this;
+    pckm->len = ucBusHead->readPtr(&dr, pck, pat);
+    pckm->at = pat; // arrival time 
+    pckm->location = dr + 1; // quick hack, at the moment pwp is just the drop ... see note in clear 
+    pckm->txAddr = dr + 1; // addr that tx'd this packet 
+    pckm->rxAddr = 0; // us, who rx'd it
     return;
 }
 
-void VPort_UCBus_Head::clear(uint8_t pwp){
+void VPort_UCBus_Head::clear(uint8_t location){
     // eventually, should be drop, pwp: if we ever buffer more than 1 space in each drop space
     ucBusHead->clearPtr(pwp - 1);
 }

@@ -18,7 +18,17 @@ no warranty is provided, and users accept all liability.
 #include <arduino.h>
 #include "ts.h"
 #include "./osape/utils/syserror.h"
-#include "pckm.h"
+
+class VPort;
+
+typedef struct {
+    VPort* vpa;         // vport this arrived on 
+    uint16_t len;       // full length, in bytes 
+    unsigned long at;   // packet arrival time 
+    uint8_t location;   // where in vport buffer / memory, for clearing 
+    uint16_t rxAddr;     // when on the bus, where rx'd on (bus address, not vport indice)
+    uint16_t txAddr;     // when on the bus, where tx'd from 
+} pckm_t ; // packet meta 
 
 class VPort {
 public:
@@ -40,10 +50,9 @@ public:
   // TODO: make status polymorphic for busses, status(uint8_t busAddr);
   virtual uint8_t status(void) = 0;
   // give OSAP the data (set pl = 0 if no data)
-  virtual void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat) = 0; // duplex type 
-  virtual void read(uint8_t** pck, uint16_t* pl, uint8_t* pwp, unsigned long* pat, uint8_t* rxAddr) = 0; // bus type 
+  virtual void read(uint8_t** pck, pckm_t* pckm) = 0; // duplex type 
   // this packet can be deleted, has been forwarded / dealt with 
-  virtual void clear(uint8_t pwp) = 0;
+  virtual void clear(uint8_t location) = 0;
   // clear to send? backpressure OK and port open?
   virtual boolean cts(void) = 0;
   virtual boolean cts(uint8_t rxAddr) = 0;

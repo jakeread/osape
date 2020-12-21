@@ -61,7 +61,7 @@ uint8_t VPort_USBSerial::status(void){
   return _status;
 }
 
-void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat){
+void VPort_USBSerial::read(uint8_t **pck, pckm_t* pckm){
   uint8_t p = _lastPacket; // the last one we delivered,
   boolean retrieved = false;
   for(uint8_t i = 0; i <= VPUSB_NUM_SPACES; i ++){
@@ -69,29 +69,24 @@ void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned l
     if(p >= VPUSB_NUM_SPACES) { p = 0; }
     if(_pl[p] > 0){ // this is an occupied packet, deliver that
       *pck = _packet[p]; // osap will look directly into our buffer ! 
-      *pl = _pl[p]; // I *think* this is how we do this in c?
-      *pwp = p; // packet write pointer ? the indice of the packet, to clear 
-      *pat = _packetArrivalTimes[p];
+      pckm->vpa = this;
+      pckm->len = _pl[p]; // I *think* this is how we do this in c?
+      pckm->at = _packetArrivalTimes[p];
+      pckm->location = p;
       _lastPacket = p;
       retrieved = true;
       break;
     }
   }
   if(!retrieved){
-    *pl = 0;
+    pckm->len = 0;
   }
 }
 
-// bus virtualf placeholder 
-void VPort_USBSerial::read(uint8_t **pck, uint16_t *pl, uint8_t *pwp, unsigned long* pat, uint8_t* rxAddr){
-  *pl = 0;
-  return;
-}
-
-void VPort_USBSerial::clear(uint8_t pwp){
+void VPort_USBSerial::clear(uint8_t location){
   // frame consumed, clear to write-in,
-  _pl[pwp] = 0;
-  _packetArrivalTimes[pwp] = 0;
+  _pl[location] = 0;
+  _packetArrivalTimes[location] = 0;
 }
 
 boolean VPort_USBSerial::cts(void){
