@@ -302,7 +302,6 @@ boolean UCBus_Head::cts_a(void){
 }
 
 boolean UCBus_Head::cts_b(uint8_t drop){
-  sysError("cts drop " + String(drop) + " " + String(rcrxb[drop]));
   if(outBufferBLen > 0 || rcrxb[drop] == 0){
     return false; 
   } else {
