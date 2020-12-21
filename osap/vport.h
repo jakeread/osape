@@ -29,6 +29,7 @@ typedef struct {
     uint16_t rxAddr = 0;    // when on the bus, where rx'd on (bus address, not vport indice)
     uint16_t txAddr = 0;    // when on the bus, where tx'd from 
     uint16_t segSize = 0;   // the route's maximum segment size 
+    uint16_t checksum = 0;
 } pckm_t ; // packet meta 
 
 class VPort {
@@ -51,14 +52,12 @@ public:
   // TODO: make status polymorphic for busses, status(uint8_t busAddr);
   virtual uint8_t status(void) = 0;
   // give OSAP the data (set pl = 0 if no data)
-  virtual void read(uint8_t** pck, pckm_t* pckm) = 0; // duplex type 
+  virtual void read(uint8_t** pck, pckm_t* pckm) = 0; 
   // this packet can be deleted, has been forwarded / dealt with 
   virtual void clear(uint8_t location) = 0;
-  // clear to send? backpressure OK and port open?
-  virtual boolean cts(void) = 0;
+  // clear to send? backpressure OK and port open? if p2p, just ignore rxAddr
   virtual boolean cts(uint8_t rxAddr) = 0;
   // transmit these bytes, 
-  virtual void send(uint8_t* pck, uint16_t pl) = 0;
   virtual void send(uint8_t* pck, uint16_t pl, uint8_t rxAddr) = 0;
 };
 

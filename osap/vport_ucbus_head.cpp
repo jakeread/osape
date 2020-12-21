@@ -54,22 +54,12 @@ void VPort_UCBus_Head::clear(uint8_t location){
     ucBusHead->clearPtr(pwp - 1);
 }
 
-// placeholder, virtualf, duplex 
-boolean VPort_UCBus_Head::cts(void){
-    return false;
-}
-
 boolean VPort_UCBus_Head::cts(uint8_t rxAddr){
     if(rxAddr == 0){
         sysError("attempt to read cts of self");
         return false;
     }
     return ucBusHead->cts_b(rxAddr - 1);
-}
-
-// placeholder, virtualf, duplex 
-void VPort_UCBus_Head::send(uint8_t* pck, uint16_t pl){
-    return;
 }
 
 void VPort_UCBus_Head::send(uint8_t* pck, uint16_t pl, uint8_t rxAddr){

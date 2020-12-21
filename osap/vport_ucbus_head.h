@@ -37,11 +37,9 @@ class VPort_UCBus_Head : public VPort {
         void read(uint8_t** pck, pckm_t* pckm);
         void clear(uint8_t location);
         // cts(uint8_t drop); !
-        boolean cts(void); // placeholder, virtualf, duplex
         boolean cts(uint8_t rxAddr);
         // don't know how to do virtual overriding etc 
         // send(pck, pl, drop);
-        void send(uint8_t *pck, uint16_t pl); // placeholder, virtualf, duplex 
         void send(uint8_t *pck, uint16_t pl, uint8_t rxAddr);
 };
 

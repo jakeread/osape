@@ -29,54 +29,48 @@ boolean OSAP::addVPort(VPort* vPort){
   }
 }
 
-// packet to read from, response to write into (global _res)
-// apparent position of pck[ptr] == DK_(?), maximum response length, checksum to write, 
-// vport rx'd on, indice of vport rx'd on
-// this reverses the route, to transmit back on the vport rx'd on
+// packet to read from, response to write into is global _res
+// apparent position of pck[ptr] == DK_(?) (i.e. 1st byte of payload)
+// packet meta (len, vport of arrival, tx/rx addresses, etc)
+// this reverses the route, out of the packet, into the _res, 
 // and writes the checksum, seglength, but not the data 
-boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, uint16_t checksum, VPort *vp, uint16_t vpi){
-  // when called, pck[ptr] == 1st byte of datagram (destination key)
-  // read pointer *will* become where we read from, 
-  uint16_t rptr = ptr - 5;  // now pck[wptr] == PK_DEST, pck[wptr + 1] starts the segsize, pck[wptr + 3] the checksum 
-  _res[rptr ++] = PK_DEST;  // re-assert pck[wptr] == PK_DEST 
-  ts_writeUint16(segsize, _res, &rptr); // write in route segsize 
-  ts_writeUint16(checksum, _res, &rptr);  // write in response checksum 
-  // so we have currently 
-  //                                                 [pck[ptr]]
-  // [departure_0][arrival_1][arrival_...][arrival_n][pk_dest][segsize:2][checksum:2][payload]
-  // prep to reverse packet, 
-  rptr -= 5; // return to the start of that block, pck[wptr] == PK_DEST again 
-  uint16_t wptr = 0; // write pointer, from the beginning 
-  uint16_t rend = rptr; // if we pass this while reading, past end of route head 
-  // now we write our departure port, 
-  switch(vp->portTypeKey){
-    case EP_PORTTYPEKEY_DUPLEX:
+boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uint16_t reslen){
+  // when called, pck[ptr] == 1st byte of datagram (probably a destination key) 
+  //                                          [pck[ptr]]
+  // [route][ptr][dest][segsize:2][checksum:2][datagram]
+  // so if we do, 
+  ptr -= 5; 
+  // pck[ptr] == pk_dest, 
+  _res[ptr ++] == PK_DEST;                    // end of route is here 
+  ts_writeUint16(pckm->segSize, _res, &ptr);  // segsize follows destination mark 
+  ts_writeUint16(reslen, _res, &ptr);         // checksum follows segsize 
+  // pck[ptr] is back at start of datagram 
+  // 1st up, always write the outgoing instruction in the head, 
+  uint16_t wptr = 0;
+  switch(pckm->vpa->portTypeKey){
+    case EP_PORTTYPEKEY_DUPLEX: // arrival was duplex, 
       pck[wptr ++] = PK_PORTF_KEY;
-      ts_writeUint16(vpi, pck, &wptr);
+      ts_writeUint16(pckm->vpa->indice, pck, &wptr);  // it's leaving on the same vport was rx'd on, 
       break;
     case EP_PORTTYPEKEY_BUSHEAD:
     case EP_PORTTYPEKEY_BUSDROP:
       pck[wptr ++] = PK_BUSF_KEY;
-      ts_writeUint16(vpi, pck, &wptr);
-      ts_writeUint16(vp->getTransmitterDropForPck(pwp));
+      ts_writeUint16(pckm->vpa->indice, pck, &wptr);  // same: exit from whence you came 
+      ts_writeUint16(pckm->txAddr, pck, &wptr);       // return to the bus address where you originated
       break;
-    default:
-      vp->clear(pwp);
-      return;
+    default: // something is broken, 
+      pckm->vpa->clear(pckm->location);
+      return false;
   }
-  #warning this is where you left off, above, getTransmitterDrop ... etc 
-  // considering the above: requirement to carry thru now *also* the 
-  // transmitter drop, etc, the move might be to 
-  // just write these things into the pck on arrival, 
-  // *then* handle them, then all of these fn's just read out of the pck again 
-  // go know what-all is going on... time saved is probably negligible from carrying 
-  // all of this stuff thru, and it's a hot mess, hugely stateful. micros are strong now. 
-
-  // end switch, now pck[rptr] is at port-type-key of next fwd instruction
-  // walk rptr forwards, wptr backwards, copying in forwarding segments, max. 16 hops
-  uint16_t rend = ptr - 6;  // read-end per static pck-at-dest end block: 6 for checksum(2) acksegsize(2), dest and ptr
+  // byte that follows is the ptr, 
+  _res[wptr ++] = PK_PTR;
+  // now, read old instructions from the head of the packet, write them in at the tail 
+  uint16_t rptr = 0;          // read from top,
+  uint16_t backstop = wptr;   // don't reverse past 
+  wptr = ptr - 6;             // write from tail 
+  // do max. 16 packet steps 
   for(uint8_t h = 0; h < 16; h ++){
-    if(rptr >= rend){ // terminate when walking past end,
+    if(wptr <= backstop){ // terminate when walking past end,
       break;
     }
     switch(pck[rptr]){
@@ -97,16 +91,8 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint
         sysError("couldn't reverse this path");
         return false;
     }
-  }
-  // following route-copy-in,
-  // TODO mod this for busses,
-  #warning no bus reversal here 
-  wptr -= 4;
-  _res[wptr ++] = PK_PORTF_KEY; /// write in departure key type,
-  ts_writeUint16(vpi, _res, &wptr); // write in departure port,
-  _res[wptr ++] = PK_PTR; // ptr follows departure key,
-  // to check, wptr should now be at 4: for departure(3:portf), ptr(1)
-  if(wptr != 4){ // wptr != 7
+  } // end walks, 
+  if(wptr != backstop){ // ptrs should match up when done, 
     sysError("bad response header write");
     return false;
   } else {
@@ -115,22 +101,50 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint
 }
 
 // write and send ahn reply out, 
-void OSAP::appReply(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t *reply, uint16_t rl){
+// WARNING: application needs to check if the vport to reply on (in pckm) is clear 
+void OSAP::appReply(uint8_t *pck, pckm_t* pckm, uint8_t *reply, uint16_t repLen){
+  // need to find the ptr again, 
+  uint16_t ptr = 0;
+  for(uint8_t i = 0; i < 16; i ++){
+    switch(pck[ptr]){
+      case PK_PTR:
+        ptr += 6; // ptr to 1st byte of pck datagram, where formatResponseHeader operates 
+        goto endWalk;
+      case PK_PORTF_KEY: // previous instructions, walk over,
+        ptr += PK_PORTF_INC;
+        break;
+      case PK_BUSF_KEY:
+        ptr += PK_BUSF_INC;
+        break;
+      case PK_BUSB_KEY:
+        ptr += PK_BUSF_INC;
+        break;
+      default:
+        // no dice in the forward walk, clear it 
+        sysError("bad walk for ptr: key " + String(pck[ptr]) + " at: " + String(ptr));
+        pckm->vpa->clear(pckm->location);
+        return; // this shouldn't happen, but let's not try to transmit it on 
+    } // end switch
+  } // end loop for ptr walk,
+  endWalk: ; // break the walk-loop to here
+  // copy the reply in to our _res global. 
   uint16_t wptr = ptr;
-  for(uint16_t i = 0; i < rl; i ++){
+  for(uint16_t i = 0; i < repLen; i ++){
     _res[wptr ++] = reply[i];
   }
-  if(formatResponseHeader(pck, pl, ptr, segsize, rl, vp, vpi)){
-    vp->send(_res, wptr);
+  // reverse the route, ship it 
+  if(formatResponseHeader(pck, ptr, pckm, repLen)){
+    pckm->vpa->send(_res, wptr, pckm->txAddr);
   } else {
     sysError("bad response format");
+    pckm->vpa->clear(pckm->location); // broken packet rx'd, so, bail 
   }
 }
 
 void OSAP::portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
   // have correct VPort type, 
   // check if forwarding is clear, 
-  if(!fwvp->cts()){
+  if(!fwvp->cts(0)){
     if(fwvp->status() != EP_PORTSTATUS_OPEN){ pckm->vpa->clear(pckm->location); }
     return;
   }
@@ -155,7 +169,7 @@ void OSAP::portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
   // new ptr at tail 
   pck[ptr] == PK_PTR;
   // are setup to send on the port, 
-  fwvp->send(pck, pckm->len);
+  fwvp->send(pck, pckm->len, 0);
   pckm->vpa->clear(pckm->location);
 }
 
@@ -286,15 +300,17 @@ void OSAP::instructionSwitch(uint8_t *pck,uint16_t ptr, pckm_t* pckm){
           sysError("bad checksum, count: " + String(pckm->len - ptr) + " checksum: " + String(checksum));
           pckm->vpa->clear(pckm->location);
         } else {
+          pckm->segSize = segsize;
+          pckm->checksum = checksum;
           switch(pck[ptr]){
             case DK_APP:
-              handleAppPacket(pck, pl, ptr, segsize, vp, vpi, pwp);
+              handleAppPacket(pck, ptr, pckm);
               break;
             case DK_PINGREQ:
-              handlePingRequest(pck, pl, ptr, segsize, vp, vpi, pwp);
+              handlePingRequest(pck, ptr, pckm);
               break;
             case DK_RREQ:
-              handleReadRequest(pck, pl, ptr, segsize, vp, vpi, pwp);
+              handleReadRequest(pck, ptr, pckm);
               break;
               break;
             case DK_WREQ: // no writing yet,
@@ -302,11 +318,11 @@ void OSAP::instructionSwitch(uint8_t *pck,uint16_t ptr, pckm_t* pckm){
             case DK_RRES: // not issuing requests from embedded, same
             case DK_WRES: // not issuing write requests from embedded, again
               sysError("WREQ or RES received in embedded, popping");
-              vp->clear(pwp);
+              pckm->vpa->clear(pckm->location);
               break;
             default:
               sysError("non-recognized destination key, popping");
-              vp->clear(pwp);
+              pckm->vpa->clear(pckm->location);
               break;
           }
         }

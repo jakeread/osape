@@ -42,15 +42,15 @@ public:
   String description = "undescribed osap node";
   // fns
   boolean addVPort(VPort* vPort);
+  // reply to a packet, 
+  boolean formatResponseHeader(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uint16_t reslen);
+  void appReply(uint8_t *pck, pckm_t* pckm, uint8_t *reply, uint16_t repLen);
   // replies to mvc-requests 
   void writeQueryDown(uint16_t *wptr);
   void writeEmpty(uint16_t *wptr);
-  void readRequestVPort(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t rptr, uint16_t *wptr, uint16_t segsize, VPort* vp);
-  void handleReadRequest(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t pwp);
-  void handlePingRequest(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t pwp);
-  // reply to a packet, 
-  boolean formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, uint16_t checksum, VPort *vp, uint16_t vpi);
-  void appReply(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t *reply, uint16_t rl);
+  void readRequestVPort(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uint16_t rptr, uint16_t* wptr, VPort* vp);
+  void handleReadRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
+  void handlePingRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
   // main loop,
   void portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp);
   void busforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp);
@@ -58,7 +58,7 @@ public:
   void instructionSwitch(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
   void loop();
   // the handoff, 
-  void handleAppPacket(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t pwp);
+  void handleAppPacket(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
 };
 
 #endif

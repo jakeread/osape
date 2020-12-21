@@ -50,10 +50,8 @@ public:
   uint8_t status(void);
   void read(uint8_t** pck, pckm_t* pckm);
   void clear(uint8_t location);
-  boolean cts(void);
   boolean cts(uint8_t rxAddr); // for bus, placeholder, not a pro with virtual fns 
-  void send(uint8_t *pck, uint16_t pl);
-  void send(uint8_t *pck, uint16_t pl, uint8_t rxAddr);
+  void send(uint8_t *pck, uint16_t pl, uint8_t rxAddr); // rxAddr ignored, 
 };
 
 #endif

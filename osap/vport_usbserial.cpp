@@ -89,7 +89,8 @@ void VPort_USBSerial::clear(uint8_t location){
   _packetArrivalTimes[location] = 0;
 }
 
-boolean VPort_USBSerial::cts(void){
+// ignore rxAddr: that's interface for busses
+boolean VPort_USBSerial::cts(uint8_t rxAddr){
   // no 77 yet, so 
   if(_status == EP_PORTSTATUS_OPEN){
     return true;
@@ -98,13 +99,8 @@ boolean VPort_USBSerial::cts(void){
   }
 }
 
-// bus virtualf placeholder 
-boolean VPort_USBSerial::cts(uint8_t rxAddr){
-  return false;
-}
-
-void VPort_USBSerial::send(uint8_t *pck, uint16_t pl){
-  if(!cts()) return;
+void VPort_USBSerial::send(uint8_t *pck, uint16_t pl, uint8_t rxAddr){
+  if(!cts(0)) return;
   size_t encLen = cobsEncode(pck, pl, _encodedOut);
   if(Serial.availableForWrite()){
     Serial.write(_encodedOut, encLen);
@@ -112,11 +108,6 @@ void VPort_USBSerial::send(uint8_t *pck, uint16_t pl){
   } else {
     sysError("NOT AVAILABLE");
   }
-}
-
-// bus virtualf placeholder 
-void VPort_USBSerial::send(uint8_t *pck, uint16_t pl, uint8_t rxAddr){
-  return; 
 }
 
 /*

@@ -53,22 +53,12 @@ void VPort_UCBus_Drop::clear(uint8_t pwp){
     ucBusDrop->clear_b_ptr(); // pwp is meaningless, should really amend this code mess
 }
 
-// placeholder 
-boolean VPort_UCBus_Drop::cts(void){
-    return false;
-}
-
 boolean VPort_UCBus_Drop::cts(uint8_t rxAddr){
     if(rxAddr == 0 && ucBusDrop->ctr_b()){
         return true;
     } else {
         return false;
     }
-}
-
-// placeholder 
-void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl){
-    return;
 }
 
 void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl, uint8_t rxAddr){

@@ -35,10 +35,8 @@ class VPort_UCBus_Drop : public VPort {
         void read(uint8_t **pck, pckm_t* pckm); 
         void clear(uint8_t location);
         // check 
-        boolean cts(void); // placeholder 
         boolean cts(uint8_t rxAddr);
         // transmit 
-        void send(uint8_t* pck, uint16_t pl); // placeholder 
         void send(uint8_t* pck, uint16_t pl, uint8_t rxAddr);
 };
 
