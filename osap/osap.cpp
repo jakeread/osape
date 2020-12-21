@@ -127,81 +127,92 @@ void OSAP::appReply(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, V
   }
 }
 
-void OSAP::portforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8_t avpi, uint8_t pwp, VPort* fwvp, uint8_t fwvpi){
+void OSAP::portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
   // have correct VPort type, 
   // check if forwarding is clear, 
   if(!fwvp->cts()){
-    if(fwvp->status() != EP_PORTSTATUS_OPEN){ avp->clear(pwp); }
+    if(fwvp->status() != EP_PORTSTATUS_OPEN){ pckm->vpa->clear(pckm->location); }
     return;
   }
-  sysError("portf");
-  // fwd... and check js, which finds the 88 (ptr) where it expects instruction ? 
-  // ready, drop arrival information in 
-  // have currently 
-  //      [pck[ptr]]
-  // [ptr][portf_departure][b0][b1]
-  // do
-  // [portf_arrival][b0][b1][ptr]
-  pck[ptr - 1] = PK_PORTF_KEY;
-  ts_writeUint16(avpi, pck, &ptr);
-  pck[ptr] = PK_PTR;
-  // now we can transmit 
-  fwvp->send(pck, pl);
-  avp->clear(pwp);
+  // are clear to send this, so 
+  // ready to drop arrival information in, 
+  // currently pck[ptr] == [portf]
+  if(fwvp->portTypeKey == EP_PORTTYPEKEY_DUPLEX){
+    ptr -= 4;                                     
+    pck[ptr ++] = PK_PORTF_KEY;                   // reversal instruction is to (1) port forward
+    ts_writeUint16(pckm->vpa->indice, pck, &ptr); // (2) on this vport 
+  } else {
+    ptr -= 6;
+    pck[ptr ++] = PK_BUSF_KEY;                    // reversal instruction is to (1) fwd thru a bus 
+    ts_writeUint16(pckm->vpa->indice, pck, &ptr); // (2) on this vport
+    ts_writeUint16(pckm->txAddr, pck, &ptr);      // (3) towards this bus address 
+  }
+  // now have to walk the ptr forwards, 
+  for(uint8_t i = 0; i < 3; i ++){
+    pck[ptr] = pck[ptr + 1];
+    ptr ++;
+  }
+  // new ptr at tail 
+  pck[ptr] == PK_PTR;
+  // are setup to send on the port, 
+  fwvp->send(pck, pckm->len);
+  pckm->vpa->clear(pckm->location);
 }
 
 // pck[ptr] == busf / busb 
-void OSAP::busforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8_t avpi, uint8_t pwp, VPort* fwvp, uint8_t fwvpi){
+void OSAP::busforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
   DEBUG2PIN_TOGGLE;
   //                  [ptr]
   // advance [ptr(88)][busf][b0_depart][b1_depart][b0_rxaddr][b1_rxaddr]
   ptr += 3;
-  uint16_t busRxAddr;
-  ts_readUint16(&busRxAddr, pck, &ptr); // advances ptr by 2 
+  uint16_t fwdRxAddr;
+  ts_readUint16(&fwdRxAddr, pck, &ptr); // advances ptr by 2 
   // now, have busRxAddr (drop of the bus we're forwarding to)
-  // sysError("fwd to bus addr " + String(busRxAddr));
+  // sysError("fwd to bus addr " + String(fwdRxAddr));
   // check that bus-drop is not fwding to anything other than bus-head 
-  if(fwvp->portTypeKey == EP_PORTTYPEKEY_BUSDROP && busRxAddr != 0){
+  if(fwvp->portTypeKey == EP_PORTTYPEKEY_BUSDROP && fwdRxAddr != 0){
     sysError("cannot fwd from drop to drop, must pass thru bus head");
-    avp->clear(pwp);
+    pckm->vpa->clear(pckm->location);
     return;
   }
   // check clear,
-  if(!(fwvp->cts(busRxAddr))){ 
-    if(fwvp->status() != EP_PORTSTATUS_OPEN){ avp->clear(pwp); } // pop on closed ports 
+  if(!(fwvp->cts(fwdRxAddr))){ 
+    if(fwvp->status() != EP_PORTSTATUS_OPEN){ pckm->vpa->clear(pckm->location); } // pop on closed ports 
     return; 
   }
   // ready to fwd, bring ptr back so that pck[ptr] == busf 
-  ptr -= 5;
+  ptr -= 5; // 3 ahead ~ 15 lines above, 2 when ts_read... advances by 2 
+  // write in to previous instruction,  
   //      [pck[ptr]]
   // [ptr][busf_departure][b0][b1][b2][b3]
-  if(avp->portTypeKey == EP_PORTTYPEKEY_DUPLEX){
-    // do
-    // [portf_arrival][b0][b1][?][?][ptr]
-    pck[ptr - 1] = PK_PORTF_KEY;
-    ts_writeUint16(avpi, pck, &ptr);
-    pck[ptr ++] = PK_BUS_FWD_SPACE_2;
-    pck[ptr ++] = PK_BUS_FWD_SPACE_1;
+  if(pckm->vpa->portTypeKey == EP_PORTTYPEKEY_DUPLEX){ // arrived on p2p 
+    // prev. instruction was portf,
+    ptr -= 4; // pck[ptr] == portf key for previous fwd,
+    pck[ptr ++] = PK_PORTF_KEY; // re-assert 
+    ts_writeUint16(pckm->vpa->indice, pck, &ptr); // write arrival port in 
   } else {
-    // do
-    // [busf_arrival][b0][b1][b2][b3][ptr]
-    pck[ptr - 1] = PK_BUSF_KEY;
-    // exclude this for now, can add in later, at the moment bus-to-bus fwd unlikely 
-    #warning no bus-to-bus fwd code yet 
-    sysError("bus to bus forwarding currently unsupported");
-    avp->clear(pwp);
-    return;
-    //ts_writeUint16(avp->getTransmitterDropForPack(pwp), pck, &ptr);
-    //ts_writeUint16(avp->getDropId(), pck, &ptr);
+    // prev. instruction was busf or busb,
+    ptr -= 6;
+    pck[ptr ++] = PK_BUSF_KEY;                    // reversal instruction is to (1) fwd back 
+    ts_writeUint16(pckm->vpa->indice, pck, &ptr); // (2) on this vport
+    ts_writeUint16(pckm->txAddr, pck, &ptr);      // (3) towards this bus address 
   }
-  pck[ptr] = PK_PTR; // in front of next instruction 
+  // now pck[ptr] == PK_PTR, the BUSF instruction is next, 
+  // we increment so that our fwd instruction is occupying this space, ptr is following. 
+  for(uint8_t i = 0; i < 5; i ++){
+    pck[ptr] = pck[ptr + 1];
+    ptr ++;
+  }
+  // finally, ptr in front of next instruction, 
+  pck[ptr] = PK_PTR; 
   // pck is setup, can forward
-  fwvp->send(pck, pl, busRxAddr);
-  avp->clear(pwp);
+  fwvp->send(pck, pckm->len, fwdRxAddr);
+  // and clear (send copies into tx buffer)
+  pckm->vpa->clear(pckm->location);
 }
 
 // pck[ptr] == PK_PORTF_KEY or PK_BUSF_KEY or PK_BUSB_KEY 
-void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp){
+void OSAP::forward(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
   // vport to fwd on 
   uint8_t fwtype = pck[ptr ++]; // get at ptr, *then* increment ptr 
   uint16_t fwvpi;
@@ -211,7 +222,7 @@ void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t v
   // find the vport, 
   if(_numVPorts <= fwvpi){ // doesn't exist 
     sysError("during fwd, no vport here at indice " + String(fwvpi));
-    vp->clear(pwp);
+    pckm->vpa->clear(pckm->location);
     return;
   }
   // pull it, do stuff 
@@ -220,35 +231,35 @@ void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t v
   switch(fwtype){
     case PK_PORTF_KEY:
       if(fwvp->portTypeKey != EP_PORTTYPEKEY_DUPLEX){
-        vp->clear(pwp);
+        pckm->vpa->clear(pckm->location);
         return;
       } else {
-        portforward(pck, pl, ptr, vp, vpi, pwp, fwvp, fwvpi);
+        portforward(pck, ptr, pckm, fwvp);
       }
       break;
     case PK_BUSF_KEY:
       if(fwvp->portTypeKey != EP_PORTTYPEKEY_BUSHEAD && fwvp->portTypeKey != EP_PORTTYPEKEY_BUSDROP){
-        vp->clear(pwp);
+        pckm->vpa->clear(pckm->location);
         return;
       } else {
-        busforward(pck, pl, ptr, vp, vpi, pwp, fwvp, fwvpi);
+        busforward(pck, ptr, pckm, fwvp);
       }
       break;
     case PK_BUSB_KEY:
       if(fwvp->portTypeKey != EP_PORTTYPEKEY_BUSHEAD){
-        vp->clear(pwp);
+        pckm->vpa->clear(pckm->location);
         return;
       } else {
         // would do this here, but 
         // also... bug... this sysError message doesn't escape? que? 
         sysError("no support for osap broadcasts yet");
-        vp->clear(pwp);
+        pckm->vpa->clear(pckm->location);
         return;
       }
       break;
     default:
       sysError("bad fwd type key: " + String(fwtype));
-      vp->clear(pwp);
+      pckm->vpa->clear(pckm->location);
       return;
   }
 } // end forward 
@@ -256,24 +267,24 @@ void OSAP::forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t v
 // frame: the buffer, ptr: the location of the ptr (ack or pack),
 // vp: port received on, fwp: frame-write-ptr,
 // so vp->frames[fwp] = frame, though that isn't exposed here
-void OSAP::instructionSwitch(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp){
+void OSAP::instructionSwitch(uint8_t *pck,uint16_t ptr, pckm_t* pckm){
   DEBUG1PIN_TOGGLE;
   // we must *do* something, and (ideally) pop this thing,
   switch(pck[ptr]){
     case PK_PORTF_KEY:
     case PK_BUSF_KEY:
     case PK_BUSB_KEY:
-      forward(pck, pl, ptr, vp, vpi, pwp);
+      forward(pck, ptr, pckm);
       break;
-    case PK_DEST: {
-        ptr ++; // walk past dest key,
+    case PK_DEST: { // it's us, do checksum etc... 
         uint16_t segsize = 0;
         uint16_t checksum = 0;
+        ptr ++;     // walk past dest key,
         ts_readUint16(&segsize, pck, &ptr);
         ts_readUint16(&checksum, pck, &ptr);
-        if(checksum != pl - ptr){
-          sysError("bad checksum, count: " + String(pl - ptr) + " checksum: " + String(checksum));
-          vp->clear(pwp);
+        if(checksum != pckm->len - ptr){
+          sysError("bad checksum, count: " + String(pckm->len - ptr) + " checksum: " + String(checksum));
+          pckm->vpa->clear(pckm->location);
         } else {
           switch(pck[ptr]){
             case DK_APP:
@@ -304,15 +315,13 @@ void OSAP::instructionSwitch(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp,
     default:
       // packet is unrecognized,
       sysError("unrecognized instruction key");
-      vp->clear(pwp);
+      pckm->vpa->clear(pckm->location);
       break;
   }
 }
 
 void OSAP::loop(){
   // temporary items, as e check packets 
-  uint8_t* pck;
-  uint16_t ptr = 0;
   unsigned long now = millis();
   // loop over vports 
   VPort* vp;              // vport 
@@ -320,8 +329,9 @@ void OSAP::loop(){
     vp = _vPorts[p];
     vp->loop(); // affordance to run phy code,
     for(uint8_t t = 0; t < 4; t ++){ // handles 4 packets per port per turn 
-      // reset counters, check for packet 
-      ptr = 0;
+      // reset counters: the packet, the pointer, and the meta 
+      uint8_t* pck;
+      uint16_t ptr = 0;
       pckm_t pckm; // consider using one static ptr to pckm, for loop() speedup, if it counts (scope test)
       vp->read(&pck, &pckm);
       // if the packet is length-full, do stuff 
@@ -332,20 +342,13 @@ void OSAP::loop(){
           continue; // next packet in port 
         }
         // walk through for instruction ptr (max 16-hop packet then)
-        #warning another walk that likely breaks w/ bus-fwd 86 and 87 
         for(uint8_t i = 0; i < 16; i ++){
           switch(pck[ptr]){
             case PK_PTR:
-              //instructionSwitch(pck, &pckm, ptr + 1);
+              instructionSwitch(pck, ptr + 1, &pckm);
               goto endWalk;
             case PK_PORTF_KEY: // previous instructions, walk over,
               ptr += PK_PORTF_INC;
-              break;
-            case PK_BUS_FWD_SPACE_1:
-              ptr += 1;
-              break;
-            case PK_BUS_FWD_SPACE_2:
-              ptr += 2;
               break;
             case PK_BUSF_KEY:
               ptr += PK_BUSF_INC;
@@ -359,16 +362,15 @@ void OSAP::loop(){
               pckm.vpa->clear(pckm.location);
               goto endWalk;
             default:
-              // ok, lawd, now the improved ptr walk for 86, 87 keys. should get us to the instruction switch, 
-              // then to the ring.
-              // will cut up the exhaust now, then return here in the cold. 
+              // no dice in the forward walk, clear it 
               sysError("bad walk for ptr: key " + String(pck[ptr]) + " at: " + String(ptr));
               pckm.vpa->clear(pckm.location);
               goto endWalk;
           } // end switch
         } // end loop for ptr walk,
       } else {
-        break;
+        // pck len is zero, meaning this port has no packets,
+        break; // break the loop, 
       } // no frames in this port,
       // end of this-port-scan,
       endWalk: ;

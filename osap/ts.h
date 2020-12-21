@@ -26,8 +26,6 @@ no warranty is provided, and users accept all liability.
 #define PK_BUSF_INC 5
 #define PK_BUSB_KEY 14
 #define PK_BUSB_INC 5
-#define PK_BUS_FWD_SPACE_1 87 // ptr is next space
-#define PK_BUS_FWD_SPACE_2 86 // ptr is 2 spaces away 
 
 // -------------------------------------------------------- Destination Keys (arrival layer)
 

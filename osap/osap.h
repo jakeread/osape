@@ -52,10 +52,10 @@ public:
   boolean formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, uint16_t checksum, VPort *vp, uint16_t vpi);
   void appReply(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t *reply, uint16_t rl);
   // main loop,
-  void portforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8_t avpi, uint8_t pwp, VPort* fwvp, uint8_t fwvpi);
-  void busforward(uint8_t* pck, uint16_t pl, uint16_t ptr, VPort* avp, uint8_t avpi, uint8_t pwp, VPort* fwvp, uint8_t fwvpi);
-  void forward(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp);
-  void instructionSwitch(uint8_t *pck, uint16_t pl, uint16_t ptr, VPort *vp, uint8_t vpi, uint8_t pwp);
+  void portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp);
+  void busforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp);
+  void forward(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
+  void instructionSwitch(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
   void loop();
   // the handoff, 
   void handleAppPacket(uint8_t *pck, uint16_t pl, uint16_t ptr, uint16_t segsize, VPort* vp, uint16_t vpi, uint8_t pwp);

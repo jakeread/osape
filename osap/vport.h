@@ -22,12 +22,13 @@ no warranty is provided, and users accept all liability.
 class VPort;
 
 typedef struct {
-    VPort* vpa;         // vport this arrived on 
-    uint16_t len;       // full length, in bytes 
-    unsigned long at;   // packet arrival time 
-    uint8_t location;   // where in vport buffer / memory, for clearing 
-    uint16_t rxAddr;     // when on the bus, where rx'd on (bus address, not vport indice)
-    uint16_t txAddr;     // when on the bus, where tx'd from 
+    VPort* vpa;             // vport this arrived on 
+    uint16_t len = 0;       // full length, in bytes 
+    unsigned long at = 0;   // packet arrival time 
+    uint8_t location = 0;   // where in vport buffer / memory, for clearing 
+    uint16_t rxAddr = 0;    // when on the bus, where rx'd on (bus address, not vport indice)
+    uint16_t txAddr = 0;    // when on the bus, where tx'd from 
+    uint16_t segSize = 0;   // the route's maximum segment size 
 } pckm_t ; // packet meta 
 
 class VPort {
