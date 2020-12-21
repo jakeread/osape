@@ -23,6 +23,7 @@ boolean OSAP::addVPort(VPort* vPort){
     return false;
   } else {
     vPort->init();
+    vPort->indice = _numVPorts;
     _vPorts[_numVPorts ++] = vPort;
     return true;
   }
@@ -70,7 +71,7 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t pl, uint16_t ptr, uint
   // *then* handle them, then all of these fn's just read out of the pck again 
   // go know what-all is going on... time saved is probably negligible from carrying 
   // all of this stuff thru, and it's a hot mess, hugely stateful. micros are strong now. 
-  
+
   // end switch, now pck[rptr] is at port-type-key of next fwd instruction
   // walk rptr forwards, wptr backwards, copying in forwarding segments, max. 16 hops
   uint16_t rend = ptr - 6;  // read-end per static pck-at-dest end block: 6 for checksum(2) acksegsize(2), dest and ptr
@@ -312,10 +313,6 @@ void OSAP::loop(){
   // temporary items, as e check packets 
   uint8_t* pck;
   uint16_t ptr = 0;
-  uint16_t pl = 0;
-  uint8_t pwp = 0;
-  uint8_t drop = 0;
-  unsigned long pat = 0;  
   unsigned long now = millis();
   // loop over vports 
   VPort* vp;              // vport 
@@ -324,27 +321,14 @@ void OSAP::loop(){
     vp->loop(); // affordance to run phy code,
     for(uint8_t t = 0; t < 4; t ++){ // handles 4 packets per port per turn 
       // reset counters, check for packet 
-      pl = 0;
       ptr = 0;
-      switch(vp->portTypeKey){
-        case EP_PORTTYPEKEY_DUPLEX:
-          vp->read(&pck, &pl, &pwp, &pat);
-          break;
-        case EP_PORTTYPEKEY_BUSHEAD:
-        case EP_PORTTYPEKEY_BUSDROP:
-          // read, and learn which bus addr transmitted 
-          vp->read(&pck, &pl, &pwp, &pat, &drop);
-          break;
-        default:
-          sysError("broken vport, bad type");
-          return;
-      }
-      // if we have a packet, do stuff 
-      if(pl > 0){
-        // check prune stale, 
-        if(pat + OSAP_STALETIMEOUT < now){
+      pckm_t pckm; // consider using one static ptr to pckm, for loop() speedup, if it counts (scope test)
+      vp->read(&pck, &pckm);
+      // if the packet is length-full, do stuff 
+      if(pckm.len > 0){        // check prune stale, 
+        if(pckm.at + OSAP_STALETIMEOUT < now){
           sysError("stale pck on " + String(p));
-          vp->clear(pwp);
+          pckm.vpa->clear(pckm.location);
           continue; // next packet in port 
         }
         // walk through for instruction ptr (max 16-hop packet then)
@@ -352,7 +336,7 @@ void OSAP::loop(){
         for(uint8_t i = 0; i < 16; i ++){
           switch(pck[ptr]){
             case PK_PTR:
-              instructionSwitch(pck, pl, ptr + 1, vp, p, pwp);
+              instructionSwitch(pck, &pckm, ptr + 1);
               goto endWalk;
             case PK_PORTF_KEY: // previous instructions, walk over,
               ptr += PK_PORTF_INC;
@@ -372,14 +356,14 @@ void OSAP::loop(){
             case PK_LLERR:
               // someone forwarded us an err-escape,
               // since this leg is embedded & has no display, just wipe it 
-              vp->clear(pwp);
+              pckm.vpa->clear(pckm.location);
               goto endWalk;
             default:
               // ok, lawd, now the improved ptr walk for 86, 87 keys. should get us to the instruction switch, 
               // then to the ring.
               // will cut up the exhaust now, then return here in the cold. 
               sysError("bad walk for ptr: key " + String(pck[ptr]) + " at: " + String(ptr));
-              vp->clear(pwp);
+              pckm.vpa->clear(pckm.location);
               goto endWalk;
           } // end switch
         } // end loop for ptr walk,

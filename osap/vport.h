@@ -18,6 +18,7 @@ no warranty is provided, and users accept all liability.
 #include <arduino.h>
 #include "ts.h"
 #include "./osape/utils/syserror.h"
+#include "pckm.h"
 
 class VPort {
 public:
@@ -28,6 +29,9 @@ public:
   String description = "undescribed vport";
   uint8_t portTypeKey = EP_PORTTYPEKEY_DUPLEX;
   uint16_t maxSegLength = 0;
+  uint16_t busAddress = 0; // if is a bus drop, or head, 
+  // indice, 
+  uint16_t indice = 0;
   // startup 
   virtual void init(void) = 0;  
   // runtime 
