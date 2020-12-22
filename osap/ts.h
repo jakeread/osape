@@ -32,6 +32,8 @@ no warranty is provided, and users accept all liability.
 #define DK_APP 100 // application codes, go to -> main 
 #define DK_PINGREQ 101  // ping request
 #define DK_PINGRES 102  // ping reply
+#define DK_EPREQ 103
+#define DK_EPRES 104 
 #define DK_RREQ 111     // read request
 #define DK_RRES 112     // read response
 #define DK_WREQ 113     // write request

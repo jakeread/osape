@@ -41,7 +41,7 @@ void VPort_UCBus_Head::read(uint8_t** pck, pckm_t* pckm){
     uint8_t dr = 0; // drop recieved: ubh->readPtr() fills this in, 
     unsigned long pat = 0;
     pckm->vpa = this;
-    pckm->len = ucBusHead->readPtr(&dr, pck, pat);
+    pckm->len = ucBusHead->readPtr(&dr, pck, &pat);
     pckm->at = pat; // arrival time 
     pckm->location = dr + 1; // quick hack, at the moment pwp is just the drop ... see note in clear 
     pckm->txAddr = dr + 1; // addr that tx'd this packet 
@@ -51,7 +51,7 @@ void VPort_UCBus_Head::read(uint8_t** pck, pckm_t* pckm){
 
 void VPort_UCBus_Head::clear(uint8_t location){
     // eventually, should be drop, pwp: if we ever buffer more than 1 space in each drop space
-    ucBusHead->clearPtr(pwp - 1);
+    ucBusHead->clearPtr(location - 1);
 }
 
 boolean VPort_UCBus_Head::cts(uint8_t rxAddr){

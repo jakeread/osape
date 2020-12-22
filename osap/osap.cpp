@@ -39,40 +39,36 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uin
   //                                          [pck[ptr]]
   // [route][ptr][dest][segsize:2][checksum:2][datagram]
   // so if we do, 
-  ptr -= 5; 
-  // pck[ptr] == pk_dest, 
-  _res[ptr ++] == PK_DEST;                    // end of route is here 
-  ts_writeUint16(pckm->segSize, _res, &ptr);  // segsize follows destination mark 
-  ts_writeUint16(reslen, _res, &ptr);         // checksum follows segsize 
-  // pck[ptr] is back at start of datagram 
-  // 1st up, always write the outgoing instruction in the head, 
-  uint16_t wptr = 0;
+  uint16_t eor = ptr - 5; // end of the route is the dest key, here 
+  uint16_t wptr = eor;    // first, re-write the 5 dest bytes  
+  _res[wptr ++] = PK_DEST;                      // end of route is here, destination key 
+  ts_writeUint16(pckm->segSize, _res, &wptr);   // segsize follows destination mark 
+  ts_writeUint16(reslen, _res, &wptr);          // checksum follows segsize 
+  // now write the first / outgoing instruction, and the pck_ptr key that follows 
+  wptr = 0;
   switch(pckm->vpa->portTypeKey){
     case EP_PORTTYPEKEY_DUPLEX: // arrival was duplex, 
-      pck[wptr ++] = PK_PORTF_KEY;
-      ts_writeUint16(pckm->vpa->indice, pck, &wptr);  // it's leaving on the same vport was rx'd on, 
+      _res[wptr ++] = PK_PORTF_KEY;
+      ts_writeUint16(pckm->vpa->indice, _res, &wptr);  // it's leaving on the same vport was rx'd on, 
       break;
     case EP_PORTTYPEKEY_BUSHEAD:
     case EP_PORTTYPEKEY_BUSDROP:
-      pck[wptr ++] = PK_BUSF_KEY;
-      ts_writeUint16(pckm->vpa->indice, pck, &wptr);  // same: exit from whence you came 
-      ts_writeUint16(pckm->txAddr, pck, &wptr);       // return to the bus address where you originated
+      _res[wptr ++] = PK_BUSF_KEY;
+      ts_writeUint16(pckm->vpa->indice, _res, &wptr);  // same: exit from whence you came 
+      ts_writeUint16(pckm->txAddr, _res, &wptr);       // return to the bus address where you originated
       break;
     default: // something is broken, 
       pckm->vpa->clear(pckm->location);
       return false;
   }
-  // byte that follows is the ptr, 
-  _res[wptr] = PK_PTR;
+  _res[wptr ++] = PK_PTR;  // after outgoing instruction, the instruction ptr to next instruction, 
   // now, read old instructions from the head of the packet, write them in at the tail 
-  uint16_t rptr = 0;          // read from top,
-  uint16_t backstop = wptr;   // don't reverse past 
-  wptr = ptr - 6;             // write from tail 
+  uint16_t backstop = wptr;   // don't write any further back than this,
+  wptr = eor;                 // write starting at end of packet (backing up each step)
+  uint16_t rptr = 0;          // read from the old instructions starting at the head of the packet
   // do max. 16 packet steps 
   for(uint8_t h = 0; h < 16; h ++){
-    if(wptr <= backstop){ // terminate when walking past end,
-      break;
-    }
+    if(wptr <= backstop) break;
     switch(pck[rptr]){
       case PK_PORTF_KEY:
         wptr -= PK_PORTF_INC;
@@ -91,7 +87,7 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uin
         sysError("couldn't reverse this path");
         return false;
     }
-  } // end walks, 
+  } // end walks,
   if(wptr != backstop){ // ptrs should match up when done, 
     sysError("bad response header write");
     return false;
@@ -167,7 +163,7 @@ void OSAP::portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
     ptr ++;
   }
   // new ptr at tail 
-  pck[ptr] == PK_PTR;
+  pck[ptr] = PK_PTR;
   // are setup to send on the port, 
   fwvp->send(pck, pckm->len, 0);
   pckm->vpa->clear(pckm->location);
@@ -308,6 +304,9 @@ void OSAP::instructionSwitch(uint8_t *pck,uint16_t ptr, pckm_t* pckm){
               break;
             case DK_PINGREQ:
               handlePingRequest(pck, ptr, pckm);
+              break;
+            case DK_EPREQ:
+              handleEntryPointRequest(pck, ptr, pckm);
               break;
             case DK_RREQ:
               handleReadRequest(pck, ptr, pckm);

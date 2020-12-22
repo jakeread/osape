@@ -50,6 +50,7 @@ public:
   void writeEmpty(uint16_t *wptr);
   void readRequestVPort(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uint16_t rptr, uint16_t* wptr, VPort* vp);
   void handleReadRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
+  void handleEntryPointRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
   void handlePingRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm);
   // main loop,
   void portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp);

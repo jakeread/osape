@@ -167,6 +167,22 @@ void OSAP::handleReadRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
   }
 }
 
+void OSAP::handleEntryPointRequest(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
+  if(!(pckm->vpa->cts(pckm->txAddr))){ return; }
+  uint16_t wptr = ptr;
+  _res[wptr ++] = DK_EPRES;
+  _res[wptr ++] = pck[ptr + 1];
+  _res[wptr ++] = pck[ptr + 2];
+  ts_writeUint16(pckm->vpa->indice, _res, &wptr);
+  if(formatResponseHeader(pck, ptr, pckm, 5)){
+    pckm->vpa->clear(pckm->location);
+    pckm->vpa->send(_res, wptr, pckm->txAddr);
+  } else {
+    sysError("at ep req, bad response format");
+    pckm->vpa->clear(pckm->location);
+  }
+}
+
 // pck[ptr] == DK_PINGREQ
 void OSAP::handlePingRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
   // check if we'll be able to respond. for p2p cases, the bus rxAddr is ignored, so... 
