@@ -63,7 +63,7 @@ boolean OSAP::formatResponseHeader(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uin
       return false;
   }
   // byte that follows is the ptr, 
-  _res[wptr ++] = PK_PTR;
+  _res[wptr] = PK_PTR;
   // now, read old instructions from the head of the packet, write them in at the tail 
   uint16_t rptr = 0;          // read from top,
   uint16_t backstop = wptr;   // don't reverse past 
