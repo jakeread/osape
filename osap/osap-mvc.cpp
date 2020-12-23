@@ -184,7 +184,7 @@ void OSAP::handleEntryPointRequest(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
 }
 
 // pck[ptr] == DK_PINGREQ
-void OSAP::handlePingRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
+void OSAP::handlePingRequest(uint8_t *pck, uint16_t ptr, pckm_t* pckm){  
   // check if we'll be able to respond. for p2p cases, the bus rxAddr is ignored, so... 
   if(!(pckm->vpa->cts(pckm->txAddr))){ return; }
   // the reversed header will be *the same length* as the received header,

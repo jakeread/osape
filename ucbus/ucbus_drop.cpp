@@ -128,7 +128,7 @@ void UCBus_Drop::rxISR(void){
     timeTick ++;
     timeBlink ++;
     if(timeBlink >= blinkTime){
-      CLKLIGHT_TOGGLE;
+      //CLKLIGHT_TOGGLE;
       timeBlink = 0;
     }
     onRxISR(); // on start of each word 
@@ -305,7 +305,7 @@ boolean UCBus_Drop::cts(void){
 }
 
 void UCBus_Drop::transmit(uint8_t *data, uint16_t len){
-  if(!cts()) return;
+  if(!cts()){ return; }
   // 1st byte: num of spaces we have to rx messages at this drop, i.e. buffer space 
   if(inBufferBLen == 0 && inBufferBWp == 0){ // nothing currently reading in, nothing awaiting handle 
     outBuffer[0] = 1;

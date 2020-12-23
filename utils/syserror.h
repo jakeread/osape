@@ -7,5 +7,6 @@
 #include "cobs.h"
 
 void sysError(String msg);
+//void sysError(uint8_t* bytes, uint16_t len);
 
 #endif
