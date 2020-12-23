@@ -54,7 +54,7 @@ void VPort_UCBus_Drop::clear(uint8_t pwp){
 }
 
 boolean VPort_UCBus_Drop::cts(uint8_t rxAddr){
-    if(rxAddr == 0 && ucBusDrop->ctr_b()){
+    if(rxAddr == 0 && ucBusDrop->cts()){
         return true;
     } else {
         return false;

@@ -25,11 +25,10 @@ boolean writeLenBytes(unsigned char* dest, uint16_t* dptr, uint16_t len){
 #ifdef UCBUS_IS_DROP
 
 uint8_t escape[512];
-uint8_t escapeHeader[10] = { 12, 0, 0, 0, 0, PK_PTR, 11, 0, 0, PK_DEST};
+uint8_t escapeHeader[10] = { PK_BUSF_KEY, 0, 0, 0, 0, PK_PTR, PK_PORTF_KEY, 0, 0, PK_DEST };
 
 // config-your-own-ll-escape-hatch
 void sysError(String msg){
-  // whatever you want,
   //ERRLIGHT_ON;
   uint32_t len = msg.length();
   errBuf[0] = PK_LLERR; // the ll-errmsg-key
@@ -40,9 +39,14 @@ void sysError(String msg){
   msg.getBytes(&(errBuf[5]), len + 1);
   // write header, 
   memcpy(escape, escapeHeader, 10);
-  memcpy(escape, errBuf, len + 5);
+  // write segsize, checksum 
+  uint16_t wptr = 10;
+  ts_writeUint16(128, escape, &wptr);
+  ts_writeUint16(len + 5, escape, &wptr);
+  memcpy(&(escape[wptr]), errBuf, len + 5);
   // transmit on ucbus 
-  ucBusDrop->transmit(escape, len + 15);
+  // potential here to hang-up and do while(!(ucBusDrop->cts())) ... I *think* that would clear on an interrupt
+  ucBusDrop->transmit(escape, len + wptr + 5);
 }
 
 #else 
