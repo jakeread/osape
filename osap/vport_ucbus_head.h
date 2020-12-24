@@ -30,7 +30,7 @@ class VPort_UCBus_Head : public VPort {
         // startup / runtime 
         void init(void);
         void loop(void);
-        uint8_t status(void); // this polymorphic also? or just always open ATM, lose 'em into the abyss? 
+        uint8_t status(uint16_t rxAddr); // this polymorphic also? or just always open ATM, lose 'em into the abyss? 
         // read ... from each drop ? 
         // might have to count # drops also, no? 
         // bus-drops just report 1 drop: the head 

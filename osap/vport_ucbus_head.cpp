@@ -21,6 +21,7 @@ VPort_UCBus_Head::VPort_UCBus_Head():VPort("ucbus head"){
     description = "vport wrap on ucbus head";
     portTypeKey = EP_PORTTYPEKEY_BUSHEAD;
     maxSegLength = UBH_BUFSIZE - 2; // (1) is drop id, (2) is rcrxb
+    maxAddresses = 15;  // 0 for the head, drops 0-14 map 1-15 
 }
 
 void VPort_UCBus_Head::init(void){
@@ -31,9 +32,13 @@ void VPort_UCBus_Head::loop(void){
     // use timer to trigger ucBusHead->timerISR() directly 
 }
 
-uint8_t VPort_UCBus_Head::status(void){
-    // should be polymorphic 
-    return EP_PORTSTATUS_OPEN;
+uint8_t VPort_UCBus_Head::status(uint16_t rxAddr){
+    // use time of last byte arrival from this drop, 
+    if(ucBusHead->lastrc[rxAddr - 1] + 500 < millis()){
+        return EP_PORTSTATUS_CLOSED;
+    } else {
+        return EP_PORTSTATUS_OPEN;
+    }
 }
 
 void VPort_UCBus_Head::read(uint8_t** pck, pckm_t* pckm){

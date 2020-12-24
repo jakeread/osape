@@ -47,7 +47,7 @@ public:
   uint16_t maxSegLength = VPUSB_SPACE_SIZE - 6;
   void init(void);
   void loop(void);
-  uint8_t status(void);
+  uint8_t status(uint16_t rxAddr);
   void read(uint8_t** pck, pckm_t* pckm);
   void clear(uint8_t location);
   boolean cts(uint8_t rxAddr); // for bus, placeholder, not a pro with virtual fns 

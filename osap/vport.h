@@ -41,7 +41,8 @@ public:
   String description = "undescribed vport";
   uint8_t portTypeKey = EP_PORTTYPEKEY_DUPLEX;
   uint16_t maxSegLength = 0;
-  uint16_t busAddress = 0; // if is a bus drop, or head, 
+  uint16_t busAddress = 0;    // if is a bus drop, or head, 
+  uint16_t maxAddresses = 1;  // also for bus drops / heads 
   // indice, 
   uint16_t indice = 0;
   // startup 
@@ -50,7 +51,7 @@ public:
   virtual void loop(void) = 0;
   // status: 0: closed, 1: open, 2: closing, 3: opening (defines in ts.h)
   // TODO: make status polymorphic for busses, status(uint8_t busAddr);
-  virtual uint8_t status(void) = 0;
+  virtual uint8_t status(uint16_t rxAddr) = 0;
   // give OSAP the data (set pl = 0 if no data)
   virtual void read(uint8_t** pck, pckm_t* pckm) = 0; 
   // this packet can be deleted, has been forwarded / dealt with 

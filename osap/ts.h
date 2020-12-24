@@ -74,6 +74,7 @@ no warranty is provided, and users accept all liability.
 #define EP_PORTTYPEKEY 183
 #define EP_MAXSEGLENGTH 184
 #define EP_PORTSTATUS 185
+#define EP_MAXADDRESSES 186 
 
 #define EP_PORTSTATUS_CLOSED 0
 #define EP_PORTSTATUS_OPEN 1

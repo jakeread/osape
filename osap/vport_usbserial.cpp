@@ -57,7 +57,8 @@ void VPort_USBSerial::loop(void){
   }
 }
 
-uint8_t VPort_USBSerial::status(void){
+// rxAddr just here for busses, 
+uint8_t VPort_USBSerial::status(uint16_t rxAddr){
   return _status;
 }
 

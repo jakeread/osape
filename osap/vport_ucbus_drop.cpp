@@ -20,6 +20,7 @@ VPort_UCBus_Drop::VPort_UCBus_Drop():VPort("ucbus drop"){
     description = "vport wrap on ucbus drop";
     portTypeKey = EP_PORTTYPEKEY_BUSDROP;
     maxSegLength = UBD_BUFSIZE - 2; // 1 for rcrxb, 1 for drop id (on return) 
+    maxAddresses = 15;  // 0 for head, 0-14 map 1-15 for drops 
 }
 
 void VPort_UCBus_Drop::init(void){
@@ -32,8 +33,10 @@ void VPort_UCBus_Drop::loop(void){
     // this is all interrupts 
 }
 
-uint8_t VPort_UCBus_Drop::status(void){
-    // should be polymorphic, per drop, but not implemented 
+uint8_t VPort_UCBus_Drop::status(uint16_t rxAddr){
+    // ignore rxAddr: hopefully no-one is querying for status of other drops, we cannot know 
+    // could check if this is 0, but... when busses become more advanced and we want this, will write 
+    // could also check, if req. is for rxAddr 0, if time of last byte from the head is > some interval 
     return EP_PORTSTATUS_OPEN;
 }
 

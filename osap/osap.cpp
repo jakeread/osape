@@ -141,7 +141,7 @@ void OSAP::portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
   // have correct VPort type, 
   // check if forwarding is clear, 
   if(!fwvp->cts(0)){
-    if(fwvp->status() != EP_PORTSTATUS_OPEN){ pckm->vpa->clear(pckm->location); }
+    if(fwvp->status(0) != EP_PORTSTATUS_OPEN){ pckm->vpa->clear(pckm->location); }
     return;
   }
   // are clear to send this, so 
@@ -187,7 +187,7 @@ void OSAP::busforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
   }
   // check clear,
   if(!(fwvp->cts(fwdRxAddr))){ 
-    if(fwvp->status() != EP_PORTSTATUS_OPEN){ pckm->vpa->clear(pckm->location); } // pop on closed ports 
+    if(fwvp->status(fwdRxAddr) != EP_PORTSTATUS_OPEN){ pckm->vpa->clear(pckm->location); } // pop on closed ports 
     return; 
   }
   // ready to fwd, bring ptr back so that pck[ptr] == busf 

@@ -34,6 +34,7 @@ void OSAP::writeEmpty(uint16_t *wptr){
 // queries for ahn vport,
 void OSAP::readRequestVPort(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uint16_t rptr, uint16_t *wptr, VPort* vp){
   // could be terminal, could read into endpoints (input / output) of the vport,
+  uint16_t rxAddr = 0; // in case used for vport status req. 
   for(uint8_t i = 0; i < 16; i ++){
     if(rptr >= pckm->len){
       return;
@@ -79,9 +80,16 @@ void OSAP::readRequestVPort(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uint16_t r
         ts_writeUint32(vp->maxSegLength, _res, wptr);
         rptr ++;
         break;
+      case EP_MAXADDRESSES:
+        _res[(*wptr) ++] = EP_MAXADDRESSES;
+        ts_writeUint16(vp->maxAddresses, _res, wptr);
+        rptr ++;
+        break;
       case EP_PORTSTATUS:
+        rptr ++;
+        ts_readUint16(&rxAddr, pck, &rptr);
         _res[(*wptr) ++] = EP_PORTSTATUS;
-        _res[(*wptr) ++] = vp->status();
+        _res[(*wptr) ++] = vp->status(rxAddr);
         rptr ++;
         break;
       default:
