@@ -218,7 +218,7 @@ void OSAP::portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
   // are clear to send this, so 
   // ready to drop arrival information in, 
   // currently pck[ptr] == [portf]
-  if(fwvp->portTypeKey == EP_PORTTYPEKEY_DUPLEX){
+  if(pckm->vpa->portTypeKey == EP_PORTTYPEKEY_DUPLEX){
     ptr -= 4;                                     
     pck[ptr ++] = PK_PORTF_KEY;                   // reversal instruction is to (1) port forward
     ts_writeUint16(pckm->vpa->indice, pck, &ptr); // (2) on this vport 
