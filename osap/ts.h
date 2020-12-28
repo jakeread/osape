@@ -39,6 +39,25 @@ no warranty is provided, and users accept all liability.
 #define DK_WREQ 113     // write request
 #define DK_WRES 114     // write response
 #define DK_LLBYTES 121  // routed byte escape 
+#define DK_VMODULE 202  // datagram for this vmodule (16b indice follows)
+#define DK_VMOBJ   212  // datagram for this data object in that vmodule (16b indice follows)
+
+// -------------------------------------------------------- Type Keys 
+
+#define TK_BOOL     2
+
+#define TK_UINT8    4
+#define TK_INT8     5
+#define TK_UINT16   6
+#define TK_INT16    7
+#define TK_UINT32   8
+#define TK_INT32    9
+#define TK_UINT64   10
+#define TK_INT64    11
+
+#define TK_FLOAT16  24
+#define TK_FLOAT32  26
+#define TK_FLOAT64  28
 
 // -------------------------------------------------------- Application Keys 
 

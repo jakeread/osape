@@ -29,6 +29,77 @@ boolean OSAP::addVPort(VPort* vPort){
   }
 }
 
+
+boolean OSAP::send(uint8_t* txroute, uint16_t routelen, uint16_t segsize, uint8_t* data, uint16_t datalen){
+  // can't do this, 
+  if(routelen + datalen + 6 > segsize) return false;
+  // 1st order of business, we pull the outgoing vport from the route, 
+  uint16_t rptr = 1;
+  uint16_t vpi = 0;
+  ts_readUint16(&vpi, txroute, &rptr);
+  // check oob ports
+  if(vpi >= _numVPorts){
+    return false; 
+  }
+  // switch dep. on msg / port type 
+  VPort* vpo = _vPorts[vpi];
+  switch(txroute[0]){
+    case PK_PORTF_KEY: {
+      // match vport type and route description 
+      if(vpo->portTypeKey != EP_PORTTYPEKEY_DUPLEX) return false;
+      if(!(vpo->cts(0))) return false;
+      // copy route 
+      memcpy(_tx, txroute, 3);
+      _tx[3] = PK_PTR; 
+      memcpy(&(_tx[4]), &(txroute[3]), routelen - 3);
+      // destination station 
+      uint16_t wptr = routelen + 1;
+      _tx[wptr ++] = PK_DEST;
+      ts_writeUint16(segsize, _tx, &wptr);
+      ts_writeUint16(datalen, _tx, &wptr);
+      // actual datagram 
+      memcpy(&(_tx[wptr]), data, datalen);
+      // dispatch it 
+      vpo->send(_tx, wptr + datalen, 0); // 0 here is the 'rxaddress', meaningless on a duplex link
+      return true;
+      break;
+    }
+    case PK_BUSF_KEY: {
+      // match vport type w/ route description 
+      if(vpo->portTypeKey != EP_PORTTYPEKEY_BUSHEAD && vpo->portTypeKey != EP_PORTTYPEKEY_BUSDROP) return false;
+      uint16_t rxaddr = 0;
+      ts_readUint16(&rxaddr, txroute, &rptr);
+      // can't transmit to anyone but bus head, from a drop 
+      if(vpo->portTypeKey == EP_PORTTYPEKEY_BUSDROP && rxaddr != 0) return false;
+      // can't transmit if not cts, big brain energy 
+      if(!(vpo->cts(rxaddr))) return false;
+      // can copy the route in 
+      memcpy(_tx, txroute, 5);  // outgoing instruction 
+      _tx[5] = PK_PTR;          // ptr to next instruction (for recipient to execute)
+      memcpy(&(_tx[6]), &(txroute[5]), routelen - 5);  // remainder of route
+      // copy the destination work:
+      uint16_t wptr = routelen + 1;
+      _tx[wptr ++] = PK_DEST;
+      ts_writeUint16(segsize, _tx, &wptr);
+      ts_writeUint16(datalen, _tx, &wptr);
+      // and finally, the data 
+      memcpy(&(_tx[wptr]), data, datalen);
+      // aaaaand we can ship it 
+      vpo->send(_tx, wptr + datalen, rxaddr);
+      return true;
+      break;
+    }
+    case PK_BUSB_KEY: {
+      if(vpo->portTypeKey != EP_PORTTYPEKEY_BUSHEAD) return false;
+      // eeeeh, not supporting these yet 
+      return false;
+      break;
+    }
+    default:
+      return false;
+  }
+}
+
 // packet to read from, response to write into is global _res
 // apparent position of pck[ptr] == DK_(?) (i.e. 1st byte of payload)
 // packet meta (len, vport of arrival, tx/rx addresses, etc)

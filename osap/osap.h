@@ -23,6 +23,7 @@ no warranty is provided, and users accept all liability.
 
 #define OSAP_MAX_VPORTS 16
 #define RES_LENGTH 2048
+#define OUT_LENGTH 2048
 #define OSAP_STALETIMEOUT 600
 #define OSAP_TXKEEPALIVEINTERVAL 300
 
@@ -35,6 +36,8 @@ private:
   uint8_t _numVModules = 0;
   // dishing output, temp write buffer
   uint8_t _res[RES_LENGTH];
+  // dishing packets, temp write buffer 
+  uint8_t _tx[OUT_LENGTH];
 public:
   OSAP(String nodeName);
   // props
@@ -42,6 +45,7 @@ public:
   String description = "undescribed osap node";
   // fns
   boolean addVPort(VPort* vPort);
+  boolean send(uint8_t* txroute, uint16_t routelen, uint16_t segsize, uint8_t* data, uint16_t datalen);
   // reply to a packet, 
   boolean formatResponseHeader(uint8_t *pck, uint16_t ptr, pckm_t* pckm, uint16_t reslen);
   void appReply(uint8_t *pck, pckm_t* pckm, uint8_t *reply, uint16_t repLen);

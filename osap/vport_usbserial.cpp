@@ -59,6 +59,12 @@ void VPort_USBSerial::loop(void){
 
 // rxAddr just here for busses, 
 uint8_t VPort_USBSerial::status(uint16_t rxAddr){
+  // check transitions 
+  if(_status == EP_PORTSTATUS_CLOSED){
+    if(Serial.availableForWrite()) _status = EP_PORTSTATUS_OPEN;
+  } else {
+    if(!Serial.availableForWrite()) _status = EP_PORTSTATUS_CLOSED;
+  }
   return _status;
 }
 
@@ -93,7 +99,7 @@ void VPort_USBSerial::clear(uint8_t location){
 // ignore rxAddr: that's interface for busses
 boolean VPort_USBSerial::cts(uint8_t rxAddr){
   // no 77 yet, so 
-  if(_status == EP_PORTSTATUS_OPEN){
+  if(status(0) == EP_PORTSTATUS_OPEN){
     return true;
   } else {
     return false;
