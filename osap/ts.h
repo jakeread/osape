@@ -39,7 +39,9 @@ no warranty is provided, and users accept all liability.
 #define DK_WREQ 113     // write request
 #define DK_WRES 114     // write response
 #define DK_LLBYTES 121  // routed byte escape 
-#define DK_VMODULE 202  // datagram is obj for a vmodule: 4x 16b indices follow: from vm, obj / to vm, obj
+#define DK_VMODULE 202          // datagram is obj for a vmodule: 4x 16b indices follow: from vm, obj / to vm, obj
+#define DK_VMODULE_NACK 203     // your datagram recieved here but was occupied  
+#define DK_VMODULE_YACK 204     // recieved and cleared at this endpoint 
 
 // -------------------------------------------------------- Type Keys 
 

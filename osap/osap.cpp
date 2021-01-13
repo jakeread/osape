@@ -119,8 +119,64 @@ boolean OSAP::send(uint8_t* txroute, uint16_t routelen, uint16_t segsize, uint8_
 
 // -------------------------------------------------------- HANDLE ENDPOINT PACKET 
 
+// pck[ptr] == DK_VMODULE, next bytes are 
 void OSAP::handleVModulePacket(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
-  pckm->vpa->clear(pckm->location);
+  ptr ++; // advance past key, 
+  uint16_t vmFrom, epFrom, vmTo, epTo;
+  ts_readUint16(&vmFrom, pck, &ptr);
+  ts_readUint16(&epFrom, pck, &ptr);
+  ts_readUint16(&vmTo, pck, &ptr);
+  ts_readUint16(&epTo, pck, &ptr);
+  // ATM, yrs truly is ignoring the vm's, assuming all osaps are flat 
+  if(epTo > _numEndpoints){
+    // doth not exist, drop 
+    pckm->vpa->clear(pckm->location);
+  } else {
+    Endpoint* ep = _endpoints[epTo];
+    if(ep->dataNew){ // bb is already occupied / hasn't been handled 
+      if(pckm->vpa->cts(pckm->txAddr)){
+        // write & send the nack 
+        uint8_t nack[9];
+        uint16_t wptr = 0;
+        // modules reversed: a nack from us, to them
+        nack[wptr ++] = DK_VMODULE_NACK;
+        ts_writeUint16(vmTo, nack, &wptr);
+        ts_writeUint16(epTo, nack, &wptr);
+        ts_writeUint16(vmFrom, nack, &wptr);
+        ts_writeUint16(epFrom, nack, &wptr);
+        // ship the yack 
+        appReply(pck, pckm, nack, 9);
+      } else {
+        // the missed nack, will timeout instead at transmit side 
+        pckm->vpa->clear(pckm->location);
+      }
+    } else {
+      ep->fill(pck, ptr, pckm, vmFrom, epFrom);
+      // try to single-shot handle it, 
+      if(ep->consume()){
+        ep->dataNew = false;
+        if(pckm->vpa->cts(pckm->txAddr)){
+          // write & send the yack, if we can tx 
+          uint8_t yack[9];
+          uint16_t wptr = 0;
+          // modules reversed: a nack from us, to them
+          yack[wptr ++] = DK_VMODULE_YACK;
+          ts_writeUint16(vmTo, yack, &wptr);
+          ts_writeUint16(epTo, yack, &wptr);
+          ts_writeUint16(vmFrom, yack, &wptr);
+          ts_writeUint16(epFrom, yack, &wptr);
+          // ship the yack 
+          appReply(pck, pckm, yack, 9);
+        } else {
+          // not clear to cts, but have consumed, 
+          // this is the missed return, 
+          pckm->vpa->clear(pckm->location);
+        }
+      } else {
+        // no-op, osap will retry later 
+      }
+    }
+  }
 }
 
 // -------------------------------------------------------- REPLIES
@@ -355,4 +411,31 @@ void OSAP::loop(){
       endWalk: ;
     } // end packets-per-port-per-turn 
   } // end loop over ports (handling rx) 
+  // do loop over endpoints, 
+  for(uint8_t ep = 0; ep < _numEndpoints; ep ++){
+    if(_endpoints[ep]->dataNew){
+      Endpoint* ept = _endpoints[ep];
+      if(ept->consume()){
+        ept->dataNew = false;
+        if(ept->pckmStore.vpa->cts(ept->pckmStore.txAddr)){
+        // eats it OK, so we can clear 
+        uint8_t yack[9];
+        uint16_t wptr = 0;
+        yack[wptr ++] = DK_VMODULE_YACK;
+        // reversed, 
+        ts_writeUint16(0, yack, &wptr); // recall, no submodules atm
+        ts_writeUint16(ept->indice, yack, &wptr);
+        ts_writeUint16(ept->rxFromVM, yack, &wptr);
+        ts_writeUint16(ept->rxFromEP, yack, &wptr);
+        // ship the yack 
+        appReply(ept->pckStore, &(ept->pckmStore), yack, 9);
+        ept->dataNew = false;
+        } else {
+          // the missed ack, 
+        }
+      } else {
+        // no-op, will continue to retry 
+      }
+    }
+  }
 }

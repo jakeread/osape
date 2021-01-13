@@ -27,7 +27,6 @@ no warranty is provided, and users accept all liability.
 #define RES_LENGTH 2048
 #define OUT_LENGTH 2048
 #define OSAP_STALETIMEOUT 600
-#define OSAP_TXKEEPALIVEINTERVAL 300
 
 class OSAP {
 private:

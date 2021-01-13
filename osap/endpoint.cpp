@@ -17,3 +17,28 @@ no warranty is provided, and users accept all liability.
 Endpoint::Endpoint(boolean (*fp)(uint8_t* data, uint16_t len)){
     onNewData = fp;
 }
+
+void Endpoint::fill(uint8_t* pck, uint16_t ptr, pckm_t* pckm, uint16_t txVM, uint16_t txEP){
+    // copy the full packet to our local store, 
+    memcpy(pckStore, pck, pckm->len);
+    dataStart = ptr;
+    dataLen = pckm->checksum - 9;
+    // this is true now, 
+    dataNew = true; 
+    // copy all meta information in, 
+    pckmStore.vpa = pckm->vpa;
+    pckmStore.len = pckm->len;
+    pckmStore.at = pckm->at;
+    pckmStore.location = pckm->location;
+    pckmStore.rxAddr = pckm->rxAddr;
+    pckmStore.txAddr = pckm->txAddr;
+    pckmStore.segSize = pckm->segSize;
+    pckmStore.checksum = pckm->checksum;
+    // incl. this turnaround meta 
+    rxFromVM = txVM;
+    rxFromEP = txEP;
+}
+
+boolean Endpoint::consume(){
+    return onNewData(&(pckStore[dataStart]), dataLen);
+}
