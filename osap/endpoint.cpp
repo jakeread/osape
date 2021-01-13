@@ -1,10 +1,10 @@
 /*
-utils/cobs.h
+osap/endpoint.cpp
 
-consistent overhead byte stuffing implementation
+data element / osap software runtime api 
 
 Jake Read at the Center for Bits and Atoms
-(c) Massachusetts Institute of Technology 2019
+(c) Massachusetts Institute of Technology 2021
 
 This work may be reproduced, modified, distributed, performed, and
 displayed for any purpose, but must acknowledge the osap project.
@@ -12,13 +12,8 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-#ifndef UTIL_COBS_H_
-#define UTIL_COBS_H_
+#include "endpoint.h"
 
-#include <arduino.h>
-
-size_t cobsEncode(uint8_t *src, size_t len, uint8_t *dest);
-
-size_t cobsDecode(uint8_t *src, size_t len, uint8_t *dest);
-
-#endif
+Endpoint::Endpoint(boolean (*fp)(uint8_t* data, uint16_t len)){
+    onNewData = fp;
+}
