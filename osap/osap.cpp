@@ -146,6 +146,7 @@ void OSAP::handleVModulePacket(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
         ts_writeUint16(epFrom, nack, &wptr);
         // ship the yack 
         appReply(pck, pckm, nack, 9);
+        pckm->vpa->clear(pckm->location);
       } else {
         // the missed nack, will timeout instead at transmit side 
         pckm->vpa->clear(pckm->location);
@@ -167,6 +168,7 @@ void OSAP::handleVModulePacket(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
           ts_writeUint16(epFrom, yack, &wptr);
           // ship the yack 
           appReply(pck, pckm, yack, 9);
+          pckm->vpa->clear(pckm->location);
         } else {
           // not clear to cts, but have consumed, 
           // this is the missed return, 
