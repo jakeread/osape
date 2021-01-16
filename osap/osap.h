@@ -69,7 +69,8 @@ public:
   void loop();
   // the handoff, 
   void handleAppPacket(uint8_t* pck, uint16_t ptr, pckm_t* pckm);
-  void handleVModulePacket(uint8_t* pck, uint16_t ptr, pckm_t* pckm);
+  void handleVModule(uint8_t* pck, uint16_t ptr, pckm_t* pckm);
+  void handleVModuleQuery(uint8_t* pck, uint16_t ptr, pckm_t* pckm);
 };
 
 #endif

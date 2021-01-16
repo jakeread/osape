@@ -120,7 +120,7 @@ boolean OSAP::send(uint8_t* txroute, uint16_t routelen, uint16_t segsize, uint8_
 // -------------------------------------------------------- HANDLE ENDPOINT PACKET 
 
 // pck[ptr] == DK_VMODULE, next bytes are 
-void OSAP::handleVModulePacket(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
+void OSAP::handleVModule(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
   ptr ++; // advance past key, 
   uint16_t vmFrom, epFrom, vmTo, epTo;
   ts_readUint16(&vmFrom, pck, &ptr);
@@ -176,8 +176,37 @@ void OSAP::handleVModulePacket(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
         }
       } else {
         // no-op, osap will retry later 
+        // but the packet is still clear, as we've filled the local store... 
+        pckm->vpa->clear(pckm->location);
       }
     }
+  }
+}
+
+void OSAP::handleVModuleQuery(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
+  ptr += 5;
+  uint16_t ep;
+  ts_readUint16(&ep, pck, &ptr);
+  if(ep >= _numEndpoints){
+    pckm->vpa->clear(pckm->location);
+    return;
+  }
+  if(pckm->vpa->cts(pckm->txAddr)){
+    Endpoint* ept = _endpoints[ep];
+    uint16_t replyLen = ept->dataStoreLen + 7;
+    uint8_t reply[replyLen];
+    // new 1st byte, 
+    reply[0] = DK_VMODULE_QUERY_RES;
+    // remainder of header can copy in from the packet 
+    memcpy(&(reply[1]), &(pck[ptr - 6]), 6);
+    // and copy the data, 
+    memcpy(&(reply[7]), ept->dataStore, ept->dataStoreLen);
+    // now we can transmit,
+    appReply(pck, pckm, reply, replyLen);
+    pckm->vpa->clear(pckm->location);
+  } else {
+    // the missed ack, 
+    pckm->vpa->clear(pckm->location);
   }
 }
 
@@ -322,8 +351,15 @@ void OSAP::instructionSwitch(uint8_t *pck,uint16_t ptr, pckm_t* pckm){
               handleAppPacket(pck, ptr, pckm);
               break;
             case DK_VMODULE:
-              handleVModulePacket(pck, ptr, pckm);
+              handleVModule(pck, ptr, pckm);
               break;
+            case DK_VMODULE_QUERY:
+              handleVModuleQuery(pck, ptr, pckm);
+              break;
+            case DK_VMODULE_QUERY_RES:
+            case DK_VMODULE_QUERY_ERR:
+              sysError("Query RES or ERR in embedded, popping");
+              pckm->vpa->clear(pckm->location);
             case DK_PINGREQ:
               handlePingRequest(pck, ptr, pckm);
               break;
@@ -420,22 +456,22 @@ void OSAP::loop(){
       if(ept->consume()){
         ept->dataNew = false;
         if(ept->pckmStore.vpa->cts(ept->pckmStore.txAddr)){
-        // eats it OK, so we can clear 
-        uint8_t yack[9];
-        uint16_t wptr = 0;
-        yack[wptr ++] = DK_VMODULE_YACK;
-        // reversed, 
-        ts_writeUint16(0, yack, &wptr); // recall, no submodules atm
-        ts_writeUint16(ept->indice, yack, &wptr);
-        ts_writeUint16(ept->rxFromVM, yack, &wptr);
-        ts_writeUint16(ept->rxFromEP, yack, &wptr);
-        // ship the yack 
-        appReply(ept->pckStore, &(ept->pckmStore), yack, 9);
-        ept->dataNew = false;
+          // eats it OK, so we can clear 
+          uint8_t yack[9];
+          uint16_t wptr = 0;
+          yack[wptr ++] = DK_VMODULE_YACK;
+          // reversed, 
+          ts_writeUint16(0, yack, &wptr); // recall, no submodules atm
+          ts_writeUint16(ept->indice, yack, &wptr);
+          ts_writeUint16(ept->rxFromVM, yack, &wptr);
+          ts_writeUint16(ept->rxFromEP, yack, &wptr);
+          // ship the yack 
+          appReply(ept->pckStore, &(ept->pckmStore), yack, 9);
         } else {
           // the missed ack, 
         }
       } else {
+        //sysError("retry");
         // no-op, will continue to retry 
       }
     }

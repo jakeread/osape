@@ -29,7 +29,12 @@ class Endpoint{
     void fill(uint8_t* pck, uint16_t ptr, pckm_t* pckm, uint16_t txVM, uint16_t txEP);
     // try to consume local data (at software API)
     boolean consume(void);
-    // the buffer: store entire packet
+    // write new data 
+    void write(uint8_t* data, uint16_t len);
+    // the local buffer... when these are typed, can be smarter about memory:
+    uint8_t dataStore[2048];
+    uint16_t dataStoreLen = 0;
+    // the consumption buffer: store entire packet
     uint8_t pckStore[2048];
     pckm_t pckmStore;
     uint16_t rxFromVM;

@@ -20,6 +20,8 @@ Endpoint::Endpoint(boolean (*fp)(uint8_t* data, uint16_t len)){
 
 void Endpoint::fill(uint8_t* pck, uint16_t ptr, pckm_t* pckm, uint16_t txVM, uint16_t txEP){
     // copy the full packet to our local store, 
+    // TODO: should also align with 'write' ... 
+    // at the moment, they are disconnected and that's broken 
     memcpy(pckStore, pck, pckm->len);
     dataStart = ptr;
     dataLen = pckm->checksum - 9;
@@ -41,4 +43,9 @@ void Endpoint::fill(uint8_t* pck, uint16_t ptr, pckm_t* pckm, uint16_t txVM, uin
 
 boolean Endpoint::consume(){
     return onNewData(&(pckStore[dataStart]), dataLen);
+}
+
+void Endpoint::write(uint8_t* data, uint16_t len){
+    memcpy(dataStore, data, len);
+    dataStoreLen = len;
 }
