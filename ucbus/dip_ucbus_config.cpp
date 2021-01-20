@@ -27,7 +27,7 @@ void dip_init(void){
     DIP_PORT.OUTCLR.reg = D_BM(D0_PIN) | D_BM(D1_PIN) | D_BM(D2_PIN) | D_BM(D3_PIN) | D_BM(D4_PIN) | D_BM(D5_PIN) | D_BM(D6_PIN) | D_BM(D7_PIN);
 }
 
-uint8_t dip_read_lower_five(void){
+uint8_t dip_read_lower_four(void){
     uint32_t bits[5] = {0,0,0,0,0};
     if(DIP_PORT.IN.reg & D_BM(D7_PIN)) { bits[0] = 1; }
     if(DIP_PORT.IN.reg & D_BM(D6_PIN)) { bits[1] = 1; }

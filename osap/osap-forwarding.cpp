@@ -48,7 +48,7 @@ void OSAP::portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
 
 // pck[ptr] == busf / busb 
 void OSAP::busforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
-  DEBUG2PIN_TOGGLE;
+  //DEBUG2PIN_TOGGLE;
   //                  [ptr]
   // advance [ptr(88)][busf][b0_depart][b1_depart][b0_rxaddr][b1_rxaddr]
   ptr += 3;

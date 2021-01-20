@@ -326,7 +326,7 @@ void OSAP::appReply(uint8_t *pck, pckm_t* pckm, uint8_t *reply, uint16_t repLen)
 // vp: port received on, fwp: frame-write-ptr,
 // so vp->frames[fwp] = frame, though that isn't exposed here
 void OSAP::instructionSwitch(uint8_t *pck,uint16_t ptr, pckm_t* pckm){
-  DEBUG1PIN_TOGGLE;
+  //DEBUG1PIN_TOGGLE;
   // we must *do* something, and (ideally) pop this thing,
   switch(pck[ptr]){
     case PK_PORTF_KEY:

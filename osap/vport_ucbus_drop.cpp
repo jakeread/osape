@@ -24,9 +24,7 @@ VPort_UCBus_Drop::VPort_UCBus_Drop():VPort("ucbus drop"){
 }
 
 void VPort_UCBus_Drop::init(void){
-    #warning needs to init w/ args...
-    // id == 6, so rxAddr = 7 
-    ucBusDrop->init(false, 6); // for now, this here?
+    ucBusDrop->init(true, 0); 
 }
 
 void VPort_UCBus_Drop::loop(void){

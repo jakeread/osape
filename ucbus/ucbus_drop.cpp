@@ -35,7 +35,8 @@ void UCBus_Drop::init(boolean useDipPick, uint8_t ID) {
   dip_init();
   if(useDipPick){
     // set our id, 
-    id = dip_read_lower_five(); // should read lower 4, now that cha / chb 
+    id = dip_read_lower_four(); // should read lower 4, now that cha / chb 
+    if(id > 14){ id = 14; };  // max 14 drops, logical addresses 0 - 14
   } else {
     id = ID;
   }
@@ -110,7 +111,7 @@ void SERCOM1_2_Handler(void){
 }
 
 void UCBus_Drop::rxISR(void){
-  DEBUG2PIN_ON;
+  //DEBUG2PIN_ON;
   // check parity bit,
   uint16_t perr = UBD_SER_USART.STATUS.bit.PERR;
   if(perr){
@@ -128,7 +129,7 @@ void UCBus_Drop::rxISR(void){
     timeTick ++;
     timeBlink ++;
     if(timeBlink >= blinkTime){
-      //CLKLIGHT_TOGGLE;
+      CLKLIGHT_TOGGLE;
       timeBlink = 0;
     }
     onRxISR(); // on start of each word 
@@ -217,7 +218,7 @@ void UCBus_Drop::rxISR(void){
       timeTick = 0;
     }
   } // end 1th bit case, 
-  DEBUG2PIN_OFF;
+  //DEBUG2PIN_OFF;
 } // end rx-isr 
 
 void SERCOM1_0_Handler(void){

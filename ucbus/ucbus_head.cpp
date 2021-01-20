@@ -124,7 +124,7 @@ void UCBus_Head::timerISR(void){
     }
   } else if (outBufferBLen > 0){
     if(outBufferBRp >= outBufferBLen){
-      DEBUG2PIN_OFF;
+      //DEBUG2PIN_OFF;
       // CHB EOP frame 
       outByte = 0;
       outHeader = headerMask & (noTokenWordB | (currentDropTap & dropIdMask));
@@ -132,7 +132,7 @@ void UCBus_Head::timerISR(void){
       outBufferBRp = 0;
       outBufferBLen = 0;
     } else {
-      DEBUG2PIN_ON;
+      //DEBUG2PIN_ON;
       // ahn regular CHB frame 
       outByte = outBufferB[outBufferBRp];
       outHeader = headerMask & (tokenWordB | (currentDropTap & dropIdMask));

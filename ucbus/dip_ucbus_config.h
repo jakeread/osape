@@ -19,6 +19,6 @@
 #define D_BM(val) ((uint32_t)(1 << val))
 
 void dip_init(void);
-uint8_t dip_read_lower_five(void);
+uint8_t dip_read_lower_four(void);  // id, four bits, less the last two... 14 ids: 16 bit, 1 place clock reset, one token (iirc)
 boolean dip_read_pin_0(void); // bus-head (hi) or bus-drop (lo)
 boolean dip_read_pin_1(void); // if bus-drop, te-enable (hi) or no (lo)
