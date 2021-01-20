@@ -118,6 +118,7 @@ void OSAP::forward(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
   switch(fwtype){
     case PK_PORTF_KEY:
       if(fwvp->portTypeKey != EP_PORTTYPEKEY_DUPLEX){
+        sysError("dropping fwd for portf on non portf exit");
         pckm->vpa->clear(pckm->location);
         return;
       } else {
@@ -126,6 +127,7 @@ void OSAP::forward(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
       break;
     case PK_BUSF_KEY:
       if(fwvp->portTypeKey != EP_PORTTYPEKEY_BUSHEAD && fwvp->portTypeKey != EP_PORTTYPEKEY_BUSDROP){
+        sysError("dropping fwd for busf on non busf exit");
         pckm->vpa->clear(pckm->location);
         return;
       } else {
@@ -134,6 +136,7 @@ void OSAP::forward(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
       break;
     case PK_BUSB_KEY:
       if(fwvp->portTypeKey != EP_PORTTYPEKEY_BUSHEAD){
+        sysError("dropping request to broadcast on non bus-head exit");
         pckm->vpa->clear(pckm->location);
         return;
       } else {
