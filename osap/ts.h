@@ -12,6 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
+#ifndef TS_H_
+#define TS_H_
+
 #include <arduino.h>
 
 // -------------------------------------------------------- Routing (Packet) Keys
@@ -126,6 +129,13 @@ no warranty is provided, and users accept all liability.
 
 // ... etc, later
 
+// -------------------------------------------------------- Chunks
+
+union chunk_uint32 {
+    uint8_t bytes[4];
+    uint32_t u;
+}; 
+
 // -------------------------------------------------------- Reading and Writing
 
 void ts_writeBoolean(boolean val, unsigned char *buf, uint16_t *ptr);
@@ -141,3 +151,5 @@ void ts_writeFloat32(float val, volatile unsigned char *buf, uint16_t *ptr);
 void ts_writeFloat64(double val, volatile unsigned char *buf, uint16_t *ptr);
 
 void ts_writeString(String val, unsigned char *buf, uint16_t *ptr);
+
+#endif 
