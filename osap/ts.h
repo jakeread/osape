@@ -131,6 +131,16 @@ no warranty is provided, and users accept all liability.
 
 // -------------------------------------------------------- Chunks
 
+union chunk_float32 {
+  uint8_t bytes[4];
+  float f;
+};
+
+union chunk_float64 {
+  uint8_t bytes[8];
+  double f;
+};
+
 union chunk_uint32 {
     uint8_t bytes[4];
     uint32_t u;
