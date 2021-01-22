@@ -188,6 +188,7 @@ void OSAP::handleVModuleQuery(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
   uint16_t ep;
   ts_readUint16(&ep, pck, &ptr);
   if(ep >= _numEndpoints){
+    sysError("endpoint query out of bounds");
     pckm->vpa->clear(pckm->location);
     return;
   }
