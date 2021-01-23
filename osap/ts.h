@@ -148,18 +148,20 @@ union chunk_uint32 {
 
 // -------------------------------------------------------- Reading and Writing
 
-void ts_writeBoolean(boolean val, unsigned char *buf, uint16_t *ptr);
+void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr);
 
-void ts_readUint16(uint16_t *val, uint8_t *buf, uint16_t *ptr);
+void ts_readUint16(uint16_t* val, uint8_t* buf, uint16_t* ptr);
 
-void ts_writeUint16(uint16_t val, unsigned char *buf, uint16_t *ptr);
+void ts_writeUint16(uint16_t val, unsigned char* buf, uint16_t* ptr);
 
-void ts_writeUint32(uint32_t val, unsigned char *buf, uint16_t *ptr);
+void ts_readUint32(uint32_t* val, unsigned char* buf, uint16_t* ptr);
 
-void ts_writeFloat32(float val, volatile unsigned char *buf, uint16_t *ptr);
+void ts_writeUint32(uint32_t val, unsigned char* buf, uint16_t* ptr);
 
-void ts_writeFloat64(double val, volatile unsigned char *buf, uint16_t *ptr);
+void ts_writeFloat32(float val, volatile unsigned char* buf, uint16_t* ptr);
 
-void ts_writeString(String val, unsigned char *buf, uint16_t *ptr);
+void ts_writeFloat64(double val, volatile unsigned char* buf, uint16_t* ptr);
+
+void ts_writeString(String val, unsigned char* buf, uint16_t* ptr);
 
 #endif 
