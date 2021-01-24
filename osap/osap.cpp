@@ -149,6 +149,7 @@ void OSAP::handleVModule(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
         pckm->vpa->clear(pckm->location);
       } else {
         // the missed nack, will timeout instead at transmit side 
+        ERRLIGHT_ON;
         pckm->vpa->clear(pckm->location);
       }
     } else {
@@ -207,6 +208,7 @@ void OSAP::handleVModuleQuery(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
     pckm->vpa->clear(pckm->location);
   } else {
     // the missed ack, 
+    ERRLIGHT_ON;
     pckm->vpa->clear(pckm->location);
   }
 }
@@ -470,6 +472,7 @@ void OSAP::loop(){
           appReply(ept->pckStore, &(ept->pckmStore), yack, 9);
         } else {
           // the missed ack, 
+          ERRLIGHT_ON;
         }
       } else {
         //sysError("retry");

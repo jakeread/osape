@@ -25,10 +25,21 @@ VPort_UCBus_Drop::VPort_UCBus_Drop():VPort("ucbus drop"){
 
 void VPort_UCBus_Drop::init(void){
     ucBusDrop->init(true, 0); 
+    for(uint8_t i = 0; i < UBD_OUTBUFFER_COUNT; i ++){
+        _outBufferLen[i] = 0;
+    }
 }
 
 void VPort_UCBus_Drop::loop(void){
-    // this is all interrupts 
+    // check our transmit buffer,
+    if(ucBusDrop->cts()){
+        for(uint8_t i = 0; i < UBD_OUTBUFFER_COUNT; i ++){
+            if(_outBufferLen[i] > 0){
+                ucBusDrop->transmit(_outBuffer[i], _outBufferLen[i]);
+                _outBufferLen[i] = 0;
+            }
+        }
+    }
 }
 
 uint8_t VPort_UCBus_Drop::status(uint16_t rxAddr){
@@ -55,16 +66,37 @@ void VPort_UCBus_Drop::clear(uint8_t pwp){
 }
 
 boolean VPort_UCBus_Drop::cts(uint8_t rxAddr){
+    // immediately clear?
     if(rxAddr == 0 && ucBusDrop->cts()){
         return true;
-    } else {
-        return false;
     }
+    // if not, check for empty space in outbuffer, 
+    for(uint8_t i = 0; i < UBD_OUTBUFFER_COUNT; i ++){
+        if(_outBufferLen[i] == 0){
+            return true;
+        }
+    }
+    // if not, not cts 
+    return false;
 }
 
 void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl, uint8_t rxAddr){
-    if(!cts(rxAddr)) return;
-    ucBusDrop->transmit(pck, pl);
+    // can't tx not-to-the-head 
+    if(rxAddr != 0) return;
+    // if the bus is ready, drop it,
+    if(ucBusDrop->cts()){
+        ucBusDrop->transmit(pck, pl);
+    } else {
+        // otherwise, stash in the store... 
+        // if no spaces, game over, no graceful save, things have gone poorly 
+        for(uint8_t i = 0; i < UBD_OUTBUFFER_COUNT; i ++){
+            if(_outBufferLen[i] == 0){
+                memcpy(_outBuffer[i], pck, pl);
+                _outBufferLen[i] = pl;
+                return;
+            }
+        }
+    }
 }
 
 #endif 

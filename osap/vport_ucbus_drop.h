@@ -24,7 +24,13 @@ no warranty is provided, and users accept all liability.
 #include "../../drivers/indicators.h"
 #include "../ucbus/ucbus_drop.h"
 
+#define UBD_OUTBUFFER_LEN    1024
+#define UBD_OUTBUFFER_COUNT  8
+
 class VPort_UCBus_Drop : public VPort {
+    private:
+        uint8_t _outBuffer[UBD_OUTBUFFER_COUNT][UBD_OUTBUFFER_LEN];
+        uint16_t _outBufferLen[UBD_OUTBUFFER_COUNT];
     public:
         VPort_UCBus_Drop();
         // startup / run 
