@@ -62,6 +62,12 @@ void OSAP::busforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
     pckm->vpa->clear(pckm->location);
     return;
   }
+  // check that not trying to forward on bus-head to self (0 index addr)
+  if(fwvp->portTypeKey == EP_PORTTYPEKEY_BUSHEAD && fwdRxAddr == 0){
+    sysError("attempt to fwd bushead to self, zero addr");
+    pckm->vpa->clear(pckm->location);
+    return;
+  }
   // check clear,
   if(!(fwvp->cts(fwdRxAddr))){ 
     if(fwvp->status(fwdRxAddr) != EP_PORTSTATUS_OPEN){ pckm->vpa->clear(pckm->location); } // pop on closed ports 
