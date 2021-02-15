@@ -45,6 +45,17 @@ Endpoint* OSAP::endpoint(boolean (*onNewData)(uint8_t* data, uint16_t len)){
   }
 }
 
+Endpoint* OSAP::endpoint(boolean (*onNewData)(uint8_t* data, uint16_t len), boolean (*onQuery)(void)){
+  if(_numEndpoints >= OSAP_MAX_ENDPOINTS){
+    return _endpoints[0]; // donot make new, loop... should find a way to catch errors
+    // hopefully this will be an obvious bug though, when it appears 
+  } else {
+    _endpoints[_numEndpoints] = new Endpoint(onNewData, onQuery);
+    _numEndpoints ++;
+    return _endpoints[_numEndpoints - 1];
+  }
+}
+
 // -------------------------------------------------------- MAIN TRANSMIT CALL
 
 boolean OSAP::send(uint8_t* txroute, uint16_t routelen, uint16_t segsize, uint8_t* data, uint16_t datalen){
@@ -195,6 +206,10 @@ void OSAP::handleVModuleQuery(uint8_t* pck, uint16_t ptr, pckm_t* pckm){
   }
   if(pckm->vpa->cts(pckm->txAddr)){
     Endpoint* ept = _endpoints[ep];
+    if(ept->onQuery){
+      // TODO: await on returns false? to query later, or wait? 
+      ept->onQuery();
+    }
     uint16_t replyLen = ept->dataStoreLen + 7;
     uint8_t reply[replyLen];
     // new 1st byte, 

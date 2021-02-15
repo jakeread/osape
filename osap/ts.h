@@ -152,6 +152,8 @@ void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr);
 
 void ts_readUint16(uint16_t* val, uint8_t* buf, uint16_t* ptr);
 
+void ts_writeUint8(uint8_t val, unsigned char* buf, uint16_t* ptr);
+
 void ts_writeUint16(uint16_t val, unsigned char* buf, uint16_t* ptr);
 
 void ts_readUint32(uint32_t* val, unsigned char* buf, uint16_t* ptr);

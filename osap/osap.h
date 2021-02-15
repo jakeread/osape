@@ -49,6 +49,7 @@ public:
   // fns
   boolean addVPort(VPort* vPort);
   Endpoint* endpoint(boolean (*onNewData)(uint8_t* data, uint16_t len));
+  Endpoint* endpoint(boolean (*onNewData)(uint8_t* data, uint16_t len), boolean (*onQuery)(void));
   // tx 
   boolean send(uint8_t* txroute, uint16_t routelen, uint16_t segsize, uint8_t* data, uint16_t datalen);
   // reply to a packet, 

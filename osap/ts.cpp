@@ -27,6 +27,10 @@ void ts_readUint16(uint16_t* val, unsigned char* buf, uint16_t* ptr){
   *ptr += 2;
 }
 
+void ts_writeUint8(uint8_t val, unsigned char* buf, uint16_t* ptr){
+  buf[(*ptr) ++] = val;
+}
+
 void ts_writeUint16(uint16_t val, unsigned char* buf, uint16_t* ptr){
   buf[(*ptr) ++] = val & 255;
   buf[(*ptr) ++] = (val >> 8) & 255;

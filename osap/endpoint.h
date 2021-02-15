@@ -22,8 +22,10 @@ no warranty is provided, and users accept all liability.
 class Endpoint{
     public:
     // self
-    Endpoint(boolean (*fp)(uint8_t* data, uint16_t len));
-    boolean (*onNewData)(uint8_t* data, uint16_t len);
+    Endpoint(boolean (*pfp)(uint8_t* data, uint16_t len));
+    Endpoint(boolean (*pfp)(uint8_t* data, uint16_t len), boolean (*qfp)(void));
+    boolean (*onNewData)(uint8_t* data, uint16_t len) = 0;
+    boolean (*onQuery)(void) = 0;
     uint16_t indice = 0;
     // endpoint stores data, as well as full packet from whence data arrived 
     void fill(uint8_t* pck, uint16_t ptr, pckm_t* pckm, uint16_t txVM, uint16_t txEP);

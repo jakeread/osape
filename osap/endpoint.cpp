@@ -14,8 +14,13 @@ no warranty is provided, and users accept all liability.
 
 #include "endpoint.h"
 
-Endpoint::Endpoint(boolean (*fp)(uint8_t* data, uint16_t len)){
-    onNewData = fp;
+Endpoint::Endpoint(boolean (*pfp)(uint8_t* data, uint16_t len)){
+    onNewData = pfp;
+}
+
+Endpoint::Endpoint(boolean (*pfp)(uint8_t* data, uint16_t len), boolean (*qfp)(void)){
+    onNewData = pfp;
+    onQuery = qfp;
 }
 
 void Endpoint::fill(uint8_t* pck, uint16_t ptr, pckm_t* pckm, uint16_t txVM, uint16_t txEP){
