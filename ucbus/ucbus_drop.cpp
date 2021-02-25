@@ -285,7 +285,15 @@ size_t UCBus_Drop::read_b(uint8_t *dest){
 
 size_t UCBus_Drop::read_b_ptr(uint8_t** dest, unsigned long* pat){
   if(ctr_b()){
-    *dest = &(inBufferB[2]);
+    if(inBufferB[2] == 1){
+      sysError("-> " + String(inBufferB[0]) + ", "
+      + String(inBufferB[1]) + ", "
+      + String(inBufferB[2]) + ", "
+      + String(inBufferB[3]));
+      *dest = &(inBufferB[3]);
+    } else {
+      *dest = &(inBufferB[2]);
+    }
     *pat = inBArrival;
     return inBufferBLen - 2;
   }
@@ -316,8 +324,11 @@ void UCBus_Drop::transmit(uint8_t *data, uint16_t len){
   // also decriment our accounting of their rcrxb
   rcrxb -= 1;
   memcpy(&outBuffer[1], data, len);
+  // needs to be interrupt safe: transmit could start between these lines
+  __disable_irq();
   outBufferLen = len + 1; // + 1 for the buffer space 
   outBufferRp = 0;
+  __enable_irq();
 }
 
 #endif 

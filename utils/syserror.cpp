@@ -29,7 +29,7 @@ uint8_t escapeHeader[10] = { PK_BUSF_KEY, 0, 0, 0, 0, PK_PTR, PK_PORTF_KEY, 0, 0
 
 // config-your-own-ll-escape-hatch
 void sysError(String msg){
-  //ERRLIGHT_ON;
+  ERRLIGHT_ON;
   uint32_t len = msg.length();
   errBuf[0] = PK_LLERR; // the ll-errmsg-key
   errBuf[1] = len & 255;
@@ -54,7 +54,7 @@ void sysError(String msg){
 // config-your-own-ll-escape-hatch
 void sysError(String msg){
   // whatever you want,
-  //ERRLIGHT_ON;
+  ERRLIGHT_ON;
   uint32_t len = msg.length();
   errBuf[0] = PK_LLERR; // the ll-errmsg-key
   errBuf[1] = len & 255;

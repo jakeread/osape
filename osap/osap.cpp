@@ -318,7 +318,7 @@ void OSAP::appReply(uint8_t *pck, pckm_t* pckm, uint8_t *reply, uint16_t repLen)
         break;
       default:
         // no dice in the forward walk, clear it 
-        sysError("bad walk for ptr: key " + String(pck[ptr]) + " at: " + String(ptr));
+        sysError("bad walk for ptr during reply: key " + String(pck[ptr]) + " at: " + String(ptr));
         pckm->vpa->clear(pckm->location);
         return; // this shouldn't happen, but let's not try to transmit it on 
     } // end switch
@@ -454,7 +454,15 @@ void OSAP::loop(){
               goto endWalk;
             default:
               // no dice in the forward walk, clear it 
-              sysError("bad walk for ptr: key " + String(pck[ptr]) + " at: " + String(ptr));
+              String errmsg;
+              errmsg.reserve(256);
+              errmsg = "bad walk for ptr on receipt: key " + String(pck[ptr]) + " at: " + String(ptr) + " -> ";
+              for(uint8_t i = 0; i < 64; i ++){
+                errmsg += String(pck[i]);
+                if(i > pckm.len) break;
+                errmsg += ", ";
+              }
+              sysError(errmsg);
               pckm.vpa->clear(pckm.location);
               goto endWalk;
           } // end switch
