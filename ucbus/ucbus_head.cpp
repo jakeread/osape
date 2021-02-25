@@ -322,13 +322,17 @@ void UCBus_Head::transmit_b(uint8_t *data, uint16_t len, uint8_t drop){
   outBufferB[0] = drop;
   // 2nd byte: number of spaces here drop can transmit into, at the moment this is 1 or 0 
   if(inBufferLen[drop] == 0 && inBufferWp[drop] == 0){
+    #warning debugcode 
     outBufferB[1] = 1;  // no packet awaiting read (len-full) or currently writing into (wp-full)
   } else {
     outBufferB[1] = 0;  // packet either mid-recieve (wp nonzero) or is awaiting read (len-full)
   }
-  memcpy(&outBufferB[2], data, len);
+  memcpy(&(outBufferB[2]), data, len);
+  // need to guard against start-transmit *in between these two lines*
+  __disable_irq();
   outBufferBLen = len + 2; // + 1 for the drop + 1 for the spaces 
   outBufferBRp = 0;
+  __enable_irq();
 }
 
 #endif 
