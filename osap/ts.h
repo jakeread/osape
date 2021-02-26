@@ -141,6 +141,11 @@ union chunk_float64 {
   double f;
 };
 
+union chunk_int32 {
+  uint8_t bytes[4];
+  int32_t i;
+};
+
 union chunk_uint32 {
     uint8_t bytes[4];
     uint32_t u;
