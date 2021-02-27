@@ -343,7 +343,7 @@ void OSAP::appReply(uint8_t *pck, pckm_t* pckm, uint8_t *reply, uint16_t repLen)
 // frame: the buffer, ptr: the location of the ptr (ack or pack),
 // vp: port received on, fwp: frame-write-ptr,
 // so vp->frames[fwp] = frame, though that isn't exposed here
-void OSAP::instructionSwitch(uint8_t *pck,uint16_t ptr, pckm_t* pckm){
+void OSAP::instructionSwitch(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
   //DEBUG1PIN_TOGGLE;
   // we must *do* something, and (ideally) pop this thing,
   switch(pck[ptr]){
@@ -403,9 +403,17 @@ void OSAP::instructionSwitch(uint8_t *pck,uint16_t ptr, pckm_t* pckm){
         }
       }
       break;
-    default:
+    default: 
       // packet is unrecognized,
-      sysError("unrecognized instruction key");
+      String errmsg;
+      errmsg.reserve(256);
+      errmsg = "unrecognized instruction key " + String(pck[ptr]) + " at: " + String(ptr) + " pck -> ";
+      for(uint8_t i = 0; i < 64; i ++){
+        errmsg += String(pck[i]);
+        if(i > pckm->len) break;
+        errmsg += ", ";
+      }
+      sysError(errmsg);
       pckm->vpa->clear(pckm->location);
       break;
   }

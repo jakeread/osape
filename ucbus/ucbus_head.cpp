@@ -257,13 +257,15 @@ boolean UCBus_Head::ctr(uint8_t drop){
 
 size_t UCBus_Head::read(uint8_t drop, uint8_t *dest){
   if(!ctr(drop)) return 0;
-  NVIC_DisableIRQ(SERCOM1_2_IRQn);
+  //NVIC_DisableIRQ(SERCOM1_2_IRQn);
+  __disable_irq();
   // byte 1 is the drop's rcrxb transmitted with this packet
   size_t len = inBufferLen[drop] - 1;
   memcpy(dest, &(inBuffer[drop][1]), len);
   inBufferLen[drop] = 0;
   inBufferWp[drop] = 0;
-  NVIC_EnableIRQ(SERCOM1_2_IRQn);
+  //NVIC_EnableIRQ(SERCOM1_2_IRQn);
+  __enable_irq();
   return len;
 }
 

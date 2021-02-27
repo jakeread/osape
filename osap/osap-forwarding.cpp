@@ -114,7 +114,15 @@ void OSAP::forward(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
   ptr -= 3;
   // find the vport, 
   if(_numVPorts <= fwvpi){ // doesn't exist 
-    sysError("during fwd, no vport here at indice " + String(fwvpi));
+    String errmsg;
+    errmsg.reserve(256);
+    errmsg = "during fwd, no vport here at indice " + String(fwvpi);
+    for(uint8_t i = 0; i < 64; i ++){
+      errmsg += String(pck[i]);
+      if(i > pckm->len) break;
+      errmsg += ", ";
+    }
+    sysError(errmsg);
     pckm->vpa->clear(pckm->location);
     return;
   }

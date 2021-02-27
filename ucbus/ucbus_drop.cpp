@@ -261,25 +261,29 @@ boolean UCBus_Drop::ctr_b(void){
 
 size_t UCBus_Drop::read_a(uint8_t *dest){
 	if(!ctr_a()) return 0;
-  NVIC_DisableIRQ(SERCOM1_2_IRQn);
+  //NVIC_DisableIRQ(SERCOM1_2_IRQn);
+  __disable_irq();
   // copy out, irq disabled, TODO safety on missing an interrupt in this case?? clock jitter? 
   memcpy(dest, inBufferA, inBufferALen);
   size_t len = inBufferALen;
   inBufferALen = 0;
   inBufferAWp = 0;
-  NVIC_EnableIRQ(SERCOM1_2_IRQn);
+  //NVIC_EnableIRQ(SERCOM1_2_IRQn);
+  __enable_irq();
   return len;
 }
 
 size_t UCBus_Drop::read_b(uint8_t *dest){
   if(!ctr_b()) return 0;
-  NVIC_DisableIRQ(SERCOM1_2_IRQn);
+  //NVIC_DisableIRQ(SERCOM1_2_IRQn);
+  __disable_irq();
   // bytes 0 and 1 are the ID and rcrxb, respectively, so app. is concerned with the rest 
   size_t len = inBufferBLen - 2;
   memcpy(dest, &inBufferB[2], len);
   inBufferBLen = 0;
   inBufferBWp = 0;
-  NVIC_EnableIRQ(SERCOM1_2_IRQn);
+  //NVIC_EnableIRQ(SERCOM1_2_IRQn);
+  __enable_irq();
   return len;
 }
 

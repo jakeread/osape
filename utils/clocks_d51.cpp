@@ -79,6 +79,7 @@ void D51_Clock_Boss::start_ticker_a(uint32_t us){
     TC1->COUNT32.CTRLA.bit.ENABLE = 1;
     // enable the IRQ
     NVIC_EnableIRQ(TC0_IRQn);
+    NVIC_SetPriority(TC0_IRQn, 2);
 }
 
 void D51_Clock_Boss::start_ticker_b(uint32_t us){
