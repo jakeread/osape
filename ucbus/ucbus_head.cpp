@@ -106,6 +106,7 @@ void UCBus_Head::timerISR(void){
   // so, would formulate the out bytes,
   // in either case we formulate the outByte and outHeader, then bit shift identically into 
   // the word ... 
+  __disable_irq();
   if(outBufferALen > 0){ // always transmit channel A before B 
     // have bytes, write word to encapsulate outBuffer[outBufferRp]; the do outBufferRp ++ and check wrap 
     // mask: 6 bit, 
@@ -124,7 +125,7 @@ void UCBus_Head::timerISR(void){
     }
   } else if (outBufferBLen > 0){
     if(outBufferBRp >= outBufferBLen){
-      //DEBUG2PIN_OFF;
+      DEBUG2PIN_TOGGLE;
       // CHB EOP frame 
       outByte = 0;
       outHeader = headerMask & (noTokenWordB | (currentDropTap & dropIdMask));
@@ -157,6 +158,7 @@ void UCBus_Head::timerISR(void){
   }
   outWord[0] = 0b00000000 | ((outHeader << 1) & 0b01110000) | (outByte >> 4);
   outWord[1] = 0b10000000 | ((outHeader << 4) & 0b01110000) | (outByte & 0b00001111);
+  __enable_irq();
   // put the UART to work before more clocks on buffer incrementing 
   UBH_SER_USART.DATA.reg = outWord[0];
   // and setup the interrupt to handle the second, 
@@ -313,25 +315,25 @@ boolean UCBus_Head::cts_b(uint8_t drop){
 
 void UCBus_Head::transmit_a(uint8_t *data, uint16_t len){
 	if(!cts_a()) return;
+  __disable_irq();
   memcpy(outBufferA, data, len);
 	outBufferALen = len; //encLen;
 	outBufferARp = 0;
+  __enable_irq();
 }
 
 void UCBus_Head::transmit_b(uint8_t *data, uint16_t len, uint8_t drop){
   if(!cts_b(drop)) return;
+  __disable_irq();
   // 1st byte: drop identifier 
   outBufferB[0] = drop;
   // 2nd byte: number of spaces here drop can transmit into, at the moment this is 1 or 0 
   if(inBufferLen[drop] == 0 && inBufferWp[drop] == 0){
-    #warning debugcode 
     outBufferB[1] = 1;  // no packet awaiting read (len-full) or currently writing into (wp-full)
   } else {
     outBufferB[1] = 0;  // packet either mid-recieve (wp nonzero) or is awaiting read (len-full)
   }
   memcpy(&(outBufferB[2]), data, len);
-  // need to guard against start-transmit *in between these two lines*
-  __disable_irq();
   outBufferBLen = len + 2; // + 1 for the drop + 1 for the spaces 
   outBufferBRp = 0;
   __enable_irq();
