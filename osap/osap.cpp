@@ -359,7 +359,16 @@ void OSAP::instructionSwitch(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
         ts_readUint16(&segsize, pck, &ptr);
         ts_readUint16(&checksum, pck, &ptr);
         if(checksum != pckm->len - ptr){
-          sysError("bad checksum, count: " + String(pckm->len - ptr) + " checksum: " + String(checksum));
+          String errmsg;
+          errmsg.reserve(256);
+          errmsg = "bad checksum, count: " + String(pckm->len - ptr) + " checksum: " + String(checksum) + " pck -> ";
+          for(uint8_t i = 0; i < 64; i ++){
+            errmsg += String(pck[i]);
+            if(i > pckm->len) break;
+            errmsg += ", ";
+          }
+          sysError(errmsg);
+          //sysError("bad checksum, count: " + String(pckm->len - ptr) + " checksum: " + String(checksum));
           pckm->vpa->clear(pckm->location);
         } else {
           pckm->segSize = segsize;
