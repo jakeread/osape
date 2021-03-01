@@ -158,6 +158,7 @@ void UCBus_Drop::rxISR(void){
       //DEBUG1PIN_ON;
       lastWordBHadToken = true;
       if(inBufferBLen != 0){
+        // missed the last, bad 
         inBufferBLen = 0;
       }
       inBufferB[inBufferBWp] = inByte;
@@ -169,6 +170,7 @@ void UCBus_Drop::rxISR(void){
           rcrxb = inBufferB[1];
           lastrc = millis(); 
           inBArrival = lastrc;
+          inBufferBWp = 0;
         } else {  // packet is not ours, ignore, ready for next read 
           inBufferBWp = 0;
           inBufferBLen = 0;
