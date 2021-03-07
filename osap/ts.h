@@ -17,6 +17,13 @@ no warranty is provided, and users accept all liability.
 
 #include <arduino.h>
 
+// -------------------------------------------------------- Vertex Type Keys
+
+#define VT_TYPE_ROOT 22
+#define VT_TYPE_SOFT 23 
+#define VT_TYPE_VPORT 24 
+#define VT_TYPE_VBUS 25 // maybe bus-drop / bus-head / bus-cohost 
+
 // -------------------------------------------------------- Routing (Packet) Keys
 
 #define PK_PPACK 77
