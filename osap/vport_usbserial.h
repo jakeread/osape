@@ -16,11 +16,24 @@ no warranty is provided, and users accept all liability.
 #define VPORT_USBSERIAL_H_
 
 #include <arduino.h>
-#include "vport.h"
+#include "vertex.h"
 #include "../../drivers/indicators.h"
 
-#define VPUSB_NUM_SPACES 64
-#define VPUSB_SPACE_SIZE 1028
+#define VPUSB_NUM_SPACES 16
+#define VPUSB_SPACE_SIZE 512
+
+// uuuuh classes are cancelled? 
+
+void usbSerialSetup(void);
+void usbSerialLoop(void);
+boolean usbSerialCTS(uint8_t drop);
+void usbSerialSend(uint8_t* data, uint16_t len, uint8_t rxAddr);
+
+// tells linker that the thing exists & to... find it later?
+// is declared in this cpp file 
+extern vertex_t vt_usbSerial;
+
+/*
 
 class VPort_USBSerial : public VPort {
 private:
@@ -53,5 +66,6 @@ public:
   boolean cts(uint8_t rxAddr); // for bus, placeholder, not a pro with virtual fns 
   void send(uint8_t *pck, uint16_t pl, uint8_t rxAddr); // rxAddr ignored, 
 };
+*/
 
 #endif

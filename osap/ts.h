@@ -26,16 +26,20 @@ no warranty is provided, and users accept all liability.
 
 // -------------------------------------------------------- Routing (Packet) Keys
 
-#define PK_PPACK 77
 #define PK_PTR 88
 #define PK_DEST 99
-#define PK_LLERR 44
-#define PK_PORTF_KEY 11
-#define PK_PORTF_INC 3
-#define PK_BUSF_KEY 12
-#define PK_BUSF_INC 5
-#define PK_BUSB_KEY 14
-#define PK_BUSB_INC 5
+#define PK_SIB_KEY 15 
+#define PK_SIB_INC 3 
+#define PK_PARENT_KEY 16 
+#define PK_PARENT_INC 3 
+#define PK_CHILD_KEY 14 
+#define PK_CHILD_INC 3 
+#define PK_PFWD_KEY 11 
+#define PK_PFWD_INC 1 
+#define PK_BFWD_KEY 12
+#define PK_BFWD_INC 3
+#define PK_LLERR_KEY 44
+#define PK_LLERR_INC 1
 
 // -------------------------------------------------------- Destination Keys (arrival layer)
 

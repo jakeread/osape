@@ -14,6 +14,8 @@ no warranty is provided, and users accept all liability.
 
 #include "osap.h"
 
+/*
+
 void OSAP::portforward(uint8_t* pck, uint16_t ptr, pckm_t* pckm, VPort* fwvp){
   // have correct VPort type, 
   // check if forwarding is clear, 
@@ -167,3 +169,5 @@ void OSAP::forward(uint8_t *pck, uint16_t ptr, pckm_t* pckm){
       return;
   }
 } // end forward 
+
+*/

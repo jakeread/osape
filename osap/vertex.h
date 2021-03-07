@@ -32,6 +32,7 @@ struct vertex_t {
     // stack of messages to deal with, 
     uint8_t stack[VT_STACKSIZE][VT_STACKLEN];
     uint16_t stackLen[VT_STACKSIZE];
+    unsigned long stackArrivalTimes[VT_STACKSIZE];
     // parent & children (other vertices)
     vertex_t* parent = nullptr;
     vertex_t* children[VT_MAXCHILDREN]; // I think this is OK on storage: just pointers 
@@ -42,8 +43,8 @@ struct vertex_t {
     boolean token = false;
     boolean (*onData)(uint8_t* data, uint16_t len) = nullptr;
     // vertex-as-vport-interface 
-    boolean (*cts)(uint8_t* drop) = nullptr;
-    boolean (*send)(uint8_t* data, uint16_t len) = nullptr;
+    boolean (*cts)(uint8_t drop) = nullptr;
+    void (*send)(uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
 };
 
 #endif 

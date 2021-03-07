@@ -16,6 +16,8 @@ no warranty is provided, and users accept all liability.
 
 // -------------------------------------------------------- NODE CONSTRUCTION 
 
+/*
+
 OSAP::OSAP(String nodeName){
   name = nodeName;
 }
@@ -521,3 +523,5 @@ void OSAP::loop(){
     }
   }
 }
+
+*/
