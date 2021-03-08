@@ -13,10 +13,14 @@ no warranty is provided, and users accept all liability.
 */
 
 #include "vport_usbserial.h"
+#include "../../drivers/indicators.h"
+#include "ts.h"
 #include "../utils/cobs.h"
 #include "../utils/syserror.h"
 
-vertex_t vt_usbSerial;
+vertex_t vt;
+
+vertex_t* vt_usbSerial = &vt;
 
 // incoming 
 uint8_t _inBuffer[VPUSB_SPACE_SIZE];
@@ -27,9 +31,13 @@ uint16_t _bwp = 0; // byte to write at
 uint8_t _encodedOut[VPUSB_SPACE_SIZE];
 
 void usbSerialSetup(void){
+  vt_usbSerial = &vt;
   // configure self, 
-  vt_usbSerial.cts = &usbSerialCTS;
-  vt_usbSerial.send = &usbSerialSend;
+  vt.type = VT_TYPE_VPORT;
+  vt.name = "usbSerial";
+  vt.loop = &usbSerialLoop;
+  vt.cts = &usbSerialCTS;
+  vt.send = &usbSerialSend;
   // start arduino serial object 
   Serial.begin(9600);
 }
@@ -38,31 +46,24 @@ void usbSerialLoop(void){
   while(Serial.available()){
     _inBuffer[_bwp] = Serial.read();
     if(_inBuffer[_bwp] == 0){
-      sysError("packet");
       // end of COBS-encoded frame, 
       // decode into packet slot, record length (to mark fullness) and record arrival time 
       // unless we are w/o packet spaces, so check:
-      boolean space = false;
       uint8_t slot = 0;
-      for(uint8_t s = 0; s < VT_STACKSIZE; s ++){
-        if(vt_usbSerial.stackLen[s] == 0){
-          slot = s;
-          space = true;
-          break; // escape loop, have first empty location 
-        }
-      }
-      // if no space to ship, flow control has failed, packet is dropped 
-      if(!space){
+      if(vertexSpace(&vt, &slot)){
+        // decode into the vertex stack 
+        // cobsDecode returns the length of the decoded packet
+        uint16_t len = cobsDecode(_inBuffer, _bwp, vt.stack[slot]); 
+        vt.stackLen[slot] = len;
+        sysError("serial wrote " + String(len) + " to " + String(slot));
+        // record time of arrival, 
+        vt.stackArrivalTimes[slot] = millis();
+        // reset byte write pointer, and find the next empty packet write space 
         _bwp = 0;
-        return;
-      }
-      // otherwise we decode into the vertex stack 
-      // cobsDecode returns the length of the decoded packet
-      vt_usbSerial.stackLen[slot] = cobsDecode(_inBuffer, _bwp, vt_usbSerial.stack[slot]); 
-      // record time of arrival, 
-      vt_usbSerial.stackArrivalTimes[slot] = millis();
-      // reset byte write pointer, and find the next empty packet write space 
-      _bwp = 0;
+      } else {
+        sysError("! serial no space !");
+        _bwp = 0;
+      }      
     } else {
       _bwp ++;
     }

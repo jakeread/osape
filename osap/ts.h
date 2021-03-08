@@ -24,6 +24,10 @@ no warranty is provided, and users accept all liability.
 #define VT_TYPE_VPORT 24 
 #define VT_TYPE_VBUS 25 // maybe bus-drop / bus-head / bus-cohost 
 
+// -------------------------------------------------------- TIMES
+
+#define TIMES_STALE_MSG 600
+
 // -------------------------------------------------------- Routing (Packet) Keys
 
 #define PK_PTR 88
@@ -38,8 +42,8 @@ no warranty is provided, and users accept all liability.
 #define PK_PFWD_INC 1 
 #define PK_BFWD_KEY 12
 #define PK_BFWD_INC 3
-#define PK_LLERR_KEY 44
-#define PK_LLERR_INC 1
+#define PK_LLESCAPE_KEY 44
+#define PK_LLESCAPE_INC 1
 
 // -------------------------------------------------------- Destination Keys (arrival layer)
 

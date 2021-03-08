@@ -17,7 +17,6 @@ no warranty is provided, and users accept all liability.
 
 #include <arduino.h>
 #include "vertex.h"
-#include "../../drivers/indicators.h"
 
 #define VPUSB_NUM_SPACES 16
 #define VPUSB_SPACE_SIZE 512
@@ -31,7 +30,8 @@ void usbSerialSend(uint8_t* data, uint16_t len, uint8_t rxAddr);
 
 // tells linker that the thing exists & to... find it later?
 // is declared in this cpp file 
-extern vertex_t vt_usbSerial;
+
+extern vertex_t* vt_usbSerial;
 
 /*
 

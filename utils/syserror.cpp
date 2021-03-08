@@ -54,20 +54,35 @@ void sysError(String msg){
 // config-your-own-ll-escape-hatch
 void sysError(String msg){
   // whatever you want,
-  ERRLIGHT_ON;
+  //ERRLIGHT_ON;
   uint32_t len = msg.length();
   errBuf[0] = PK_PTR; 
-  errBuf[1] = PK_LLERR_KEY; // the ll-errmsg-key
+  errBuf[1] = PK_LLESCAPE_KEY; // the ll-errmsg-key
   errBuf[2] = len & 255;
   errBuf[3] = (len >> 8) & 255;
   errBuf[4] = (len >> 16) & 255;
   errBuf[5] = (len >> 24) & 255;
   msg.getBytes(&(errBuf[6]), len + 1);
   size_t ecl = cobsEncode(errBuf, len + 6, errEncoded);
+  // direct escape 
   if(Serial.availableForWrite() > (int64_t)ecl){
     Serial.write(errEncoded, ecl);
     Serial.flush();
+  } else {
+    ERRLIGHT_ON;
   }
 }
 
 #endif 
+
+void logPacket(uint8_t* pck, uint16_t len){
+  String errmsg;
+  errmsg.reserve(1024);
+  errmsg = "pck: ";
+  for(uint8_t i = 0; i < 64; i ++){
+    errmsg += String(pck[i]);
+    if(i > len) break;
+    errmsg += ", ";
+  }
+  sysError(errmsg);
+}

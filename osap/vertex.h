@@ -27,10 +27,16 @@ no warranty is provided, and users accept all liability.
 typedef struct vertex_t vertex_t;
 
 struct vertex_t {
-    // a type, 
+    // a loop code, run once per turn 
+    void (*loop)(void) = nullptr;
+    // a type, a position, a name 
     uint8_t type = 0;
+    uint16_t indice = 0;
+    String name = "unnamed vertex";
     // stack of messages to deal with, 
     uint8_t stack[VT_STACKSIZE][VT_STACKLEN];
+    uint8_t stackSize = VT_STACKSIZE; // should be variable 
+    uint8_t lastHandled = 0;
     uint16_t stackLen[VT_STACKSIZE];
     unsigned long stackArrivalTimes[VT_STACKSIZE];
     // parent & children (other vertices)
@@ -40,11 +46,12 @@ struct vertex_t {
     // vertex-as-endpoint: token for clear / not to write, fn for writing, and local store 
     uint8_t data[VT_STACKLEN];
     uint16_t dataLen = 0;
-    boolean token = false;
     boolean (*onData)(uint8_t* data, uint16_t len) = nullptr;
     // vertex-as-vport-interface 
     boolean (*cts)(uint8_t drop) = nullptr;
     void (*send)(uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
 };
+
+boolean vertexSpace(vertex_t* vt, uint8_t* space);
 
 #endif 
