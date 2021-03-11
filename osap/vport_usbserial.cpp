@@ -1,7 +1,8 @@
 /*
 osap/vport_usbserial.cpp
 
-virtual port, p2p
+serial port, virtualized
+does single-ended flowcontrol (from pc -> here) 
 
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2019
@@ -27,6 +28,12 @@ uint8_t _inBuffer[VPUSB_SPACE_SIZE];
 uint8_t _pwp = 0; // packet to write into 
 uint16_t _bwp = 0; // byte to write at 
 
+uint8_t _inHold[VPUSB_NUM_SPACES][VPUSB_SPACE_SIZE];
+uint16_t _inLengths[VPUSB_NUM_SPACES];
+
+// acks left to transmit 
+uint8_t _acksAwaiting = 0;
+
 // outgoing
 uint8_t _encodedOut[VPUSB_SPACE_SIZE];
 
@@ -38,11 +45,31 @@ void usbSerialSetup(void){
   vt.loop = &usbSerialLoop;
   vt.cts = &usbSerialCTS;
   vt.send = &usbSerialSend;
+  // configure spaces, 
+  for(uint8_t i = 0; i < VPUSB_NUM_SPACES; i ++){
+    _inLengths[i] = 0;
+  }
   // start arduino serial object 
   Serial.begin(9600);
 }
 
 void usbSerialLoop(void){
+  // ack if necessary (if didn't tx ack out on reciprocal send last)
+  if(_acksAwaiting){
+    usbSerialSend(_encodedOut, 0, 0);
+  }
+  // find stack space for old messages, 
+  uint8_t space = 0;
+  if(vertexSpace(&vt, &space)){
+    for(uint8_t h = 0; h < VPUSB_NUM_SPACES; h ++){
+      if(_inLengths[h] > 0){
+        memcpy(vt.stack[space], _inHold[h], _inLengths[h]);
+        _inLengths[h] = 0;
+        _acksAwaiting ++;
+      }
+    }
+  }
+  // then check about new messages: 
   while(Serial.available()){
     _inBuffer[_bwp] = Serial.read();
     if(_inBuffer[_bwp] == 0){
@@ -55,14 +82,28 @@ void usbSerialLoop(void){
         // cobsDecode returns the length of the decoded packet
         uint16_t len = cobsDecode(_inBuffer, _bwp, vt.stack[slot]); 
         vt.stackLen[slot] = len;
-        sysError("serial wrote " + String(len) + " to " + String(slot));
+        //sysError("serial wrote " + String(len) + " to " + String(slot));
         // record time of arrival, 
         vt.stackArrivalTimes[slot] = millis();
         // reset byte write pointer, and find the next empty packet write space 
         _bwp = 0;
+        // ack it, 
+        _acksAwaiting ++;
       } else {
-        sysError("! serial no space !");
-        _bwp = 0;
+        // push into local rx stack, 
+        boolean held = false;
+        for(uint8_t h = 0; h < VPUSB_NUM_SPACES; h ++){
+          if(_inLengths[h] == 0){
+            uint16_t len = cobsDecode(_inBuffer, _bwp, _inHold[h]);
+            _inLengths[h] = len;
+            held = true;
+            break;
+          }
+        }
+        if(!held){ // dropped, 
+          sysError("! serial no space !");
+          _bwp = 0;
+        }
       }      
     } else {
       _bwp ++;
@@ -74,8 +115,14 @@ boolean usbSerialCTS(uint8_t drop){
   return true;
 }
 
+uint8_t _shift[VPUSB_SPACE_SIZE];
+
 void usbSerialSend(uint8_t* data, uint16_t len, uint8_t rxAddr){
-  size_t encLen = cobsEncode(data, len, _encodedOut);
+  // damn, this is not fast 
+  _shift[0] = _acksAwaiting;
+  _acksAwaiting = 0;
+  memcpy(&(_shift[1]), data, len);
+  size_t encLen = cobsEncode(_shift, len + 1, _encodedOut);
   if(Serial.availableForWrite()){
     Serial.write(_encodedOut, encLen);
     Serial.flush();

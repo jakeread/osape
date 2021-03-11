@@ -16,6 +16,8 @@ no warranty is provided, and users accept all liability.
 #include "../../drivers/indicators.h"
 #include "../utils/syserror.h"
 
+//#define LOOP_DEBUG
+
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
 void osapLoop(vertex_t* vt){
@@ -49,13 +51,17 @@ void osapHandler(vertex_t* vt) {
     return;
   }
 
-  sysError(vt->name + " cap " + String(s));
+  #ifdef LOOP_DEBUG 
+  sysError(vt->name + " cap " + String(s)); 
+  #endif 
 
   // have ahn msg, is at vt->stack[s]
   // first check if it's timed out 
   unsigned long now = millis();
   if(vt->stackArrivalTimes[s] + TIMES_STALE_MSG < now){
+    #ifdef LOOP_DEBUG 
     sysError("timeout pck");
+    #endif 
     vt->stackLen[s] = 0;
     return;
   }
@@ -76,7 +82,9 @@ void osapHandler(vertex_t* vt) {
   switch(pck[ptr]){
     case PK_DEST:
       if(vt->onData == nullptr || vt->onData(pck, len)){
+        #ifdef LOOP_DEBUG 
         sysError("destination copy");
+        #endif 
         // no onData handler here, or it passed, so data copies in 
         memcpy(vt->data, pck, len);
         vt->stackLen[s] = 0;
@@ -105,7 +113,9 @@ void osapHandler(vertex_t* vt) {
       // now we can copy it in, only if there's space ahead to move it into 
       uint8_t space;
       if(vertexSpace(vt->parent->children[si], &space)){
+        #ifdef LOOP_DEBUG
         sysError("sib copy");
+        #endif 
         ptr -= 4; // write in reversed instruction (reverse ptr to PK_PTR here)
         pck[ptr ++] = PK_SIB_KEY; // overwrite with instruction that would return to us, 
         ts_writeUint16(vt->indice, pck, &ptr);

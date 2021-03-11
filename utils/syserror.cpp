@@ -56,14 +56,15 @@ void sysError(String msg){
   // whatever you want,
   //ERRLIGHT_ON;
   uint32_t len = msg.length();
-  errBuf[0] = PK_PTR; 
-  errBuf[1] = PK_LLESCAPE_KEY; // the ll-errmsg-key
-  errBuf[2] = len & 255;
-  errBuf[3] = (len >> 8) & 255;
-  errBuf[4] = (len >> 16) & 255;
-  errBuf[5] = (len >> 24) & 255;
-  msg.getBytes(&(errBuf[6]), len + 1);
-  size_t ecl = cobsEncode(errBuf, len + 6, errEncoded);
+  errBuf[0] = 0; // serport looks for acks in each msg, this is not one
+  errBuf[1] = PK_PTR; 
+  errBuf[2] = PK_LLESCAPE_KEY; // the ll-errmsg-key
+  errBuf[3] = len & 255;
+  errBuf[4] = (len >> 8) & 255;
+  errBuf[5] = (len >> 16) & 255;
+  errBuf[6] = (len >> 24) & 255;
+  msg.getBytes(&(errBuf[7]), len + 1);
+  size_t ecl = cobsEncode(errBuf, len + 7, errEncoded);
   // direct escape 
   if(Serial.availableForWrite() > (int64_t)ecl){
     Serial.write(errEncoded, ecl);
