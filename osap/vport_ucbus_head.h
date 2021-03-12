@@ -20,10 +20,16 @@ no warranty is provided, and users accept all liability.
 #ifdef UCBUS_IS_HEAD
 
 #include <Arduino.h>
-#include "vport.h"
-#include "../../drivers/indicators.h"
-#include "../ucbus/ucbus_head.h"
+#include "vertex.h"
 
+void ucbusHeadSetup(void);
+void ucbusHeadLoop(void);
+boolean ucbusHeadCTS(uint8_t rxAddr);
+void ucbusHeadSend(uint8_t* data, uint16_t len, uint8_t rxAddr);
+
+extern vertex_t* vt_ucbusHead;
+
+/*
 class VPort_UCBus_Head : public VPort {
     public:
         VPort_UCBus_Head();
@@ -42,6 +48,7 @@ class VPort_UCBus_Head : public VPort {
         // send(pck, pl, drop);
         void send(uint8_t *pck, uint16_t pl, uint8_t rxAddr);
 };
+*/
 
 #endif
 #endif 

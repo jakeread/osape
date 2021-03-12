@@ -19,9 +19,8 @@ no warranty is provided, and users accept all liability.
 #include "../utils/cobs.h"
 #include "../utils/syserror.h"
 
-vertex_t vt;
-
-vertex_t* vt_usbSerial = &vt;
+vertex_t _vt_usbSerial;
+vertex_t* vt_usbSerial = &_vt_usbSerial;
 
 // incoming 
 uint8_t _inBuffer[VPUSB_SPACE_SIZE];
@@ -38,13 +37,13 @@ uint8_t _acksAwaiting = 0;
 uint8_t _encodedOut[VPUSB_SPACE_SIZE];
 
 void usbSerialSetup(void){
-  vt_usbSerial = &vt;
+  //vt_usbSerial = &vt;
   // configure self, 
-  vt.type = VT_TYPE_VPORT;
-  vt.name = "usbSerial";
-  vt.loop = &usbSerialLoop;
-  vt.cts = &usbSerialCTS;
-  vt.send = &usbSerialSend;
+  _vt_usbSerial.type = VT_TYPE_VPORT;
+  _vt_usbSerial.name = "usbSerial";
+  _vt_usbSerial.loop = &usbSerialLoop;
+  _vt_usbSerial.cts = &usbSerialCTS;
+  _vt_usbSerial.send = &usbSerialSend;
   // configure spaces, 
   for(uint8_t i = 0; i < VPUSB_NUM_SPACES; i ++){
     _inLengths[i] = 0;
@@ -60,10 +59,10 @@ void usbSerialLoop(void){
   }
   // find stack space for old messages, 
   uint8_t space = 0;
-  if(vertexSpace(&vt, &space)){
+  if(vertexSpace(&_vt_usbSerial, &space)){
     for(uint8_t h = 0; h < VPUSB_NUM_SPACES; h ++){
       if(_inLengths[h] > 0){
-        memcpy(vt.stack[space], _inHold[h], _inLengths[h]);
+        memcpy(_vt_usbSerial.stack[space], _inHold[h], _inLengths[h]);
         _inLengths[h] = 0;
         _acksAwaiting ++;
       }
@@ -77,14 +76,14 @@ void usbSerialLoop(void){
       // decode into packet slot, record length (to mark fullness) and record arrival time 
       // unless we are w/o packet spaces, so check:
       uint8_t slot = 0;
-      if(vertexSpace(&vt, &slot)){
+      if(vertexSpace(&_vt_usbSerial, &slot)){
         // decode into the vertex stack 
         // cobsDecode returns the length of the decoded packet
-        uint16_t len = cobsDecode(_inBuffer, _bwp, vt.stack[slot]); 
-        vt.stackLen[slot] = len;
+        uint16_t len = cobsDecode(_inBuffer, _bwp, _vt_usbSerial.stack[slot]); 
+        _vt_usbSerial.stackLen[slot] = len;
         //sysError("serial wrote " + String(len) + " to " + String(slot));
         // record time of arrival, 
-        vt.stackArrivalTimes[slot] = millis();
+        _vt_usbSerial.stackArrivalTimes[slot] = millis();
         // reset byte write pointer, and find the next empty packet write space 
         _bwp = 0;
         // ack it, 
