@@ -1,5 +1,5 @@
 /*
-utils/clocks_d51_module.h
+utils/d51Clocks.h
 
 clock utilities for the D51 as moduuularized, adhoc! 
 i.e. xtals present on module board or otherwise 
@@ -21,12 +21,12 @@ is; no warranty is provided, and users accept all liability.
 
 #define MHZ_XTAL_GCLK_NUM 9
 
-class D51_Clock_Boss {
+class D51ClockBoss {
     private:
-        static D51_Clock_Boss* instance;
+        static D51ClockBoss* instance;
     public:
-        D51_Clock_Boss();
-        static D51_Clock_Boss* getInstance(void);
+        D51ClockBoss();
+        static D51ClockBoss* getInstance(void);
         // xtal
         volatile boolean mhz_xtal_is_setup = false;
         uint32_t mhz_xtal_gclk_num = 9;
@@ -43,6 +43,6 @@ class D51_Clock_Boss {
         void start_ticker_b(uint32_t us);
 };
 
-extern D51_Clock_Boss* d51_clock_boss;
+extern D51ClockBoss* d51ClockBoss;
 
 #endif 

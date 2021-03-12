@@ -23,7 +23,7 @@ is; no warranty is provided, and users accept all liability.
 
 #include "../../drivers/indicators.h"
 #include "dip_ucbus_config.h"
-#include "../utils/peripheral_nums.h"
+#include "../utils/peripheralNums.h"
 #include "../utils/syserror.h"
 
 #define UBD_SER_USART SERCOM1->USART

@@ -1,5 +1,5 @@
 /*
-osap/drivers/ucbus_head.h
+osap/drivers/ucBusHead.h
 
 beginnings of a uart-based clock / bus combo protocol
 
@@ -22,9 +22,9 @@ is; no warranty is provided, and users accept all liability.
 #include <arduino.h>
 
 #include "../../drivers/indicators.h"
-#include "../utils/peripheral_nums.h"
+#include "../utils/peripheralNums.h"
 #include "../utils/syserror.h"
-#include "../utils/clocks_d51.h"
+#include "../utils/d51ClockBoss.h"
 
 #define TIMER_A_GCLK_NUM 9
 #define TIMER_B_GCLK_NUM 10
@@ -71,6 +71,14 @@ is; no warranty is provided, and users accept all liability.
 
 // PLEASE NOTE: this requires a 100kHz tick, use interrupt timer, 
 // fire the timerISR there. 
+
+/*
+void ucBusHead_init(void);
+
+void ucBusHead_timerISR(void);
+void ucBusHead_rxISR(void);
+void ucBusHead_txISR(void);
+*/
 
 class UCBus_Head {
    private:

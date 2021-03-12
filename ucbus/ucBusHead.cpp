@@ -1,5 +1,5 @@
 /*
-osap/drivers/ucbus_head.cpp
+osap/drivers/ucBusHead.cpp
 
 beginnings of a uart-based clock / bus combo protocol
 
@@ -12,7 +12,7 @@ projects. Copyright is retained and must be preserved. The work is provided as
 is; no warranty is provided, and users accept all liability.
 */
 
-#include "ucbus_head.h"
+#include "ucBusHead.h"
 
 #ifdef UCBUS_IS_HEAD
 

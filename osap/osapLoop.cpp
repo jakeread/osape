@@ -1,5 +1,5 @@
 /*
-osap/osap_loop.cpp
+osap/osapLoop.cpp
 
 main osap op: whips data vertex-to-vertex
 
@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-#include "osap_loop.h"
+#include "osapLoop.h"
 #include "../../drivers/indicators.h"
 #include "../utils/syserror.h"
 

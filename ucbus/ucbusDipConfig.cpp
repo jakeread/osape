@@ -1,6 +1,6 @@
 // DIPs
 
-#include "dip_ucbus_config.h"
+#include "ucbusDipConfig.h"
 
 void dip_init(void){
     // set direction in,

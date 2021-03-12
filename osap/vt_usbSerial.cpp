@@ -1,5 +1,5 @@
 /*
-osap/vport_usbserial.cpp
+osap/vt_usbSerial.cpp
 
 serial port, virtualized
 does single-ended flowcontrol (from pc -> here) 
@@ -13,7 +13,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-#include "vport_usbserial.h"
+#include "vt_usbSerial.h"
 #include "../../drivers/indicators.h"
 #include "ts.h"
 #include "../utils/cobs.h"

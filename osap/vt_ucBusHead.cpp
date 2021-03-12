@@ -1,5 +1,5 @@
 /*
-osap/vport_ucbus_head.cpp
+osap/vt_ucBusHead.cpp
 
 virtual port, bus head / host 
 
@@ -12,14 +12,15 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-#include "vport_ucbus_head.h"
+#include "vt_ucBusHead.h"
 
 #ifdef UCBUS_IS_HEAD
 
 #include "../../drivers/indicators.h"
 #include "../ucbus/ucbus_head.h"
 
-// uuuuh, ? 
+// uuuuh, local thing and extern, not sure abt this 
+// file scoped object, global ptr 
 vertex_t _vt_ucBusHead;
 vertex_t* vt_ucBusHead = &_vt_ucBusHead;
 

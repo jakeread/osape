@@ -1,5 +1,5 @@
 /*
-osap/osap_loop.h
+osap/osapLoop.h
 
 main osap op: whips data vertex-to-vertex 
 
