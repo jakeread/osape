@@ -16,7 +16,7 @@ no warranty is provided, and users accept all liability.
 #include "../../drivers/indicators.h"
 #include "../utils/syserror.h"
 
-//#define LOOP_DEBUG
+#define LOOP_DEBUG
 
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
@@ -149,10 +149,15 @@ void osapHandler(vertex_t* vt) {
           uint16_t rxAddr;
           ptr ++;      
           ts_readUint16(&rxAddr, pck, &ptr);
+          #ifdef LOOP_DEBUG 
+          sysError("busf " + String(rxAddr));
+          #endif
           if(vt->cts(rxAddr)){  // walk ptr fwds, transmit, and clear the msg 
-            pck[ptr - 1] = PK_BFWD_KEY;
+            ptr -= 4;
+            pck[ptr ++] = PK_BFWD_KEY;
             ts_writeUint16(vt->ownRxAddr, pck, &ptr);
             pck[ptr] = PK_PTR;
+            //logPacket(pck, len);
             vt->send(pck, len, rxAddr);
             stackClearSlot(vt, od, s);
           }

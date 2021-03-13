@@ -16,13 +16,78 @@ no warranty is provided, and users accept all liability.
 
 #ifdef UCBUS_IS_DROP
 
-VPort_UCBus_Drop::VPort_UCBus_Drop():VPort("ucbus drop"){
-    description = "vport wrap on ucbus drop";
-    portTypeKey = EP_PORTTYPEKEY_BUSDROP;
-    maxSegLength = UBD_BUFSIZE - 2; // 1 for rcrxb, 1 for drop id (on return) 
-    maxAddresses = 15;  // 0 for head, 0-14 map 1-15 for drops 
+#include "../../drivers/indicators.h"
+#include "../ucbus/ucBusDrop.h"
+
+vertex_t _vt_ucBusDrop;
+vertex_t* vt_ucBusDrop = &_vt_ucBusDrop;
+
+void vt_ucBusDrop_setup(void){
+    _vt_ucBusDrop.type = VT_TYPE_VBUS;
+    _vt_ucBusDrop.name = "ucbus drop";
+    _vt_ucBusDrop.loop = &vt_ucBusDrop_loop;
+    _vt_ucBusDrop.cts = &vt_ucBusDrop_cts;
+    _vt_ucBusDrop.send = &vt_ucBusDrop_send;
+    _vt_ucBusDrop.onOriginStackClear = &vt_ucBusDrop_onOriginStackClear;
+    // start it: use DIP 
+    ucBusDrop_setup(true, 0);
 }
 
+void vt_ucBusDrop_loop(void){
+    // will want to shift(?) from ucbus inbuffer to vertex origin stack 
+    if(ucBusDrop_ctrB()){
+      // find a slot, 
+      uint8_t slot = 0;
+      if(stackEmptySlot(&_vt_ucBusDrop, VT_STACK_ORIGIN, &slot)){
+        // copy in to origin stack 
+        uint16_t len = ucBusDrop_readB(_vt_ucBusDrop.stack[VT_STACK_ORIGIN][slot]);
+        _vt_ucBusDrop.stackLengths[VT_STACK_ORIGIN][slot] = len;
+        _vt_ucBusDrop.stackArrivalTimes[VT_STACK_ORIGIN][slot] = millis();
+      } else {
+        // no empty space, will wait in bus 
+      }
+    }
+}
+
+boolean vt_ucBusDrop_cts(uint8_t rxAddr){
+  // immediately clear? & transmit only to head 
+  if(rxAddr == 0 && ucBusDrop_ctsB()){
+    return true;
+  } else {
+    return false;
+  }
+}
+
+void vt_ucBusDrop_send(uint8_t* data, uint16_t len, uint8_t rxAddr){
+  // can't tx not-to-the-head, will drop pck 
+  if(rxAddr != 0) return;
+  // if the bus is ready, drop it,
+  if(ucBusDrop_ctsB()){
+    ucBusDrop_transmitB(data, len);
+  } else {
+    sysError("ubd tx while not clear"); // should be a check immediately beforehand ...  
+  }
+}
+
+void vt_ucBusDrop_onOriginStackClear(uint8_t slot){
+  // I think also no-op ? 
+}
+
+/*
+void VPort_UCBus_Drop::read(uint8_t** pck, pckm_t* pckm){
+    unsigned long pat = 0;
+    pckm->vpa = this;
+    pckm->len = ucBusDrop->read_b_ptr(pck, &pat);
+    pckm->at = pat;
+    pckm->location = 0;
+    pckm->txAddr = 0; // the head transmitted to us, 
+    pckm->rxAddr = ucBusDrop->id + 1;
+    return;
+}
+*/
+
+/*
+// used to have a vertex local outgoing buffer, this can be the vertex's destination buffer afaiak
 void VPort_UCBus_Drop::init(void){
     ucBusDrop->init(true, 0); 
     for(uint8_t i = 0; i < UBD_OUTBUFFER_COUNT; i ++){
@@ -41,62 +106,6 @@ void VPort_UCBus_Drop::loop(void){
         }
     }
 }
-
-uint8_t VPort_UCBus_Drop::status(uint16_t rxAddr){
-    // ignore rxAddr: hopefully no-one is querying for status of other drops, we cannot know 
-    // could check if this is 0, but... when busses become more advanced and we want this, will write 
-    // could also check, if req. is for rxAddr 0, if time of last byte from the head is > some interval 
-    return EP_PORTSTATUS_OPEN;
-}
-
-// busses 
-void VPort_UCBus_Drop::read(uint8_t** pck, pckm_t* pckm){
-    unsigned long pat = 0;
-    pckm->vpa = this;
-    pckm->len = ucBusDrop->read_b_ptr(pck, &pat);
-    pckm->at = pat;
-    pckm->location = 0;
-    pckm->txAddr = 0; // the head transmitted to us, 
-    pckm->rxAddr = ucBusDrop->id + 1;
-    return;
-}
-
-void VPort_UCBus_Drop::clear(uint8_t pwp){
-    ucBusDrop->clear_b_ptr(); // pwp is meaningless, should really amend this code mess
-}
-
-boolean VPort_UCBus_Drop::cts(uint8_t rxAddr){
-    // immediately clear?
-    if(rxAddr == 0 && ucBusDrop->cts()){
-        return true;
-    }
-    // if not, check for empty space in outbuffer, 
-    for(uint8_t i = 0; i < UBD_OUTBUFFER_COUNT; i ++){
-        if(_outBufferLen[i] == 0){
-            return true;
-        }
-    }
-    // if not, not cts 
-    return false;
-}
-
-void VPort_UCBus_Drop::send(uint8_t* pck, uint16_t pl, uint8_t rxAddr){
-    // can't tx not-to-the-head 
-    if(rxAddr != 0) return;
-    // if the bus is ready, drop it,
-    if(ucBusDrop->cts()){
-        ucBusDrop->transmit(pck, pl);
-    } else {
-        // otherwise, stash in the store... 
-        // if no spaces, game over, no graceful save, things have gone poorly 
-        for(uint8_t i = 0; i < UBD_OUTBUFFER_COUNT; i ++){
-            if(_outBufferLen[i] == 0){
-                memcpy(_outBuffer[i], pck, pl);
-                _outBufferLen[i] = pl;
-                return;
-            }
-        }
-    }
-}
+*/
 
 #endif 

@@ -1,6 +1,6 @@
 #include "syserror.h"
 #include "./osape/osap/ts.h"
-#include "./osape/ucbus/ucbus_drop.h"
+#include "./osape/ucbus/ucBusDrop.h"
 #include "./config.h"
 
 uint8_t errBuf[1028];
@@ -24,12 +24,13 @@ boolean writeLenBytes(unsigned char* dest, uint16_t* dptr, uint16_t len){
 
 #ifdef UCBUS_IS_DROP
 
-uint8_t escape[512];
-uint8_t escapeHeader[10] = { PK_BUSF_KEY, 0, 0, 0, 0, PK_PTR, PK_PORTF_KEY, 0, 0, PK_DEST };
+//uint8_t escape[512];
+//uint8_t escapeHeader[10] = { PK_BUSF_KEY, 0, 0, 0, 0, PK_PTR, PK_PORTF_KEY, 0, 0, PK_DEST };
 
 // config-your-own-ll-escape-hatch
 void sysError(String msg){
-  ERRLIGHT_ON;
+  //ERRLIGHT_ON;
+  /*
   uint32_t len = msg.length();
   errBuf[0] = PK_LLERR; // the ll-errmsg-key
   errBuf[1] = len & 255;
@@ -47,6 +48,7 @@ void sysError(String msg){
   // transmit on ucbus 
   // potential here to hang-up and do while(!(ucBusDrop->cts())) ... I *think* that would clear on an interrupt
   ucBusDrop->transmit(escape, len + wptr + 5);
+  */
 }
 
 #else 
@@ -66,12 +68,12 @@ void sysError(String msg){
   msg.getBytes(&(errBuf[7]), len + 1);
   size_t ecl = cobsEncode(errBuf, len + 7, errEncoded);
   // direct escape 
-  if(Serial.availableForWrite() > (int64_t)ecl){
+  //if(Serial.availableForWrite() > (int64_t)ecl){
     Serial.write(errEncoded, ecl);
     Serial.flush();
-  } else {
-    ERRLIGHT_ON;
-  }
+  //} else {
+  //  ERRLIGHT_ON;
+  //}
 }
 
 #endif 

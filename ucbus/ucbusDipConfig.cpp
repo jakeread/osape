@@ -1,8 +1,8 @@
 // DIPs
 
-#include "ucbusDipConfig.h"
+#include "ucBusDipConfig.h"
 
-void dip_init(void){
+void dip_setup(void){
     // set direction in,
     DIP_PORT.DIRCLR.reg = D_BM(D0_PIN) | D_BM(D1_PIN) | D_BM(D2_PIN) | D_BM(D3_PIN) | D_BM(D4_PIN) | D_BM(D5_PIN) | D_BM(D6_PIN) | D_BM(D7_PIN);
     // enable in,
@@ -27,7 +27,7 @@ void dip_init(void){
     DIP_PORT.OUTCLR.reg = D_BM(D0_PIN) | D_BM(D1_PIN) | D_BM(D2_PIN) | D_BM(D3_PIN) | D_BM(D4_PIN) | D_BM(D5_PIN) | D_BM(D6_PIN) | D_BM(D7_PIN);
 }
 
-uint8_t dip_read_lower_four(void){
+uint8_t dip_readLowerFour(void){
     uint32_t bits[5] = {0,0,0,0,0};
     if(DIP_PORT.IN.reg & D_BM(D7_PIN)) { bits[0] = 1; }
     if(DIP_PORT.IN.reg & D_BM(D6_PIN)) { bits[1] = 1; }
@@ -46,10 +46,10 @@ uint8_t dip_read_lower_four(void){
     return (uint8_t)word;
 }
 
-boolean dip_read_pin_0(void){
+boolean dip_readPin0(void){
     return DIP_PORT.IN.reg & D_BM(D0_PIN);
 }
 
-boolean dip_read_pin_1(void){
+boolean dip_readPin1(void){
     return DIP_PORT.IN.reg & D_BM(D1_PIN);
 }
