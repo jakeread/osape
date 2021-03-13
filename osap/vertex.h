@@ -19,8 +19,10 @@ no warranty is provided, and users accept all liability.
 #include "ts.h"
 
 #define VT_STACKLEN 512
-#define VT_STACKSIZE 2
+#define VT_STACKSIZE 4
 #define VT_MAXCHILDREN 64 
+#define VT_STACK_ORIGIN 0 
+#define VT_STACK_DESTINATION 1 
 
 // https://stackoverflow.com/questions/1813991/c-structure-with-pointer-to-self
 
@@ -33,12 +35,14 @@ struct vertex_t {
     uint8_t type = 0;
     uint16_t indice = 0;
     String name = "unnamed vertex";
-    // stack of messages to deal with, 
-    uint8_t stack[VT_STACKSIZE][VT_STACKLEN];
+    // stacks; 
+    // origin stack[0] destination stack[1]
+    // destination stack is for messages delivered to this vertex, 
+    uint8_t stack[2][VT_STACKSIZE][VT_STACKLEN];
     uint8_t stackSize = VT_STACKSIZE; // should be variable 
-    uint8_t lastHandled = 0;
-    uint16_t stackLen[VT_STACKSIZE];
-    unsigned long stackArrivalTimes[VT_STACKSIZE];
+    uint8_t lastStackHandled[2] = { 0, 0 };
+    uint16_t stackLengths[2][VT_STACKSIZE] = { { 0, 0, 0, 0 }, { 0, 0, 0, 0 } }; // ugly... and these should be variable 
+    unsigned long stackArrivalTimes[2][VT_STACKSIZE];
     // parent & children (other vertices)
     vertex_t* parent = nullptr;
     vertex_t* children[VT_MAXCHILDREN]; // I think this is OK on storage: just pointers 
@@ -50,8 +54,14 @@ struct vertex_t {
     // vertex-as-vport-interface 
     boolean (*cts)(uint8_t drop) = nullptr;
     void (*send)(uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
+    uint16_t ownRxAddr = 0;
+    // to notify for clear-out callbacks / flowcontrol etc 
+    void (*onOriginStackClear)(uint8_t slot) = nullptr;
+    void (*onDestinationStackClear)(uint8_t slot) = nullptr;
 };
 
-boolean vertexSpace(vertex_t* vt, uint8_t* space);
+void stackClearSlot(vertex_t* vt, uint8_t od, uint8_t slot);
+boolean stackEmptySlot(vertex_t* vt, uint8_t od, uint8_t* slot);
+boolean stackNextMsg(vertex_t* vt, uint8_t od, uint8_t* slot);
 
 #endif 

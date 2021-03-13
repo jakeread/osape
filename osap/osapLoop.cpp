@@ -32,132 +32,139 @@ void osapHandler(vertex_t* vt) {
   // run root's own loop code 
   if(vt->loop != nullptr) vt->loop();
 
-  // find next unhandled message in the stack 
-  uint8_t s = vt->lastHandled;
-  boolean capture = false;
-  for (uint8_t i = 0; i < vt->stackSize; i++) {
-    s++;
-    if (s >= vt->stackSize) s = 0;
-    if(vt->stackLen[s] > 0){
-      capture = true;
-      vt->lastHandled = s;
-      break; // escape and continue with this 
-    }
-  }
-
-  // if no item in stack here, continue search 
-  if(!capture){
-    //sysError("no capture");
-    return;
-  }
-
-  #ifdef LOOP_DEBUG 
-  sysError(vt->name + " cap " + String(s)); 
-  #endif 
-
-  // have ahn msg, is at vt->stack[s]
-  // first check if it's timed out 
-  unsigned long now = millis();
-  if(vt->stackArrivalTimes[s] + TIMES_STALE_MSG < now){
+  // handle origin stack, destination stack, in same manner 
+  for(uint8_t od = 0; od < 2; od ++){
+    uint8_t s;
+    if(!stackNextMsg(vt, od, &s)) continue;
+    
     #ifdef LOOP_DEBUG 
-    sysError("timeout pck");
+    sysError(vt->name + " cap " + String(s)); 
     #endif 
-    vt->stackLen[s] = 0;
-    return;
-  }
 
-  // now carry on, try to handle it, 
-  uint8_t* pck = vt->stack[s];
-  uint16_t ptr = 0;
-  uint16_t len = vt->stackLen[s];
-  // could do a potential speedup where the vertex tracks last known ptr posotion 
-  if(!ptrLoop(pck, &ptr)){
-    sysError("main loop bad ptr walk " + String(ptr) + " len " + String(len));
-    vt->stackLen[s] = 0; // clears the msg 
-    return; 
-  }
+    // have ahn msg, is at vt->stack[s]
+    // first check if it's timed out 
+    unsigned long now = millis();
+    if(vt->stackArrivalTimes[od][s] + TIMES_STALE_MSG < now){
+      #ifdef LOOP_DEBUG 
+      sysError("timeout pck");
+      #endif 
+      stackClearSlot(vt, od, s);
+      continue;
+    }
 
-  // switch at pck[ptr + 1]
-  ptr ++;
-  switch(pck[ptr]){
-    case PK_DEST:
-      if(vt->onData == nullptr || vt->onData(pck, len)){
-        #ifdef LOOP_DEBUG 
-        sysError("destination copy");
-        #endif 
-        // no onData handler here, or it passed, so data copies in 
-        memcpy(vt->data, pck, len);
-        vt->stackLen[s] = 0;
-        return;
-      } else {
-        // onData returning false means endpoint is occupied / not ready for data, so we wait  
-      }
-      break;
-    case PK_SIB_KEY: {
-      // need the indice, 
-      uint16_t si;
-      ptr ++;      
-      ts_readUint16(&si, pck, &ptr);
-      // can't do this if no parent, 
-      if(vt->parent == nullptr){
-        sysError("no parent for sib traverse");
-        vt->stackLen[s] = 0;
-        return;
-      }
-      // nor if no target, 
-      if(si >= vt->parent->numChildren){
-        sysError("sib traverse oob");
-        vt->stackLen[s] = 0;
-        return;
-      }
-      // now we can copy it in, only if there's space ahead to move it into 
-      uint8_t space;
-      if(vertexSpace(vt->parent->children[si], &space)){
-        #ifdef LOOP_DEBUG
-        sysError("sib copy");
-        #endif 
-        ptr -= 4; // write in reversed instruction (reverse ptr to PK_PTR here)
-        pck[ptr ++] = PK_SIB_KEY; // overwrite with instruction that would return to us, 
-        ts_writeUint16(vt->indice, pck, &ptr);
-        pck[ptr] = PK_PTR;
-        // copy-in, set fullness, update time 
-        memcpy(vt->parent->children[si]->stack[space], pck, len);
-        vt->parent->children[si]->stackLen[space] = len;
-        vt->parent->children[si]->stackArrivalTimes[space] = now;
-        // now og is clear 
-        vt->stackLen[s] = 0;
-        // and we can finish here 
-        return;
-      } else {
-        // the wait term, 
-      }
-    } 
-    break; // end sib-fwd case, 
-    case PK_PARENT_KEY:
-    case PK_CHILD_KEY:
-      // but is functionally identical to above, save small details... later 
-      sysError("nav to parent / child unwritten");
-      vt->stackLen[s] = 0;
-      return;
-    case PK_PFWD_KEY:
-      if(vt->type != VT_TYPE_VPORT || vt->cts == nullptr || vt->send == nullptr){
-        sysError("pfwd to non-vport vertex");
-        vt->stackLen[s] = 0;
-        return;
-      }
-      if(vt->cts(0)){
-        pck[ptr - 1] = PK_PFWD_KEY;
-        pck[ptr] = PK_PTR;
-        vt->send(pck, len, 0);
-        return;
-      }
-      break;
-    case PK_LLESCAPE_KEY:
-    default:
-      sysError("unrecognized ptr here");
-      vt->stackLen[s] = 0;
-      return;
-  }
+    // now carry on, try to handle it, 
+    uint8_t* pck = vt->stack[od][s];
+    uint16_t ptr = 0;
+    uint16_t len = vt->stackLengths[od][s];
+
+    // could do a potential speedup where the vertex tracks last known ptr position 
+    if(!ptrLoop(pck, &ptr)){
+      sysError("main loop bad ptr walk " + String(ptr) + " len " + String(len));
+      stackClearSlot(vt, od, s); // clears the msg 
+      continue; 
+    }
+
+    // switch at pck[ptr + 1]
+    ptr ++;
+    switch(pck[ptr]){
+      case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
+        if(vt->onData == nullptr || vt->onData(pck, len)){
+          #ifdef LOOP_DEBUG 
+          sysError("destination copy");
+          #endif 
+          // no onData handler here, or it passed, so data copies in 
+          memcpy(vt->data, pck, len);
+          stackClearSlot(vt, od, s);
+          continue; // continue loop 
+        } else {
+          // onData returning false means endpoint is occupied / not ready for data, so we wait  
+        }
+        continue;
+      case PK_SIB_KEY: {  // instruction to pass to this sibling, 
+        // need the indice, 
+        uint16_t si;
+        ptr ++;      
+        ts_readUint16(&si, pck, &ptr);
+        // can't do this if no parent, 
+        if(vt->parent == nullptr){
+          sysError("no parent for sib traverse");
+          stackClearSlot(vt, od, s);
+          continue;
+        }
+        // nor if no target, 
+        if(si >= vt->parent->numChildren){
+          sysError("sib traverse oob");
+          stackClearSlot(vt, od, s);
+          continue;
+        }
+        // now we can copy it in, only if there's space ahead to move it into 
+        // this would be for other vertex's desitination slot, always 
+        uint8_t space;
+        if(stackEmptySlot(vt->parent->children[si], VT_STACK_DESTINATION, &space)){
+          #ifdef LOOP_DEBUG
+          sysError("sib copy");
+          #endif 
+          ptr -= 4; // write in reversed instruction (reverse ptr to PK_PTR here)
+          pck[ptr ++] = PK_SIB_KEY; // overwrite with instruction that would return to us, 
+          ts_writeUint16(vt->indice, pck, &ptr);
+          pck[ptr] = PK_PTR;
+          // copy-in, set fullness, update time 
+          memcpy(vt->parent->children[si]->stack[VT_STACK_DESTINATION][space], pck, len);
+          vt->parent->children[si]->stackLengths[VT_STACK_DESTINATION][space] = len;
+          vt->parent->children[si]->stackArrivalTimes[VT_STACK_DESTINATION][space] = now;
+          // now og is clear 
+          stackClearSlot(vt, od, s);
+          // and we can finish here 
+          continue;
+        } else {
+          // destination stack at target is full, msg stays in place, next loop checks 
+        }
+      } 
+      continue; // end sib-fwd case, 
+      case PK_PARENT_KEY:
+      case PK_CHILD_KEY:
+        // but is functionally identical to above, save small details... later 
+        sysError("nav to parent / child unwritten");
+        stackClearSlot(vt, od, s);
+        continue;
+      case PK_PFWD_KEY:
+        if(vt->type != VT_TYPE_VPORT || vt->cts == nullptr || vt->send == nullptr){
+          sysError("pfwd to non-vport vertex");
+          stackClearSlot(vt, od, s);
+        } else {
+          if(vt->cts(0)){ // walk ptr fwds, transmit, and clear the msg 
+            pck[ptr - 1] = PK_PFWD_KEY;
+            pck[ptr] = PK_PTR;
+            vt->send(pck, len, 0);
+            stackClearSlot(vt, od, s);
+          }
+        }
+        continue;
+      case PK_BFWD_KEY:
+        if(vt->type != VT_TYPE_VBUS || vt->cts == nullptr || vt->send == nullptr){
+          sysError("bfwd to non-vbus vertex");
+          stackClearSlot(vt, od, s);
+        } else {
+          // need tx rxaddr, for which drop on bus to tx to, 
+          uint16_t rxAddr;
+          ptr ++;      
+          ts_readUint16(&rxAddr, pck, &ptr);
+          if(vt->cts(rxAddr)){  // walk ptr fwds, transmit, and clear the msg 
+            pck[ptr - 1] = PK_BFWD_KEY;
+            ts_writeUint16(vt->ownRxAddr, pck, &ptr);
+            pck[ptr] = PK_PTR;
+            vt->send(pck, len, rxAddr);
+            stackClearSlot(vt, od, s);
+          }
+        }
+        continue;
+      case PK_LLESCAPE_KEY:
+      default:
+        sysError("unrecognized ptr here");
+        stackClearSlot(vt, od, s);
+        continue;
+    } // end main switch 
+  } // end lp over origin / destination stacks 
 }
 
 boolean ptrLoop(uint8_t* pck, uint16_t* pt){

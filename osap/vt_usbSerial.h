@@ -27,6 +27,7 @@ void usbSerialSetup(void);
 void usbSerialLoop(void);
 boolean usbSerialCTS(uint8_t drop);
 void usbSerialSend(uint8_t* data, uint16_t len, uint8_t rxAddr);
+void usbSerialOnOriginStackClear(uint8_t slot);
 
 // tells linker that the thing exists & to... find it later?
 // is declared in this cpp file 
