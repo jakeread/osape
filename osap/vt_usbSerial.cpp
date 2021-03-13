@@ -33,25 +33,25 @@ uint8_t _acksAwaiting = 0;
 // outgoing
 uint8_t _encodedOut[VPUSB_SPACE_SIZE];
 
-void usbSerialSetup(void){
+void vt_usbSerial_setup(void){
   //vt_usbSerial = &vt;
   // configure self, 
   _vt_usbSerial.type = VT_TYPE_VPORT;
   _vt_usbSerial.name = "usbSerial";
-  _vt_usbSerial.loop = &usbSerialLoop;
-  _vt_usbSerial.cts = &usbSerialCTS;
-  _vt_usbSerial.send = &usbSerialSend;
-  _vt_usbSerial.onOriginStackClear = &usbSerialOnOriginStackClear;
+  _vt_usbSerial.loop = &vt_usbSerial_loop;
+  _vt_usbSerial.cts = &vt_usbSerial_cts;
+  _vt_usbSerial.send = &vt_usbSerial_send;
+  _vt_usbSerial.onOriginStackClear = &vt_usbSerial_onOriginStackClear;
   // start arduino serial object 
   Serial.begin(9600);
 }
 
-void usbSerialLoop(void){
+void vt_usbSerial_loop(void){
   // want to count through previous occupied-ness states, and on falling edge
   // of stack education, ack... 
   // ack if necessary (if didn't tx ack out on reciprocal send last)
   if(_acksAwaiting){
-    usbSerialSend(_encodedOut, 0, 0);
+    vt_usbSerial_send(_encodedOut, 0, 0);
   }
   // then check about new messages: 
   while(Serial.available()){
@@ -83,19 +83,19 @@ void usbSerialLoop(void){
 }
 
 // to clear packets out... for us to track flowcontrol
-void usbSerialOnOriginStackClear(uint8_t slot){
+void vt_usbSerial_onOriginStackClear(uint8_t slot){
   // this is all, 
   _acksAwaiting ++;
 }
 
 // there's at the moment no usb -> up flowcontrol 
-boolean usbSerialCTS(uint8_t drop){
+boolean vt_usbSerial_cts(uint8_t drop){
   return true;
 }
 
 uint8_t _shift[VPUSB_SPACE_SIZE];
 
-void usbSerialSend(uint8_t* data, uint16_t len, uint8_t rxAddr){
+void vt_usbSerial_send(uint8_t* data, uint16_t len, uint8_t rxAddr){
   // damn, this is not fast: shifting one byte in for acks,
   // probably faster than sending seperate packet though 
   _shift[0] = _acksAwaiting;

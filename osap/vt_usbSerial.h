@@ -23,11 +23,11 @@ no warranty is provided, and users accept all liability.
 
 // uuuuh classes are cancelled? 
 
-void usbSerialSetup(void);
-void usbSerialLoop(void);
-boolean usbSerialCTS(uint8_t drop);
-void usbSerialSend(uint8_t* data, uint16_t len, uint8_t rxAddr);
-void usbSerialOnOriginStackClear(uint8_t slot);
+void vt_usbSerial_setup(void);
+void vt_usbSerial_loop(void);
+boolean vt_usbSerial_cts(uint8_t drop);
+void vt_usbSerial_send(uint8_t* data, uint16_t len, uint8_t rxAddr);
+void vt_usbSerial_onOriginStackClear(uint8_t slot);
 
 // tells linker that the thing exists & to... find it later?
 // is declared in this cpp file 

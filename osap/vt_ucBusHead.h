@@ -22,10 +22,11 @@ no warranty is provided, and users accept all liability.
 #include <Arduino.h>
 #include "vertex.h"
 
-void ucbusHeadSetup(void);
-void ucbusHeadLoop(void);
-boolean ucbusHeadCTS(uint8_t rxAddr);
-void ucbusHeadSend(uint8_t* data, uint16_t len, uint8_t rxAddr);
+void vt_ucBusHead_setup(void);
+void vt_ucBusHead_loop(void);
+boolean vt_ucBusHead_cts(uint8_t rxAddr);
+void vt_ucBusHead_send(uint8_t* data, uint16_t len, uint8_t rxAddr);
+void vt_ucBusHead_onOriginStackClear(uint8_t slot);
 
 extern vertex_t* vt_ucBusHead;
 

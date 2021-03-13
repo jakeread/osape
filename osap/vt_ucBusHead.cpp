@@ -1,7 +1,7 @@
 /*
 osap/vt_ucBusHead.cpp
 
-virtual port, bus head / host 
+virtual port, bus head / host
 
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2019
@@ -19,68 +19,102 @@ no warranty is provided, and users accept all liability.
 #include "../../drivers/indicators.h"
 #include "../ucbus/ucbusHead.h"
 
-// uuuuh, local thing and extern, not sure abt this 
-// file scoped object, global ptr 
+// uuuuh, local thing and extern, not sure abt this
+// file scoped object, global ptr
 vertex_t _vt_ucBusHead;
 vertex_t* vt_ucBusHead = &_vt_ucBusHead;
 
-void ucbusHeadSetup(void){
-    _vt_ucBusHead.type = VT_TYPE_VBUS;
-    _vt_ucBusHead.name = "ucbus head";
-    _vt_ucBusHead.loop = &ucbusHeadLoop;
-    _vt_ucBusHead.cts = &ucbusHeadCTS;
-    _vt_ucBusHead.send = &ucbusHeadSend;
-    // start ucbus 
-    ucBusHead->init(); // todo: rewrite as c object, not class 
+// locally, track which drop we shifted in a packet from last
+uint8_t _lastDropHandled = 0;
+
+void vt_ucBusHead_setup(void) {
+  _vt_ucBusHead.type = VT_TYPE_VBUS;
+  _vt_ucBusHead.name = "ucbus head";
+  _vt_ucBusHead.loop = &vt_ucBusHead_loop;
+  _vt_ucBusHead.cts = &vt_ucBusHead_cts;
+  _vt_ucBusHead.send = &vt_ucBusHead_send;
+  _vt_ucBusHead.onOriginStackClear = &vt_ucBusHead_onOriginStackClear;
+  // start ucbus
+  ucBusHead_setup();  // todo: rewrite as c object, not class
 }
 
-void ucbusHeadLoop(void){
-    // noop, I don't think, should all happen on the ucbus timer, 
-    // though we need to load from ucbus -> this stack, for reading 
-}
-
-boolean ucbusHeadCTS(uint8_t rxAddr){
-    return ucBusHead->cts_b(rxAddr - 1);
-}
-
-void ucbusHeadSend(uint8_t* data, uint16_t len, uint8_t rxAddr){
-    // logical address is drop + 1: 0th 'drop' is the head in address space. 
-    // this might be a bugfarm, but the bit is extra address space, so it lives... 
-    if(rxAddr == 0){
-        sysError("attempt to busf from head to self");
-        return;
+void vt_ucBusHead_loop(void) {
+  // we need to shift items from the bus into the origin stack here
+  // we can shift multiple in per turn, if stack space exists
+  uint8_t drop = _lastDropHandled;
+  for (uint8_t i = 0; i < UBH_DROP_OPS; i++) {
+    drop++;
+    if (drop <= UBH_DROP_OPS) {
+      drop = 0;
     }
-    ucBusHead->transmit_b(data, len, rxAddr - 1);
+    if (ucBusHead_ctr(drop)) {
+      // find a stack slot,
+      uint8_t slot = 0;
+      if (stackEmptySlot(&_vt_ucBusHead, VT_STACK_ORIGIN, &slot)) {
+        // copy it in, 
+        uint16_t len = ucBusHead_read(drop, _vt_ucBusHead.stack[VT_STACK_ORIGIN][slot]);
+        _vt_ucBusHead.stackLengths[VT_STACK_ORIGIN][slot] = len;
+        _vt_ucBusHead.stackArrivalTimes[VT_STACK_ORIGIN][slot] = millis();
+      } else {
+        // no more empty spaces this turn, continue 
+        return; 
+      }
+    }
+  }
+}
+
+boolean vt_ucBusHead_cts(uint8_t rxAddr) {
+  // mapping rxAddr in osap space (where 0 is head) to ucbus drop-id space...
+  return ucBusHead_ctsB(rxAddr - 1);
+}
+
+void vt_ucBusHead_send(uint8_t* data, uint16_t len, uint8_t rxAddr) {
+  // logical address is drop + 1: 0th 'drop' is the head in address space.
+  // this might be a bugfarm, but the bit is extra address space, so it
+  // lives...
+  if (rxAddr == 0) {
+    sysError("attempt to busf from head to self");
+    return;
+  }
+  ucBusHead_transmitB(data, len, rxAddr - 1);
+}
+
+void vt_ucBusHead_onOriginStackClear(uint8_t slot) {
+  // hmm, maybe actually this is no-op ?
+  // rx buffer is in the ucbus, we clear that out when we read it into
+  // the origin buffer here
 }
 
 /*
+void VPort_UCBus_Head::read(uint8_t** pck, pckm_t* pckm){
+    // track last-drop-dished, increment thru to find next w/ occupied space
+    uint8_t dr = 0; // drop recieved: ubh->readPtr() fills this in,
+    unsigned long pat = 0;
+    pckm->vpa = this;
+    pckm->len = ucBusHead->readPtr(&dr, pck, &pat);
+    pckm->at = pat; // arrival time
+    pckm->location = dr + 1; // quick hack, at the moment pwp is just the drop
+... see note in clear pckm->txAddr = dr + 1; // addr that tx'd this packet
+    pckm->rxAddr = 0; // us, who rx'd it
+    return;
+}
 
+void VPort_UCBus_Head::clear(uint8_t location){
+    // eventually, should be drop, pwp: if we ever buffer more than 1 space in
+each drop space ucBusHead->clearPtr(location - 1);
+}
+*/
+
+/*
+// relic,
 uint8_t VPort_UCBus_Head::status(uint16_t rxAddr){
-    // use time of last byte arrival from this drop, 
+    // use time of last byte arrival from this drop,
     if(ucBusHead->lastrc[rxAddr - 1] + 500 < millis()){
         return EP_PORTSTATUS_CLOSED;
     } else {
         return EP_PORTSTATUS_OPEN;
     }
 }
-
-void VPort_UCBus_Head::read(uint8_t** pck, pckm_t* pckm){
-    // track last-drop-dished, increment thru to find next w/ occupied space 
-    uint8_t dr = 0; // drop recieved: ubh->readPtr() fills this in, 
-    unsigned long pat = 0;
-    pckm->vpa = this;
-    pckm->len = ucBusHead->readPtr(&dr, pck, &pat);
-    pckm->at = pat; // arrival time 
-    pckm->location = dr + 1; // quick hack, at the moment pwp is just the drop ... see note in clear 
-    pckm->txAddr = dr + 1; // addr that tx'd this packet 
-    pckm->rxAddr = 0; // us, who rx'd it
-    return;
-}
-
-void VPort_UCBus_Head::clear(uint8_t location){
-    // eventually, should be drop, pwp: if we ever buffer more than 1 space in each drop space
-    ucBusHead->clearPtr(location - 1);
-}
 */
 
-#endif 
+#endif
