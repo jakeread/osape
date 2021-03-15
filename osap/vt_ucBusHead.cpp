@@ -27,13 +27,15 @@ vertex_t* vt_ucBusHead = &_vt_ucBusHead;
 // locally, track which drop we shifted in a packet from last
 uint8_t _lastDropHandled = 0;
 
+// badness, should remove w/ direct copy in API eventually
+uint8_t _tempBuffer[1024];
+
 void vt_ucBusHead_setup(void) {
   _vt_ucBusHead.type = VT_TYPE_VBUS;
   _vt_ucBusHead.name = "ucbus head";
   _vt_ucBusHead.loop = &vt_ucBusHead_loop;
   _vt_ucBusHead.cts = &vt_ucBusHead_cts;
   _vt_ucBusHead.send = &vt_ucBusHead_send;
-  _vt_ucBusHead.onOriginStackClear = &vt_ucBusHead_onOriginStackClear;
   // start ucbus
   ucBusHead_setup();  // todo: rewrite as c object, not class
 }
@@ -50,11 +52,11 @@ void vt_ucBusHead_loop(void) {
     if (ucBusHead_ctr(drop)) {
       // find a stack slot,
       uint8_t slot = 0;
-      if (stackEmptySlot(&_vt_ucBusHead, VT_STACK_ORIGIN, &slot)) {
+      #warning here 
+      if (stackEmptySlot(&_vt_ucBusHead, VT_STACK_ORIGIN)) {
         // copy it in, 
-        uint16_t len = ucBusHead_read(drop, _vt_ucBusHead.stack[VT_STACK_ORIGIN][slot]);
-        _vt_ucBusHead.stackLengths[VT_STACK_ORIGIN][slot] = len;
-        _vt_ucBusHead.stackArrivalTimes[VT_STACK_ORIGIN][slot] = millis();
+        uint16_t len = ucBusHead_read(drop, _tempBuffer);
+        stackLoadSlot(&_vt_ucBusHead, VT_STACK_ORIGIN, _tempBuffer, len);
       } else {
         // no more empty spaces this turn, continue 
         return; 
@@ -77,12 +79,6 @@ void vt_ucBusHead_send(uint8_t* data, uint16_t len, uint8_t rxAddr) {
     return;
   }
   ucBusHead_transmitB(data, len, rxAddr - 1);
-}
-
-void vt_ucBusHead_onOriginStackClear(uint8_t slot) {
-  // hmm, maybe actually this is no-op ?
-  // rx buffer is in the ucbus, we clear that out when we read it into
-  // the origin buffer here
 }
 
 /*

@@ -19,7 +19,7 @@ no warranty is provided, and users accept all liability.
 #include "ts.h"
 
 #define VT_STACKLEN 512
-#define VT_STACKSIZE 4
+#define VT_STACKSIZE 5  // must be >= 2 for ringbuffer operation 
 #define VT_MAXCHILDREN 64 
 #define VT_STACK_ORIGIN 0 
 #define VT_STACK_DESTINATION 1 
@@ -40,10 +40,10 @@ struct vertex_t {
     // destination stack is for messages delivered to this vertex, 
     uint8_t stack[2][VT_STACKSIZE][VT_STACKLEN];
     uint8_t stackSize = VT_STACKSIZE; // should be variable 
-    uint8_t lastStackHandled[2] = { 0, 0 };
-    //uint8_t stackHead[2] = { 0, 0 };  // data loads into the head 
-    //uint8_t stackTail[2] = { 0, 0 };  // data consumed from the tail 
-    uint16_t stackLengths[2][VT_STACKSIZE] = { { 0, 0, 0, 0 }, { 0, 0, 0, 0 } }; // ugly... and these should be variable 
+    //uint8_t lastStackHandled[2] = { 0, 0 };
+    uint8_t stackHead[2] = { 0, 0 };  // data loads into the head 
+    uint8_t stackTail[2] = { 0, 0 };  // data consumed from the tail 
+    uint16_t stackLengths[2][VT_STACKSIZE] = { { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 } }; // ugly... and these should be variable 
     unsigned long stackArrivalTimes[2][VT_STACKSIZE];
     // parent & children (other vertices)
     vertex_t* parent = nullptr;
@@ -62,9 +62,10 @@ struct vertex_t {
     void (*onDestinationStackClear)(uint8_t slot) = nullptr;
 };
 
-// return next clear slot, 
-void stackClearSlot(vertex_t* vt, uint8_t od, uint8_t slot);
-boolean stackEmptySlot(vertex_t* vt, uint8_t od, uint8_t* slot);
 boolean stackNextMsg(vertex_t* vt, uint8_t od, uint8_t* slot);
+void stackClearSlot(vertex_t* vt, uint8_t od);
+
+boolean stackEmptySlot(vertex_t* vt, uint8_t od);
+void stackLoadSlot(vertex_t* vt, uint8_t od, uint8_t* data, uint16_t len);
 
 #endif 

@@ -22,13 +22,15 @@ no warranty is provided, and users accept all liability.
 vertex_t _vt_ucBusDrop;
 vertex_t* vt_ucBusDrop = &_vt_ucBusDrop;
 
+// badness, direct write in future 
+uint8_t _tempBuffer[1024];
+
 void vt_ucBusDrop_setup(void){
     _vt_ucBusDrop.type = VT_TYPE_VBUS;
     _vt_ucBusDrop.name = "ucbus drop";
     _vt_ucBusDrop.loop = &vt_ucBusDrop_loop;
     _vt_ucBusDrop.cts = &vt_ucBusDrop_cts;
     _vt_ucBusDrop.send = &vt_ucBusDrop_send;
-    _vt_ucBusDrop.onOriginStackClear = &vt_ucBusDrop_onOriginStackClear;
     // start it: use DIP 
     ucBusDrop_setup(true, 0);
 }
@@ -38,11 +40,10 @@ void vt_ucBusDrop_loop(void){
     if(ucBusDrop_ctrB()){
       // find a slot, 
       uint8_t slot = 0;
-      if(stackEmptySlot(&_vt_ucBusDrop, VT_STACK_ORIGIN, &slot)){
+      if(stackEmptySlot(&_vt_ucBusDrop, VT_STACK_ORIGIN)){
         // copy in to origin stack 
-        uint16_t len = ucBusDrop_readB(_vt_ucBusDrop.stack[VT_STACK_ORIGIN][slot]);
-        _vt_ucBusDrop.stackLengths[VT_STACK_ORIGIN][slot] = len;
-        _vt_ucBusDrop.stackArrivalTimes[VT_STACK_ORIGIN][slot] = millis();
+        uint16_t len = ucBusDrop_readB(_tempBuffer);
+        stackLoadSlot(&_vt_ucBusDrop, VT_STACK_ORIGIN, _tempBuffer, len);
       } else {
         // no empty space, will wait in bus 
       }
@@ -67,10 +68,6 @@ void vt_ucBusDrop_send(uint8_t* data, uint16_t len, uint8_t rxAddr){
   } else {
     sysError("ubd tx while not clear"); // should be a check immediately beforehand ...  
   }
-}
-
-void vt_ucBusDrop_onOriginStackClear(uint8_t slot){
-  // I think also no-op ? 
 }
 
 /*

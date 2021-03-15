@@ -32,6 +32,7 @@ uint8_t _acksAwaiting = 0;
 
 // outgoing
 uint8_t _encodedOut[VPUSB_SPACE_SIZE];
+uint8_t _encodedIn[VPUSB_SPACE_SIZE];
 
 void vt_usbSerial_setup(void){
   //vt_usbSerial = &vt;
@@ -61,14 +62,11 @@ void vt_usbSerial_loop(void){
       // decode into packet slot, record length (to mark fullness) and record arrival time 
       // check if space in origin stack, 
       uint8_t slot = 0;
-      if(stackEmptySlot(&_vt_usbSerial, VT_STACK_ORIGIN, &slot)){
-        // decode into the vertex stack 
+      if(stackEmptySlot(&_vt_usbSerial, VT_STACK_ORIGIN)){
+        // decode into decodebuf, load into stack 
         // cobsDecode returns the length of the decoded packet
-        uint16_t len = cobsDecode(_inBuffer, _bwp, _vt_usbSerial.stack[VT_STACK_ORIGIN][slot]); 
-        _vt_usbSerial.stackLengths[VT_STACK_ORIGIN][slot] = len;
-        //sysError("serial wrote " + String(len) + " to " + String(slot));
-        // record time of arrival, 
-        _vt_usbSerial.stackArrivalTimes[VT_STACK_ORIGIN][slot] = millis();
+        uint16_t len = cobsDecode(_inBuffer, _bwp, _encodedIn); 
+        stackLoadSlot(&_vt_usbSerial, VT_STACK_ORIGIN, _encodedIn, len);
         // reset byte write pointer, and find the next empty packet write space 
         _bwp = 0;
       } else {

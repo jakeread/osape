@@ -26,7 +26,6 @@ void vt_ucBusDrop_setup(void);
 void vt_ucBusDrop_loop(void);
 boolean vt_ucBusDrop_cts(uint8_t rxAddr);
 void vt_ucBusDrop_send(uint8_t* data, uint16_t len, uint8_t rxAddr);
-void vt_ucBusDrop_onOriginStackClear(uint8_t slot);
 
 extern vertex_t* vt_ucBusDrop;
 

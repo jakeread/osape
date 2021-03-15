@@ -39,7 +39,7 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
         sysError("de " + String(vt->stackArrivalTimes[od][s]));
         // no onData handler here, or it passed, so data copies in 
         memcpy(vt->data, pck, len);
-        stackClearSlot(vt, od, s);
+        stackClearSlot(vt, od);
         break; // continue loop 
       } else {
         // onData returning false means endpoint is occupied / not ready for data, so we wait  
@@ -53,19 +53,19 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
       // can't do this if no parent, 
       if(vt->parent == nullptr){
         sysError("no parent for sib traverse");
-        stackClearSlot(vt, od, s);
+        stackClearSlot(vt, od);
         break;
       }
       // nor if no target, 
       if(si >= vt->parent->numChildren){
         sysError("sib traverse oob");
-        stackClearSlot(vt, od, s);
+        stackClearSlot(vt, od);
         break;
       }
       // now we can copy it in, only if there's space ahead to move it into 
       // this would be for other vertex's desitination slot, always 
       uint8_t space;
-      if(stackEmptySlot(vt->parent->children[si], VT_STACK_DESTINATION, &space)){
+      if(stackEmptySlot(vt->parent->children[si], VT_STACK_DESTINATION)){
         #ifdef LOOP_DEBUG
         sysError("sib copy");
         #endif 
@@ -74,11 +74,9 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
         ts_writeUint16(vt->indice, pck, &ptr);
         pck[ptr] = PK_PTR;
         // copy-in, set fullness, update time 
-        memcpy(vt->parent->children[si]->stack[VT_STACK_DESTINATION][space], pck, len);
-        vt->parent->children[si]->stackLengths[VT_STACK_DESTINATION][space] = len;
-        vt->parent->children[si]->stackArrivalTimes[VT_STACK_DESTINATION][space] = now;
+        stackLoadSlot(vt->parent->children[si], VT_STACK_DESTINATION, pck, len);
         // now og is clear 
-        stackClearSlot(vt, od, s);
+        stackClearSlot(vt, od);
         // and we can finish here 
         break;
       } else {
@@ -90,25 +88,25 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
     case PK_CHILD_KEY:
       // but is functionally identical to above, save small details... later 
       sysError("nav to parent / child unwritten");
-      stackClearSlot(vt, od, s);
+      stackClearSlot(vt, od);
       break;
     case PK_PFWD_KEY:
       if(vt->type != VT_TYPE_VPORT || vt->cts == nullptr || vt->send == nullptr){
         sysError("pfwd to non-vport vertex");
-        stackClearSlot(vt, od, s);
+        stackClearSlot(vt, od);
       } else {
         if(vt->cts(0)){ // walk ptr fwds, transmit, and clear the msg 
           pck[ptr - 1] = PK_PFWD_KEY;
           pck[ptr] = PK_PTR;
           vt->send(pck, len, 0);
-          stackClearSlot(vt, od, s);
+          stackClearSlot(vt, od);
         }
       }
       break;
     case PK_BFWD_KEY:
       if(vt->type != VT_TYPE_VBUS || vt->cts == nullptr || vt->send == nullptr){
         sysError("bfwd to non-vbus vertex");
-        stackClearSlot(vt, od, s);
+        stackClearSlot(vt, od);
       } else {
         // need tx rxaddr, for which drop on bus to tx to, 
         uint16_t rxAddr;
@@ -125,7 +123,7 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
           pck[ptr] = PK_PTR;
           //logPacket(pck, len);
           vt->send(pck, len, rxAddr);
-          stackClearSlot(vt, od, s);
+          stackClearSlot(vt, od);
         } else {
           //sysError("ntcs");
         }
@@ -134,7 +132,7 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
     case PK_LLESCAPE_KEY:
     default:
       sysError("unrecognized ptr here");
-      stackClearSlot(vt, od, s);
+      stackClearSlot(vt, od);
       break;
   } // end main switch 
 }
@@ -164,7 +162,7 @@ void osapHandler(vertex_t* vt) {
     // could do a potential speedup where the vertex tracks last known ptr position 
     if(!ptrLoop(pck, &ptr)){
       sysError("main loop bad ptr walk " + String(ptr) + " len " + String(len));
-      stackClearSlot(vt, od, s); // clears the msg 
+      stackClearSlot(vt, od); // clears the msg 
       continue; 
     }
 
@@ -175,7 +173,7 @@ void osapHandler(vertex_t* vt) {
       //#ifdef LOOP_DEBUG 
       sysError("to " + vt->name + " " + String(pck[ptr + 1]) + " " + String(vt->stackArrivalTimes[od][s]));
       //#endif 
-      stackClearSlot(vt, od, s);
+      stackClearSlot(vt, od);
       continue;
     }
 
