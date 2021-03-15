@@ -316,10 +316,10 @@ size_t ucBusDrop_readB(uint8_t *dest){
 }
 
 boolean ucBusDrop_ctsB(void){
-  if(outBufferLen > 0 || rcrxb == 0){
-    return false;
-  } else {
+  if(outBufferLen == 0 && rcrxb == 0){
     return true;
+  } else {
+    return false;
   }
 }
 

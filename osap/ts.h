@@ -26,7 +26,7 @@ no warranty is provided, and users accept all liability.
 
 // -------------------------------------------------------- TIMES
 
-#define TIMES_STALE_MSG 600
+#define TIMES_STALE_MSG 800
 
 // -------------------------------------------------------- Routing (Packet) Keys
 

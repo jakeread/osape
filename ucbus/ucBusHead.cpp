@@ -330,18 +330,20 @@ void UCBus_Head::clearPtr(uint8_t drop){
 // then do an example for channel-b-write currents, then do drop code, then test 
 
 boolean ucBusHead_ctsA(void){
-	if(outBufferALen > 0){ // only condition is that our transmit buffer is zero, are not currently tx'ing on this channel 
-		return false;
-	} else {
+	if(outBufferALen == 0){ // only condition is that our transmit buffer is zero, are not currently tx'ing on this channel 
 		return true;
+	} else {
+		return false;
 	}
 }
 
 boolean ucBusHead_ctsB(uint8_t drop){
-  if(outBufferBLen > 0 && rcrxb[drop] > 0){
-    return false; 
+  // escape states 
+  // sysError("drop: " + String(drop) + " obl: " + String(outBufferBLen) + " rc: " + String(rcrxb[0]) + " " + String(rcrxb[1]) + " " + String(rcrxb[2]) + " ");
+  if(outBufferBLen == 0 && rcrxb[drop] > 0){
+    return true; 
   } else {
-    return true;
+    return false;
   }
 }
 

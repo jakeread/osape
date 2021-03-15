@@ -17,6 +17,7 @@ no warranty is provided, and users accept all liability.
 
 // to clear an item in the stack 
 void stackClearSlot(vertex_t* vt, uint8_t od, uint8_t slot){
+  if(od > 1) return; 
   vt->stackLengths[od][slot] = 0;
   switch(od){
     case VT_STACK_ORIGIN:
@@ -31,11 +32,13 @@ void stackClearSlot(vertex_t* vt, uint8_t od, uint8_t slot){
   }
 }
 
-// true if empty space in vertex stack
-// *space = first empty 
+// true if there's any space in the stack, 
 boolean stackEmptySlot(vertex_t* vt, uint8_t od, uint8_t* slot){
   if(od > 1) return false;
-  for(uint8_t s = 0; s < vt->stackSize; s ++){
+  uint8_t s = vt->lastStackHandled[od];
+  for(uint8_t i = 0; i < vt->stackSize; i ++){
+    s ++;
+    if(s >= vt->stackSize) s = 0;
     if(vt->stackLengths[od][s] == 0){
       *slot = s;
       return true;
@@ -45,6 +48,7 @@ boolean stackEmptySlot(vertex_t* vt, uint8_t od, uint8_t* slot){
 }
 
 boolean stackNextMsg(vertex_t* vt, uint8_t od, uint8_t* slot){
+  if(od > 1) return false;
   uint8_t s = vt->lastStackHandled[od];
   for (uint8_t i = 0; i < vt->stackSize; i++) {
     s++;

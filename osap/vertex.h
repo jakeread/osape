@@ -41,6 +41,8 @@ struct vertex_t {
     uint8_t stack[2][VT_STACKSIZE][VT_STACKLEN];
     uint8_t stackSize = VT_STACKSIZE; // should be variable 
     uint8_t lastStackHandled[2] = { 0, 0 };
+    //uint8_t stackHead[2] = { 0, 0 };  // data loads into the head 
+    //uint8_t stackTail[2] = { 0, 0 };  // data consumed from the tail 
     uint16_t stackLengths[2][VT_STACKSIZE] = { { 0, 0, 0, 0 }, { 0, 0, 0, 0 } }; // ugly... and these should be variable 
     unsigned long stackArrivalTimes[2][VT_STACKSIZE];
     // parent & children (other vertices)
@@ -60,6 +62,7 @@ struct vertex_t {
     void (*onDestinationStackClear)(uint8_t slot) = nullptr;
 };
 
+// return next clear slot, 
 void stackClearSlot(vertex_t* vt, uint8_t od, uint8_t slot);
 boolean stackEmptySlot(vertex_t* vt, uint8_t od, uint8_t* slot);
 boolean stackNextMsg(vertex_t* vt, uint8_t od, uint8_t* slot);
