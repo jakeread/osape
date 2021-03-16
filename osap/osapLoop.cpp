@@ -27,19 +27,21 @@ void osapLoop(vertex_t* vt){
   };
 }
 
-void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t od, uint8_t s, unsigned long now){
+void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
   // switch at pck[ptr + 1]
   ptr ++;
+  uint8_t* pck = item->data;
+  uint16_t len = item->len;
   switch(pck[ptr]){
     case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
       if(vt->onData == nullptr || vt->onData(pck, len)){
         #ifdef LOOP_DEBUG 
         sysError("destination copy");
         #endif 
-        sysError("de " + String(vt->stackArrivalTimes[od][s]));
+        sysError("de " + String(item->arrivalTime));
         // no onData handler here, or it passed, so data copies in 
         memcpy(vt->data, pck, len);
-        stackClearSlot(vt, od);
+        stackClearSlot(vt, od, item);
         break; // continue loop 
       } else {
         // onData returning false means endpoint is occupied / not ready for data, so we wait  
@@ -53,13 +55,13 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
       // can't do this if no parent, 
       if(vt->parent == nullptr){
         sysError("no parent for sib traverse");
-        stackClearSlot(vt, od);
+        stackClearSlot(vt, od, item);
         break;
       }
       // nor if no target, 
       if(si >= vt->parent->numChildren){
         sysError("sib traverse oob");
-        stackClearSlot(vt, od);
+        stackClearSlot(vt, od, item);
         break;
       }
       // now we can copy it in, only if there's space ahead to move it into 
@@ -76,7 +78,7 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
         // copy-in, set fullness, update time 
         stackLoadSlot(vt->parent->children[si], VT_STACK_DESTINATION, pck, len);
         // now og is clear 
-        stackClearSlot(vt, od);
+        stackClearSlot(vt, od, item);
         // and we can finish here 
         break;
       } else {
@@ -88,25 +90,25 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
     case PK_CHILD_KEY:
       // but is functionally identical to above, save small details... later 
       sysError("nav to parent / child unwritten");
-      stackClearSlot(vt, od);
+      stackClearSlot(vt, od, item);
       break;
     case PK_PFWD_KEY:
       if(vt->type != VT_TYPE_VPORT || vt->cts == nullptr || vt->send == nullptr){
         sysError("pfwd to non-vport vertex");
-        stackClearSlot(vt, od);
+        stackClearSlot(vt, od, item);
       } else {
         if(vt->cts(0)){ // walk ptr fwds, transmit, and clear the msg 
           pck[ptr - 1] = PK_PFWD_KEY;
           pck[ptr] = PK_PTR;
           vt->send(pck, len, 0);
-          stackClearSlot(vt, od);
+          stackClearSlot(vt, od, item);
         }
       }
       break;
     case PK_BFWD_KEY:
       if(vt->type != VT_TYPE_VBUS || vt->cts == nullptr || vt->send == nullptr){
         sysError("bfwd to non-vbus vertex");
-        stackClearSlot(vt, od);
+        stackClearSlot(vt, od, item);
       } else {
         // need tx rxaddr, for which drop on bus to tx to, 
         uint16_t rxAddr;
@@ -116,14 +118,14 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
           #ifdef LOOP_DEBUG 
           sysError("busf " + String(rxAddr));
           #endif
-          sysError("be " + String(vt->stackArrivalTimes[od][s]));
+          sysError("be " + String(item->arrivalTime));
           ptr -= 4;
           pck[ptr ++] = PK_BFWD_KEY;
           ts_writeUint16(vt->ownRxAddr, pck, &ptr);
           pck[ptr] = PK_PTR;
           //logPacket(pck, len);
           vt->send(pck, len, rxAddr);
-          stackClearSlot(vt, od);
+          stackClearSlot(vt, od, item);
         } else {
           //sysError("ntcs");
         }
@@ -132,7 +134,7 @@ void osapSwitch(vertex_t* vt, uint8_t* pck, uint16_t ptr, uint16_t len, uint8_t 
     case PK_LLESCAPE_KEY:
     default:
       sysError("unrecognized ptr here");
-      stackClearSlot(vt, od);
+      stackClearSlot(vt, od, item);
       break;
   } // end main switch 
 }
@@ -144,41 +146,40 @@ void osapHandler(vertex_t* vt) {
 
   // time is now
   unsigned long now = millis();
+  unsigned long at0;
+  unsigned long at1;
 
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){
     // try one handle per stack item, per loop:
-    uint8_t s = 0;
-    if(!stackNextMsg(vt, od, &s)) continue;    
-    #ifdef LOOP_DEBUG 
-    sysError(vt->name + " cap " + String(s)); 
-    #endif 
-
-    // now carry on, try to handle it, 
-    uint8_t* pck = vt->stack[od][s];
-    uint16_t ptr = 0;
-    uint16_t len = vt->stackLengths[od][s];
-
-    // could do a potential speedup where the vertex tracks last known ptr position 
-    if(!ptrLoop(pck, &ptr)){
-      sysError("main loop bad ptr walk " + String(ptr) + " len " + String(len));
-      stackClearSlot(vt, od); // clears the msg 
-      continue; 
+    stackItem* items[vt->stackSize];
+    uint8_t count = stackGetItems(vt, od, items, vt->stackSize);
+    // want to track out-of-order issues to the loop. 
+    if(count) at0 = items[0]->arrivalTime;
+    for(uint8_t i = 0; i < count; i ++){
+      // the item, and ptr
+      stackItem* item = items[i];
+      uint16_t ptr = 0;
+      // check for decent ptr walk, 
+      if(!ptrLoop(item->data, &ptr)){
+        sysError("main loop bad ptr walk " + String(item->indice) + " " + String(ptr) + " len " + String(item->len));
+        stackClearSlot(vt, od, item); // clears the msg 
+        continue; 
+      }
+      // check timeouts, 
+      #warning this should be above the ptrloop above for perf, is here for debug 
+      if(item->arrivalTime + TIMES_STALE_MSG < now){
+        sysError("T/O " + vt->name + " " + String(item->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
+        stackClearSlot(vt, od, item);
+        continue;
+      }
+      // check FIFO order, 
+      at1 = item->arrivalTime;
+      if(at1 - at0 < 0) sysError("out of order " + String(at1) + " " + String(at0));
+      at1 = at0;
+      // handle it, 
+      osapSwitch(vt, od, item, ptr, now);
     }
-
-    #warning was above the ptr walk, check here for debug 
-    // have ahn msg, is at vt->stack[s]
-    // first check if it's timed out 
-    if(vt->stackArrivalTimes[od][s] + TIMES_STALE_MSG < now){
-      //#ifdef LOOP_DEBUG 
-      sysError("to " + vt->name + " " + String(pck[ptr + 1]) + " " + String(vt->stackArrivalTimes[od][s]));
-      //#endif 
-      stackClearSlot(vt, od);
-      continue;
-    }
-
-    // run the switch 
-    osapSwitch(vt, pck, ptr, len, od, s, now);
   } // end lp over origin / destination stacks 
 }
 

@@ -43,6 +43,7 @@ void vt_usbSerial_setup(void){
   _vt_usbSerial.cts = &vt_usbSerial_cts;
   _vt_usbSerial.send = &vt_usbSerial_send;
   _vt_usbSerial.onOriginStackClear = &vt_usbSerial_onOriginStackClear;
+  stackReset(&_vt_usbSerial);
   // start arduino serial object 
   Serial.begin(9600);
 }

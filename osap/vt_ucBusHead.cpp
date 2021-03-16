@@ -36,6 +36,7 @@ void vt_ucBusHead_setup(void) {
   _vt_ucBusHead.loop = &vt_ucBusHead_loop;
   _vt_ucBusHead.cts = &vt_ucBusHead_cts;
   _vt_ucBusHead.send = &vt_ucBusHead_send;
+  stackReset(&_vt_ucBusHead);
   // start ucbus
   ucBusHead_setup();  // todo: rewrite as c object, not class
 }
@@ -52,7 +53,6 @@ void vt_ucBusHead_loop(void) {
     if (ucBusHead_ctr(drop)) {
       // find a stack slot,
       uint8_t slot = 0;
-      #warning here 
       if (stackEmptySlot(&_vt_ucBusHead, VT_STACK_ORIGIN)) {
         // copy it in, 
         uint16_t len = ucBusHead_read(drop, _tempBuffer);

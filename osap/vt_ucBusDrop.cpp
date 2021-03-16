@@ -31,6 +31,7 @@ void vt_ucBusDrop_setup(void){
     _vt_ucBusDrop.loop = &vt_ucBusDrop_loop;
     _vt_ucBusDrop.cts = &vt_ucBusDrop_cts;
     _vt_ucBusDrop.send = &vt_ucBusDrop_send;
+    stackReset(&_vt_ucBusDrop);
     // start it: use DIP 
     ucBusDrop_setup(true, 0);
 }
