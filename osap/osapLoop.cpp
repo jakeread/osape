@@ -27,11 +27,19 @@ void osapLoop(vertex_t* vt){
   };
 }
 
+uint8_t _attemptedInstructions[16];
+uint16_t _numAttemptedInstructions = 0;
+
 void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
   // switch at pck[ptr + 1]
   ptr ++;
   uint8_t* pck = item->data;
   uint16_t len = item->len;
+  // don't try / fail same instructions twice, 
+  for(uint8_t ins = 0; ins < _numAttemptedInstructions; ins ++){
+    if(pck[ptr] == _attemptedInstructions[ins]) return;
+  }
+  // do things, 
   switch(pck[ptr]){
     case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
       if(vt->onData == nullptr || vt->onData(pck, len)){
@@ -44,7 +52,9 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         stackClearSlot(vt, od, item);
         break; // continue loop 
       } else {
-        // onData returning false means endpoint is occupied / not ready for data, so we wait  
+        _attemptedInstructions[_numAttemptedInstructions] = PK_DEST;
+        _numAttemptedInstructions ++;
+        // onData returning false means endpoint is occupied / not ready for data, so we wait 
       }
       break;
     case PK_SIB_KEY: {  // instruction to pass to this sibling, 
@@ -82,6 +92,15 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         // and we can finish here 
         break;
       } else {
+        // actually, don't *have* to do this here, as we know osap shifts
+        // items out of siblings' stacks **on this loop** and so 
+        // is guaranteed not to happen mid-cycle, 
+        /*
+        _attemptedInstructions[_numAttemptedInstructions][0] = PK_SIB_KEY;
+        _attemptedInstructions[_numAttemptedInstructions][1] = pck[ptr + 1];
+        _attemptedInstructions[_numAttemptedInstructions][2] = pck[ptr + 2];
+        _numAttemptedInstructions ++;
+        */
         // destination stack at target is full, msg stays in place, next loop checks 
       }
     } 
@@ -102,6 +121,9 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           pck[ptr] = PK_PTR;
           vt->send(pck, len, 0);
           stackClearSlot(vt, od, item);
+        } else {
+          _attemptedInstructions[_numAttemptedInstructions] = PK_PFWD_KEY;
+          _numAttemptedInstructions ++;
         }
       }
       break;
@@ -127,7 +149,8 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           vt->send(pck, len, rxAddr);
           stackClearSlot(vt, od, item);
         } else {
-          //sysError("ntcs");
+          _attemptedInstructions[_numAttemptedInstructions] = PK_BFWD_KEY;
+          _numAttemptedInstructions ++;
         }
       }
       break;
@@ -151,6 +174,8 @@ void osapHandler(vertex_t* vt) {
 
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){
+    // reset attempts from last cycle 
+    _numAttemptedInstructions = 0;
     // try one handle per stack item, per loop:
     stackItem* items[vt->stackSize];
     uint8_t count = stackGetItems(vt, od, items, vt->stackSize);
