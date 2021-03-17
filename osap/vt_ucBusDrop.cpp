@@ -37,18 +37,24 @@ void vt_ucBusDrop_setup(void){
 }
 
 void vt_ucBusDrop_loop(void){
-    // will want to shift(?) from ucbus inbuffer to vertex origin stack 
-    if(ucBusDrop_ctrB()){
-      // find a slot, 
-      uint8_t slot = 0;
-      if(stackEmptySlot(&_vt_ucBusDrop, VT_STACK_ORIGIN)){
-        // copy in to origin stack 
-        uint16_t len = ucBusDrop_readB(_tempBuffer);
-        stackLoadSlot(&_vt_ucBusDrop, VT_STACK_ORIGIN, _tempBuffer, len);
-      } else {
-        // no empty space, will wait in bus 
-      }
+  // is cts, debug:
+  if(ucBusDrop_ctsB()){
+    CLKLIGHT_ON;
+  } else {
+    CLKLIGHT_OFF;
+  }
+  // will want to shift(?) from ucbus inbuffer to vertex origin stack 
+  if(ucBusDrop_ctrB()){
+    // find a slot, 
+    uint8_t slot = 0;
+    if(stackEmptySlot(&_vt_ucBusDrop, VT_STACK_ORIGIN)){
+      // copy in to origin stack 
+      uint16_t len = ucBusDrop_readB(_tempBuffer);
+      stackLoadSlot(&_vt_ucBusDrop, VT_STACK_ORIGIN, _tempBuffer, len);
+    } else {
+      // no empty space, will wait in bus 
     }
+  }
 }
 
 boolean vt_ucBusDrop_cts(uint8_t rxAddr){

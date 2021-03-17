@@ -152,7 +152,7 @@ void ucBusDrop_rxISR(void){
     timeTick ++;
     timeBlink ++;
     if(timeBlink >= blinkTime){
-      CLKLIGHT_TOGGLE;
+      //CLKLIGHT_TOGGLE;
       timeBlink = 0;
     }
     ucBusDrop_onRxISR(); // on start of each word 
@@ -316,7 +316,7 @@ size_t ucBusDrop_readB(uint8_t *dest){
 }
 
 boolean ucBusDrop_ctsB(void){
-  if(outBufferLen == 0 && rcrxb == 0){
+  if(outBufferLen == 0 && rcrxb > 0){
     return true;
   } else {
     return false;

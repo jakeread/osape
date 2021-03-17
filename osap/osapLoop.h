@@ -20,5 +20,6 @@ no warranty is provided, and users accept all liability.
 void osapLoop(vertex_t* vt);
 void osapHandler(vertex_t* vt);
 boolean ptrLoop(uint8_t* pck, uint16_t* ptr);
+boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* replyPtr);
 
 #endif 

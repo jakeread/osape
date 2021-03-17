@@ -81,10 +81,10 @@ void sysError(String msg){
 void logPacket(uint8_t* pck, uint16_t len){
   String errmsg;
   errmsg.reserve(1024);
-  errmsg = "pck: ";
+  errmsg = "pck: "; // max 64 
   for(uint8_t i = 0; i < 64; i ++){
+    if(i >= len) break;
     errmsg += String(pck[i]);
-    if(i > len) break;
     errmsg += ", ";
   }
   sysError(errmsg);

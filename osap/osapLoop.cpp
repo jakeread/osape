@@ -42,11 +42,10 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
   // do things, 
   switch(pck[ptr]){
     case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
-      if(vt->onData == nullptr || vt->onData(pck, len)){
+      if(vt->onData == nullptr || vt->onData(pck, ptr, len)){
         #ifdef LOOP_DEBUG 
-        sysError("destination copy");
-        #endif 
-        sysError("de " + String(item->arrivalTime));
+        sysError("dexit " + String(item->arrivalTime));
+        #endif         
         // no onData handler here, or it passed, so data copies in 
         memcpy(vt->data, pck, len);
         stackClearSlot(vt, od, item);
@@ -237,4 +236,69 @@ boolean ptrLoop(uint8_t* pck, uint16_t* pt){
   }
   // case where no ptr after 16 hops, 
   return false;
+}
+
+boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* replyPtr){
+  // so we should have here that 
+  if(pck[rptr] != PK_PTR){
+    sysError("rr: pck[ptr] != pk_ptr");
+    return false;
+  }
+  // so we have a readptr (ptr) and writeptr (wptr)
+  // we write *from the tail back* and read *from the tip in*
+  uint16_t end = rptr;
+  uint16_t wptr = rptr + 1;
+  rptr = 0;
+  // sequentially, at most 16 ops 
+  for(uint8_t i = 0; i < 16; i ++){
+    // end case: 
+    if(rptr >= end){
+      if(rptr != end){
+        sysError("rr: rptr overruns end");
+        return false;
+      }
+      repl[0] = PK_PTR;
+      *replyPtr = rptr + 1;
+      return true;
+    }
+    // switch each, 
+    switch(pck[rptr]){
+      case PK_PTR: // var is here 
+        sysError("rr: find pck_ptr during walk");
+        return false;
+      case PK_SIB_KEY:
+        wptr -= PK_SIB_INC;
+        for(uint8_t j = 0; j < PK_SIB_INC; j ++){
+          repl[wptr + j] = pck[rptr ++];
+        }
+        break;
+      case PK_PARENT_KEY:
+        wptr -= PK_PARENT_INC;
+        for(uint8_t j = 0; j < PK_PARENT_INC; j ++){
+          repl[wptr + j] = pck[rptr ++];
+        }
+        break;
+      case PK_CHILD_KEY:
+        wptr -= PK_CHILD_INC;
+        for(uint8_t j = 0; j < PK_CHILD_INC; j ++){
+          repl[wptr + j] = pck[rptr ++];
+        }
+        break;
+      case PK_PFWD_KEY:
+        wptr -= PK_PFWD_INC;
+        for(uint8_t j = 0; j < PK_PFWD_INC; j ++){
+          repl[wptr + j] = pck[rptr ++];
+        }
+        break;
+      case PK_BFWD_KEY:
+        wptr -= PK_BFWD_INC;
+        for(uint8_t j = 0; j < PK_BFWD_INC; j ++){
+          repl[wptr + j] = pck[rptr ++];
+        }
+        break;
+      default:
+        sysError("rr: default switch");
+        return false;
+    }
+  }
 }

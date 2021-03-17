@@ -62,7 +62,7 @@ struct vertex_t {
     // vertex-as-endpoint: token for clear / not to write, fn for writing, and local store 
     uint8_t data[VT_SLOTSIZE];
     uint16_t dataLen = 0;
-    boolean (*onData)(uint8_t* data, uint16_t len) = nullptr;
+    boolean (*onData)(uint8_t* data, uint16_t ptr, uint16_t len) = nullptr;
     // vertex-as-vport-interface 
     boolean (*cts)(uint8_t drop) = nullptr;
     void (*send)(uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
