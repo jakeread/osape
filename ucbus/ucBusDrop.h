@@ -59,6 +59,7 @@ is; no warranty is provided, and users accept all liability.
 #define UBD_TE_PORT PORT->Group[0]
 
 #define UBD_BUFSIZE 1024
+#define UBD_NUM_B_BUFFERS 4
 
 #define UBD_CLOCKRESET 15
 
@@ -68,6 +69,9 @@ is; no warranty is provided, and users accept all liability.
 
 // setup 
 void ucBusDrop_setup(void);
+
+// has clear space for ucbus head to tx into?
+boolean ucBusDrop_isRTR(void);
 
 // isrs 
 void ucBusDrop_rxISR(void);

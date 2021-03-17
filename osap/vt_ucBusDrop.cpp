@@ -37,12 +37,6 @@ void vt_ucBusDrop_setup(void){
 }
 
 void vt_ucBusDrop_loop(void){
-  // is cts, debug:
-  if(ucBusDrop_ctsB()){
-    CLKLIGHT_ON;
-  } else {
-    CLKLIGHT_OFF;
-  }
   // will want to shift(?) from ucbus inbuffer to vertex origin stack 
   if(ucBusDrop_ctrB()){
     // find a slot, 

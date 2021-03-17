@@ -20,15 +20,19 @@ is; no warranty is provided, and users accept all liability.
 volatile uint8_t inWord[2];
 volatile uint8_t inHeader;
 volatile uint8_t inByte;
+
 volatile boolean lastWordAHadToken = false;
 uint8_t inBufferA[UBD_BUFSIZE];
 volatile uint16_t inBufferAWp = 0;
 volatile uint16_t inBufferALen = 0; // writes at terminal zero, 
+
 volatile boolean lastWordBHadToken = false;
-uint8_t inBufferB[UBD_BUFSIZE];
+uint8_t inBufferB[UBD_NUM_B_BUFFERS][UBD_BUFSIZE];
+volatile uint16_t inBufferBLen[UBD_NUM_B_BUFFERS];
+volatile unsigned long inBArrival[UBD_NUM_B_BUFFERS];
+volatile uint8_t inBufferBHead = 0;
+volatile uint8_t inBufferBTail = 0;
 volatile uint16_t inBufferBWp = 0;
-volatile uint16_t inBufferBLen = 0;
-volatile unsigned long inBArrival = 0;
 
 // output, 
 volatile uint8_t outWord[2];
@@ -65,6 +69,11 @@ void ucBusDrop_setup(boolean useDipPick, uint8_t ID) {
   }
   if(id > 14){
     id = 14;
+  }
+  // inbuffer ringbuffer states;
+  for(uint8_t i = 0; i < UBD_NUM_B_BUFFERS; i ++){
+    inBufferBLen[i] = 0;
+    inBArrival[i] = 0;
   }
   // set driver output LO to start: tri-state 
   UBD_DE_PORT.DIRSET.reg = UBD_DE_BM;
@@ -152,7 +161,7 @@ void ucBusDrop_rxISR(void){
     timeTick ++;
     timeBlink ++;
     if(timeBlink >= blinkTime){
-      //CLKLIGHT_TOGGLE;
+      CLKLIGHT_TOGGLE;
       timeBlink = 0;
     }
     ucBusDrop_onRxISR(); // on start of each word 
@@ -163,7 +172,7 @@ void ucBusDrop_rxISR(void){
     inByte = ((inWord[0] << 4) & 0b11110000) | (inWord[1] & 0b00001111);
     // now check incoming data, 
     // could speed this up to not re-evaluate (inHeader & 0b00110000) every time 
-    if((inHeader & 0b00110000) == 0b00100000){ // has-token, CHA
+    if((inHeader & 0b00110000) == 0b00100000){ // --------------------------------------- has-token, CHA
       lastWordAHadToken = true;
       if(inBufferALen != 0){ // in this case, we didn't read-out of the buffer in time, 
         inBufferALen = 0;    // so we reset it, missing the last packet !
@@ -171,35 +180,40 @@ void ucBusDrop_rxISR(void){
       }
       inBufferA[inBufferAWp] = inByte;
       inBufferAWp ++;
-    } else if ((inHeader & 0b00110000) == 0b00000000) { // no-token, CHA
+    } else if ((inHeader & 0b00110000) == 0b00000000) { // ------------------------------ no-token, CHA
       if(lastWordAHadToken){
         inBufferALen = inBufferAWp;
         ucBusDrop_onPacketARx();
       }
       lastWordAHadToken = false;
-    } else if ((inHeader & 0b00110000) == 0b00110000) { // has-token, CHB 
+    } else if ((inHeader & 0b00110000) == 0b00110000) { // ------------------------------ has-token, CHB 
       //DEBUG1PIN_ON;
       lastWordBHadToken = true;
-      if(inBufferBLen != 0){
-        // missed the last, bad 
-        inBufferBLen = 0;
+      if(inBufferBLen[inBufferBHead] != 0){
+        // missed one, bad 
+        inBufferBLen[inBufferBHead] = 0;
       }
-      inBufferB[inBufferBWp] = inByte;
+      inBufferB[inBufferBHead][inBufferBWp] = inByte;
       inBufferBWp ++;
-    } else if ((inHeader & 0b00110000) == 0b00010000) { // no-token, CHB
+    } else if ((inHeader & 0b00110000) == 0b00010000) { // ------------------------------ no-token, CHB
       if(lastWordBHadToken){ // falling edge, packet delineation 
-        inBufferBLen = inBufferBWp;
-        if(inBufferB[0] == id){ //check if pck is for us and update reciprocal buffer len 
-          #warning I think this should copy-out on end of rx, no? 
+        inBufferBLen[inBufferBHead] = inBufferBWp;
+        if(inBufferB[inBufferBHead][0] == id){ //check if pck is for us and update reciprocal buffer len 
           // otherwise, if head is flushing next b-ch packet out following, we start overwriting 
           // and hit the 'missed case' above... 
-          rcrxb = inBufferB[1];
+          rcrxb = inBufferB[inBufferBHead][1];
           lastrc = millis(); 
-          inBArrival = lastrc;
+          inBArrival[inBufferBHead] = lastrc;
+          // now write into next head 
+          inBufferBHead ++;
+          if(inBufferBHead >= UBD_NUM_B_BUFFERS){
+            inBufferBHead = 0;
+          }
+          // and reset write pointer, 
           inBufferBWp = 0;
-        } else {  // packet is not ours, ignore, ready for next read 
+        } else {  // packet is not ours, ignore, ready for next read, don't inc head 
           inBufferBWp = 0;
-          inBufferBLen = 0;
+          inBufferBLen[inBufferBHead] = 0;
         }
       }
       lastWordBHadToken = false;
@@ -219,8 +233,8 @@ void ucBusDrop_rxISR(void){
         outByte = outBuffer[outBufferRp];
         outHeader = headerMask & (tokenWord | (id & 0b00011111));
       } else {
-        // whenever free space on the line, transmit our recieve buffer # spaces available 
-        if(inBufferBLen == 0 && inBufferBWp == 0){
+        // whenever free space on the line, transmit whether out recieve buffer has space available 
+        if(ucBusDrop_isRTR()){
           outByte = 1;  // have clear space available, communicate that to partner 
         } else {
           outByte = 0;  // currently receiving or have packet awaiting handling 
@@ -269,6 +283,22 @@ void ucBusDrop_txcISR(void){
   UBD_DRIVER_DISABLE; // turn off the driver, 
 }
 
+// check buffer state: is it OK for us to rx new pcks from head? 
+
+boolean ucBusDrop_isRTR(void){
+  // if *next head* is empty (i.e. have at least two spaces)
+  if(inBufferBLen[inBufferBHead] == 0){
+    uint8_t next = inBufferBHead + 1;
+    if(next >= UBD_NUM_B_BUFFERS){
+      next = 0;
+    }
+    if(inBufferBLen[next] == 0){
+      return true;
+    } 
+  } 
+  return false;
+}
+
 // -------------------------------------------------------- ASYNC API
 
 boolean ucBusDrop_ctrA(void){
@@ -280,10 +310,10 @@ boolean ucBusDrop_ctrA(void){
 }
 
 boolean ucBusDrop_ctrB(void){
-  if(inBufferBLen > 0){
-    return true;
-  } else {
+  if(inBufferBHead == inBufferBTail){
     return false;
+  } else {
+    return true;
   }
 }
 
@@ -305,11 +335,16 @@ size_t ucBusDrop_readB(uint8_t *dest){
   if(!ucBusDrop_ctrB()) return 0;
   //NVIC_DisableIRQ(SERCOM1_2_IRQn);
   __disable_irq();
+  // read from the tail, 
   // bytes 0 and 1 are the ID and rcrxb, respectively, so app. is concerned with the rest 
-  size_t len = inBufferBLen - 2;
-  memcpy(dest, &inBufferB[2], len);
-  inBufferBLen = 0;
+  size_t len = inBufferBLen[inBufferBTail] - 2;
+  memcpy(dest, &(inBufferB[inBufferBTail][2]), len);
+  inBufferBLen[inBufferBTail] = 0;
   inBufferBWp = 0;
+  inBufferBTail ++;
+  if(inBufferBTail >= UBD_NUM_B_BUFFERS){
+    inBufferBTail = 0;
+  }
   //NVIC_EnableIRQ(SERCOM1_2_IRQn);
   __enable_irq();
   return len;
@@ -326,7 +361,7 @@ boolean ucBusDrop_ctsB(void){
 void ucBusDrop_transmitB(uint8_t *data, uint16_t len){
   if(!ucBusDrop_ctsB()){ return; }
   // 1st byte: num of spaces we have to rx messages at this drop, i.e. buffer space 
-  if(inBufferBLen == 0 && inBufferBWp == 0){ // nothing currently reading in, nothing awaiting handle 
+  if(ucBusDrop_isRTR()){ // nothing currently reading in, nothing awaiting handle 
     outBuffer[0] = 1;
   } else { // are either currently recieving, or have recieved an unhandled packet 
     outBuffer[1] = 0;
@@ -340,29 +375,5 @@ void ucBusDrop_transmitB(uint8_t *data, uint16_t len){
   outBufferRp = 0;
   __enable_irq();
 }
-
-/*
-size_t UCBus_Drop::read_b_ptr(uint8_t** dest, unsigned long* pat){
-  if(ctr_b()){
-    if(inBufferB[2] == 1){
-      sysError("-> " + String(inBufferB[0]) + ", "
-      + String(inBufferB[1]) + ", "
-      + String(inBufferB[2]) + ", "
-      + String(inBufferB[3]));
-      *dest = &(inBufferB[3]);
-    } else {
-      *dest = &(inBufferB[2]);
-    }
-    *pat = inBArrival;
-    return inBufferBLen - 2;
-  }
-  return 0;
-}
-
-void UCBus_Drop::clear_b_ptr(void){
-  inBufferBLen = 0;
-  inBufferBWp = 0;
-}
-*/
 
 #endif 
