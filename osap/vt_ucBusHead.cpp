@@ -47,7 +47,7 @@ void vt_ucBusHead_loop(void) {
   uint8_t drop = _lastDropHandled;
   for (uint8_t i = 0; i < UBH_DROP_OPS; i++) {
     drop++;
-    if (drop <= UBH_DROP_OPS) {
+    if (drop >= UBH_DROP_OPS) {
       drop = 0;
     }
     if (ucBusHead_ctr(drop)) {

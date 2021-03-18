@@ -300,32 +300,6 @@ size_t ucBusHead_read(uint8_t drop, uint8_t *dest){
   return len;
 }
 
-/*
-// might not need this, given vertex integration 
-size_t ucBusHead_readPtr(uint8_t* drop, uint8_t** dest, unsigned long *pat){
-  // loop thru drops, find next occupied 
-  uint8_t d = _lastDropHandled;
-  for(uint8_t i = 0; i < UBH_DROP_OPS; i ++){
-    d ++;
-    if(d >= UBH_DROP_OPS) { d = 0; }
-    if(ctr(d)){
-      *drop = d;
-      _lastDropHandled = d;
-      *dest = &(inBuffer[d][1]); // 1st byte of each inbuffer is the rcrxb transmitted along with pck
-      *pat = inArrivalTime[d];
-      return inBufferLen[d] - 1;
-    }
-  }
-  // if we reach here, no len 
-  return 0;
-}
-
-void UCBus_Head::clearPtr(uint8_t drop){
-  inBufferLen[drop] = 0;
-  inBufferWp[drop] = 0;
-}
-*/
-
 // mod cts(channel) and transmit(data, len, channel)
 // then do an example for channel-b-write currents, then do drop code, then test 
 

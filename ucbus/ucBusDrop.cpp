@@ -284,9 +284,8 @@ void ucBusDrop_txcISR(void){
 }
 
 // check buffer state: is it OK for us to rx new pcks from head? 
-
 boolean ucBusDrop_isRTR(void){
-  // if *next head* is empty (i.e. have at least two spaces)
+  // if *current && next head* is empty (i.e. have at least two spaces)
   if(inBufferBLen[inBufferBHead] == 0){
     uint8_t next = inBufferBHead + 1;
     if(next >= UBD_NUM_B_BUFFERS){
