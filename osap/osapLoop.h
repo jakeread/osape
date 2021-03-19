@@ -19,6 +19,7 @@ no warranty is provided, and users accept all liability.
 
 void osapLoop(vertex_t* vt);
 void osapHandler(vertex_t* vt);
+void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now);
 boolean ptrLoop(uint8_t* pck, uint16_t* ptr);
 boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* replyPtr);
 

@@ -30,6 +30,52 @@ void osapLoop(vertex_t* vt){
 uint8_t _attemptedInstructions[16];
 uint16_t _numAttemptedInstructions = 0;
 
+void osapHandler(vertex_t* vt) {
+  //sysError("handler " + vt->name);
+  // run root's own loop code 
+  if(vt->loop != nullptr) vt->loop();
+
+  // time is now
+  unsigned long now = millis();
+  unsigned long at0;
+  unsigned long at1;
+
+  // handle origin stack, destination stack, in same manner 
+  for(uint8_t od = 0; od < 2; od ++){
+    // reset attempts from last cycle 
+    _numAttemptedInstructions = 0;
+    // try one handle per stack item, per loop:
+    stackItem* items[vt->stackSize];
+    uint8_t count = stackGetItems(vt, od, items, vt->stackSize);
+    // want to track out-of-order issues to the loop. 
+    if(count) at0 = items[0]->arrivalTime;
+    for(uint8_t i = 0; i < count; i ++){
+      // the item, and ptr
+      stackItem* item = items[i];
+      uint16_t ptr = 0;
+      // check for decent ptr walk, 
+      if(!ptrLoop(item->data, &ptr)){
+        sysError("main loop bad ptr walk " + String(item->indice) + " " + String(ptr) + " len " + String(item->len));
+        stackClearSlot(vt, od, item); // clears the msg 
+        continue; 
+      }
+      // check timeouts, 
+      #warning this should be above the ptrloop above for perf, is here for debug 
+      if(item->arrivalTime + TIMES_STALE_MSG < now){
+        sysError("T/O " + vt->name + " " + String(item->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
+        stackClearSlot(vt, od, item);
+        continue;
+      }
+      // check FIFO order, 
+      at1 = item->arrivalTime;
+      if(at1 - at0 < 0) sysError("out of order " + String(at1) + " " + String(at0));
+      at1 = at0;
+      // handle it, 
+      osapSwitch(vt, od, item, ptr, now);
+    }
+  } // end lp over origin / destination stacks 
+}
+
 void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
   // switch at pck[ptr + 1]
   ptr ++;
@@ -159,52 +205,6 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
       stackClearSlot(vt, od, item);
       break;
   } // end main switch 
-}
-
-void osapHandler(vertex_t* vt) {
-  //sysError("handler " + vt->name);
-  // run root's own loop code 
-  if(vt->loop != nullptr) vt->loop();
-
-  // time is now
-  unsigned long now = millis();
-  unsigned long at0;
-  unsigned long at1;
-
-  // handle origin stack, destination stack, in same manner 
-  for(uint8_t od = 0; od < 2; od ++){
-    // reset attempts from last cycle 
-    _numAttemptedInstructions = 0;
-    // try one handle per stack item, per loop:
-    stackItem* items[vt->stackSize];
-    uint8_t count = stackGetItems(vt, od, items, vt->stackSize);
-    // want to track out-of-order issues to the loop. 
-    if(count) at0 = items[0]->arrivalTime;
-    for(uint8_t i = 0; i < count; i ++){
-      // the item, and ptr
-      stackItem* item = items[i];
-      uint16_t ptr = 0;
-      // check for decent ptr walk, 
-      if(!ptrLoop(item->data, &ptr)){
-        sysError("main loop bad ptr walk " + String(item->indice) + " " + String(ptr) + " len " + String(item->len));
-        stackClearSlot(vt, od, item); // clears the msg 
-        continue; 
-      }
-      // check timeouts, 
-      #warning this should be above the ptrloop above for perf, is here for debug 
-      if(item->arrivalTime + TIMES_STALE_MSG < now){
-        sysError("T/O " + vt->name + " " + String(item->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
-        stackClearSlot(vt, od, item);
-        continue;
-      }
-      // check FIFO order, 
-      at1 = item->arrivalTime;
-      if(at1 - at0 < 0) sysError("out of order " + String(at1) + " " + String(at0));
-      at1 = at0;
-      // handle it, 
-      osapSwitch(vt, od, item, ptr, now);
-    }
-  } // end lp over origin / destination stacks 
 }
 
 boolean ptrLoop(uint8_t* pck, uint16_t* pt){
