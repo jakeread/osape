@@ -20,10 +20,10 @@ no warranty is provided, and users accept all liability.
 
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
-void osapLoop(vertex_t* vt){
+void osapRecursor(vertex_t* vt){
   osapHandler(vt);
   for(uint8_t child = 0; child < vt->numChildren; child ++){
-    osapLoop(vt->children[child]);
+    osapRecursor(vt->children[child]);
   };
 }
 
@@ -32,9 +32,8 @@ uint16_t _numAttemptedInstructions = 0;
 
 void osapHandler(vertex_t* vt) {
   //sysError("handler " + vt->name);
-  // run root's own loop code 
+  // run vertex's own loop code (with reference to self)
   if(vt->loop != nullptr) vt->loop();
-
   // time is now
   unsigned long now = millis();
   unsigned long at0;
@@ -60,9 +59,9 @@ void osapHandler(vertex_t* vt) {
         continue; 
       }
       // check timeouts, 
-      #warning this should be above the ptrloop above for perf, is here for debug 
+      #warning this should be above the ptrloop above for small perf gain, is here for debug 
       if(item->arrivalTime + TIMES_STALE_MSG < now){
-        sysError("T/O " + vt->name + " " + String(item->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
+        sysError("T/O indice " + String(vt->indice) + " " + String(item->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
         stackClearSlot(vt, od, item);
         continue;
       }
@@ -88,19 +87,28 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
   // do things, 
   switch(pck[ptr]){
     case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
-      if(vt->onData == nullptr || vt->onData(pck, ptr, len)){
-        #ifdef LOOP_DEBUG 
-        sysError("dexit " + String(item->arrivalTime));
-        #endif         
-        // no onData handler here, or it passed, so data copies in 
-        memcpy(vt->data, pck, len);
-        stackClearSlot(vt, od, item);
-        break; // continue loop 
-      } else {
-        _attemptedInstructions[_numAttemptedInstructions] = PK_DEST;
-        _numAttemptedInstructions ++;
-        // onData returning false means endpoint is occupied / not ready for data, so we wait 
-      }
+      switch(vt->type){
+        case VT_TYPE_ROOT:
+        case VT_TYPE_MODULE:
+        case VT_TYPE_VPORT:
+        case VT_TYPE_VBUS:
+          // all four: we are ignoring dms, wipe it:
+          stackClearSlot(vt, od, item);
+          break;
+        case VT_TYPE_ENDPOINT:
+          if(endpointHandler(vt, od, item, ptr)){
+            stackClearSlot(vt, od, item);
+          } else {
+            // ok, will wait, but not try again for this stack: 
+            _attemptedInstructions[_numAttemptedInstructions] = PK_DEST;
+            _numAttemptedInstructions ++;
+          }
+          break;
+        default:
+          // poorly typed endpoint, 
+          stackClearSlot(vt, od, item);
+          break;
+      } // end vt typeswitch 
       break;
     case PK_SIB_KEY: {  // instruction to pass to this sibling, 
       // need the indice, 
@@ -120,8 +128,6 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         break;
       }
       // now we can copy it in, only if there's space ahead to move it into 
-      // this would be for other vertex's desitination slot, always 
-      uint8_t space;
       if(stackEmptySlot(vt->parent->children[si], VT_STACK_DESTINATION)){
         #ifdef LOOP_DEBUG
         sysError("sib copy");
@@ -198,6 +204,11 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           _numAttemptedInstructions ++;
         }
       }
+      break;
+    case PK_SCOPE_KEY:
+      #warning TODO here for network sweep ! 
+      // at the core layer, return brief packet 
+      // w/r/t which next-steps are available from this point in the tree 
       break;
     case PK_LLESCAPE_KEY:
     default:
@@ -301,4 +312,6 @@ boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* reply
         return false;
     }
   }
+  // if reach end of ptr walk but no exit, badness
+  return false;
 }

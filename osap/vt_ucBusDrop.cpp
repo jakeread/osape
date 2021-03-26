@@ -27,7 +27,6 @@ uint8_t _tempBuffer[1024];
 
 void vt_ucBusDrop_setup(void){
     _vt_ucBusDrop.type = VT_TYPE_VBUS;
-    _vt_ucBusDrop.name = "ucbus drop";
     _vt_ucBusDrop.loop = &vt_ucBusDrop_loop;
     _vt_ucBusDrop.cts = &vt_ucBusDrop_cts;
     _vt_ucBusDrop.send = &vt_ucBusDrop_send;

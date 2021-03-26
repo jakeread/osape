@@ -92,7 +92,6 @@ void stackClearSlot(vertex_t* vt, uint8_t od, stackItem* item){
   item->len = 0;
   // is this
   uint8_t indice = item->indice;
-  boolean pass = false;
   // if was queueStart, queueStart now at next,
   if(vt->queueStart[od] == item){
     vt->queueStart[od] = item->next;

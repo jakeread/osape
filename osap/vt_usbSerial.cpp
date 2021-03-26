@@ -38,7 +38,6 @@ void vt_usbSerial_setup(void){
   //vt_usbSerial = &vt;
   // configure self, 
   _vt_usbSerial.type = VT_TYPE_VPORT;
-  _vt_usbSerial.name = "usbSerial";
   _vt_usbSerial.loop = &vt_usbSerial_loop;
   _vt_usbSerial.cts = &vt_usbSerial_cts;
   _vt_usbSerial.send = &vt_usbSerial_send;
@@ -48,7 +47,7 @@ void vt_usbSerial_setup(void){
   Serial.begin(9600);
 }
 
-void vt_usbSerial_loop(void){
+void vt_usbSerial_loop(){
   // want to count through previous occupied-ness states, and on falling edge
   // of stack education, ack... 
   // ack if necessary (if didn't tx ack out on reciprocal send last)

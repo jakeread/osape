@@ -18,11 +18,13 @@ no warranty is provided, and users accept all liability.
 #include <arduino.h>
 
 // -------------------------------------------------------- Vertex Type Keys
+// will likely use these in the netrunner: 
 
 #define VT_TYPE_ROOT 22
-#define VT_TYPE_SOFT 23 
-#define VT_TYPE_VPORT 24 
-#define VT_TYPE_VBUS 25 // maybe bus-drop / bus-head / bus-cohost 
+#define VT_TYPE_MODULE 23
+#define VT_TYPE_ENDPOINT 24 
+#define VT_TYPE_VPORT 44
+#define VT_TYPE_VBUS 45 // maybe bus-drop / bus-head / bus-cohost are differentiated 
 
 // -------------------------------------------------------- TIMES
 
@@ -42,6 +44,8 @@ no warranty is provided, and users accept all liability.
 #define PK_PFWD_INC 1 
 #define PK_BFWD_KEY 12
 #define PK_BFWD_INC 3
+#define PK_SCOPE_KEY 21
+#define PK_SCOPE_INC 1 
 #define PK_LLESCAPE_KEY 44
 #define PK_LLESCAPE_INC 1
 

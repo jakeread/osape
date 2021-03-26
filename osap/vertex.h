@@ -17,18 +17,15 @@ no warranty is provided, and users accept all liability.
 
 #include <Arduino.h> 
 #include "ts.h"
+#include "vertexConfig.h"
+#include "endpoint.h"
 
-#define VT_SLOTSIZE 512
-#define VT_STACKSIZE 5  // must be >= 2 for ringbuffer operation 
-#define VT_MAXCHILDREN 64 
 #define VT_STACK_ORIGIN 0 
 #define VT_STACK_DESTINATION 1 
 
 // https://stackoverflow.com/questions/1813991/c-structure-with-pointer-to-self
 
-// vertex has stack of slots, linked list 
-typedef struct slot slot;
-
+// linked ringbuffer item 
 struct stackItem {
     uint8_t data[VT_SLOTSIZE];
     uint16_t len = 0;
@@ -38,15 +35,26 @@ struct stackItem {
     stackItem* previous = nullptr;
 };
 
+// we have the vertex type, 
 typedef struct vertex_t vertex_t;
+// which are typed by existence of some other object, 
+typedef struct endpoint_t endpoint_t;
+typedef struct vport_t vport_t;
+typedef struct vbus_t vbus_t;
+typedef struct root_t root_t;
 
 struct vertex_t {
-    // a loop code, run once per turn 
-    void (*loop)(void) = nullptr;
+    // a loop code, run once per turn
+    void (*loop)() = nullptr;
+
     // a type, a position, a name 
     uint8_t type = 0;
     uint16_t indice = 0;
-    String name = "unnamed vertex";
+    // addnl' properties, can possess:
+    endpoint_t* ep = nullptr; 
+    vport_t* vp = nullptr;
+    vbus_t* vb = nullptr;
+    root_t* rt = nullptr; 
     // stacks; 
     // origin stack[0] destination stack[1]
     // destination stack is for messages delivered to this vertex, 
@@ -59,10 +67,6 @@ struct vertex_t {
     vertex_t* parent = nullptr;
     vertex_t* children[VT_MAXCHILDREN]; // I think this is OK on storage: just pointers 
     uint16_t numChildren = 0;
-    // vertex-as-endpoint: token for clear / not to write, fn for writing, and local store 
-    uint8_t data[VT_SLOTSIZE];
-    uint16_t dataLen = 0;
-    boolean (*onData)(uint8_t* data, uint16_t ptr, uint16_t len) = nullptr;
     // vertex-as-vport-interface 
     boolean (*cts)(uint8_t drop) = nullptr;
     void (*send)(uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;

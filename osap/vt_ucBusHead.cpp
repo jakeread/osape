@@ -32,7 +32,6 @@ uint8_t _tempBuffer[1024];
 
 void vt_ucBusHead_setup(void) {
   _vt_ucBusHead.type = VT_TYPE_VBUS;
-  _vt_ucBusHead.name = "ucbus head";
   _vt_ucBusHead.loop = &vt_ucBusHead_loop;
   _vt_ucBusHead.cts = &vt_ucBusHead_cts;
   _vt_ucBusHead.send = &vt_ucBusHead_send;
@@ -41,7 +40,7 @@ void vt_ucBusHead_setup(void) {
   ucBusHead_setup();  // todo: rewrite as c object, not class
 }
 
-void vt_ucBusHead_loop(void) {
+void vt_ucBusHead_loop() {
   // we need to shift items from the bus into the origin stack here
   // we can shift multiple in per turn, if stack space exists
   uint8_t drop = _lastDropHandled;
