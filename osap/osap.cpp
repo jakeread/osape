@@ -43,9 +43,7 @@ boolean osapAddVertex(vertex_t* vt) {
 }
 
 vertex_t* osapBuildEndpoint(String name, boolean (*onData)(uint8_t* data, uint16_t ptr, uint16_t len), boolean (*beforeQuery)(void)){
-  // oddly, actually, defining an 'beforeQuery' is outside of the scope of the vertex / osap core 
-  // so we want to have this notion of core / onion extension 
-  vertex_t* vt = new vertex_t; // allocates new to heap (?) 
+  vertex_t* vt = new vertex_t; // allocates new to heap someplace, 
   vt->type = VT_TYPE_ENDPOINT;
   stackReset(vt);
   // add this to the system, 

@@ -13,8 +13,10 @@ no warranty is provided, and users accept all liability.
 */
 
 #include "endpoint.h"
+#include "../../drivers/indicators.h"
 
 // handle, return true to clear out. false to wait one turn 
 boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr){
+    DEBUG3PIN_TOGGLE;
     return true; 
 }
