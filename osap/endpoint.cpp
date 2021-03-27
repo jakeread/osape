@@ -28,7 +28,8 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 		case EP_SS_ACKLESS:
 			if(vt->ep->onData(&(item->data[ptr]), item->len - ptr)){
 				// data accepted... copy in to local store & clear 
-				memcpy(vt->ep->data, &(item->data[ptr]), item->len - ptr);
+				memcpy(vt->ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
+				vt->ep->dataLen = item->len - ptr - 2;
 				return true;
 			} else {
 				return false;
@@ -39,7 +40,8 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 			if(stackEmptySlot(vt, VT_STACK_ORIGIN)){
 				if(vt->ep->onData(&(item->data[ptr]), item->len - ptr)){
 					// accepted, we can copy in 
-					memcpy(vt->ep->data, &(item->data[ptr]), item->len - ptr);
+					memcpy(vt->ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
+					vt->ep->dataLen = item->len - ptr - 2;
 					// now generate are reply, 
 					uint16_t wptr = 0;
 					if(!reverseRoute(item->data, ptr - 4, ack, &wptr)) return true; // if we can't reverse it, bail 
@@ -62,6 +64,7 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 				uint16_t wptr = 0;
 				if(!reverseRoute(item->data, ptr - 4, ack, &wptr)) return true;
 				ack[wptr ++] = EP_QUERY_RESP;
+				ack[wptr ++] = item->data[ptr + 1];
 				memcpy(&(ack[wptr]), vt->ep->data, vt->ep->dataLen);
 				wptr += vt->ep->dataLen;
 				stackLoadSlot(vt, VT_STACK_ORIGIN, ack, wptr);
