@@ -28,8 +28,9 @@ void osapLoop(void){
   osapRecursor(&_root);
 }
 
-// add general vertex i.e. vport
-// assumes osap as root,
+void loopDefault(void){
+}
+
 boolean osapAddVertex(vertex_t* vt) {
   if (_root.numChildren >= VT_MAXCHILDREN) {
     return false;
@@ -42,16 +43,28 @@ boolean osapAddVertex(vertex_t* vt) {
   }
 }
 
-vertex_t* osapBuildEndpoint(String name, boolean (*onData)(uint8_t* data, uint16_t ptr, uint16_t len), boolean (*beforeQuery)(void)){
+boolean onDataDefault(uint8_t* data, uint16_t len){
+  return true;
+}
+
+vertex_t* osapBuildEndpoint(String name, boolean (*onData)(uint8_t* data, uint16_t len), boolean (*beforeQuery)(void)){
   vertex_t* vt = new vertex_t; // allocates new to heap someplace, 
   vt->type = VT_TYPE_ENDPOINT;
   stackReset(vt);
   // add this to the system, 
   if(osapAddVertex(vt)){
     endpoint_t* ep = new endpoint_t;
-    ep->onData = onData;
-    ep->beforeQuery = beforeQuery;
-    vt->loop = nullptr;
+    if(onData != nullptr){
+      ep->onData = onData;
+    } else {
+      ep->onData = onDataDefault;
+    }
+    if(beforeQuery != nullptr){
+      ep->beforeQuery = beforeQuery;
+    } else {
+
+    }
+    vt->loop = loopDefault;
     vt->ep = ep;
     return vt;
   } else {

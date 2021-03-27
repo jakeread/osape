@@ -27,8 +27,8 @@ struct endpoint_t {
   // local data store & length, 
   uint8_t data[VT_SLOTSIZE];
   uint16_t dataLen = 0; 
-  boolean (*onData)(uint8_t* data, uint16_t ptr, uint16_t len) = nullptr;
-  boolean (*beforeQuery)(void);
+  boolean (*onData)(uint8_t* data, uint16_t len) = nullptr;
+  boolean (*beforeQuery)(void) = nullptr;
 };
 
 #endif 
