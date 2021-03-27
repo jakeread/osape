@@ -28,8 +28,8 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 		case EP_SS_ACKLESS:
 			if(vt->ep->onData(&(item->data[ptr]), item->len - ptr)){
 				// data accepted... copy in to local store & clear 
-				memcpy(vt->ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
-				vt->ep->dataLen = item->len - ptr - 2;
+				memcpy(vt->ep->data, &(item->data[ptr + 1]), item->len - ptr - 1);
+				vt->ep->dataLen = item->len - ptr - 1;
 				return true;
 			} else {
 				return false;
