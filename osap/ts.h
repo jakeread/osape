@@ -57,6 +57,11 @@ no warranty is provided, and users accept all liability.
 #define EP_QUERY 131        // query request 
 #define EP_QUERY_RESP 132   // reply to query request 
 
+// -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
+
+#define UB_AK_SETPOS 102
+#define UB_AK_GOTOPOS 105 
+
 // -------------------------------------------------------- Type Keys 
 
 #define TK_BOOL     2

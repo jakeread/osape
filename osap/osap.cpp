@@ -18,17 +18,19 @@ is; no warranty is provided, and users accept all liability.
 vertex_t _root;
 vertex_t* osap = &_root;
 
+void loopDefault(void){
+  // ... noop 
+}
+
 void osapSetup(void){
   _root.type = VT_TYPE_ROOT;
   _root.indice = 0;
+  _root.loop = loopDefault;
   stackReset(&_root);
 }
 
 void osapLoop(void){
   osapRecursor(&_root);
-}
-
-void loopDefault(void){
 }
 
 boolean osapAddVertex(vertex_t* vt) {
@@ -47,6 +49,10 @@ boolean onDataDefault(uint8_t* data, uint16_t len){
   return true;
 }
 
+boolean beforeQueryDefault(void){
+  return true;
+}
+
 vertex_t* osapBuildEndpoint(String name, boolean (*onData)(uint8_t* data, uint16_t len), boolean (*beforeQuery)(void)){
   vertex_t* vt = new vertex_t; // allocates new to heap someplace, 
   vt->type = VT_TYPE_ENDPOINT;
@@ -62,8 +68,9 @@ vertex_t* osapBuildEndpoint(String name, boolean (*onData)(uint8_t* data, uint16
     if(beforeQuery != nullptr){
       ep->beforeQuery = beforeQuery;
     } else {
-
+      ep->beforeQuery = beforeQueryDefault;
     }
+    // endpoints don't get loop fns 
     vt->loop = loopDefault;
     vt->ep = ep;
     return vt;

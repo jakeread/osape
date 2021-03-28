@@ -26,7 +26,7 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 	ptr += 3;
 	switch(item->data[ptr]){
 		case EP_SS_ACKLESS:
-			if(vt->ep->onData(&(item->data[ptr]), item->len - ptr)){
+			if(vt->ep->onData(&(item->data[ptr + 1]), item->len - ptr - 1)){
 				// data accepted... copy in to local store & clear 
 				memcpy(vt->ep->data, &(item->data[ptr + 1]), item->len - ptr - 1);
 				vt->ep->dataLen = item->len - ptr - 1;
@@ -38,7 +38,7 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 		case EP_SS_ACKED:
 			// check if we can ack it, then if we can accept it: 
 			if(stackEmptySlot(vt, VT_STACK_ORIGIN)){
-				if(vt->ep->onData(&(item->data[ptr]), item->len - ptr)){
+				if(vt->ep->onData(&(item->data[ptr + 2]), item->len - ptr - 2)){
 					// accepted, we can copy in 
 					memcpy(vt->ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
 					vt->ep->dataLen = item->len - ptr - 2;
@@ -60,7 +60,7 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 		case EP_QUERY:
 			// if can generate new message, 
 			if(stackEmptySlot(vt, VT_STACK_ORIGIN)){
-				if(vt->ep->beforeQuery) vt->ep->beforeQuery();
+				vt->ep->beforeQuery();
 				uint16_t wptr = 0;
 				if(!reverseRoute(item->data, ptr - 4, ack, &wptr)) return true;
 				ack[wptr ++] = EP_QUERY_RESP;
