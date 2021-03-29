@@ -63,10 +63,6 @@ is; no warranty is provided, and users accept all liability.
 
 #define UBD_CLOCKRESET 15
 
-#define UB_AK_GOTOPOS 91
-#define UB_AK_SETPOS  92
-#define UB_AK_SETRPM  93
-
 // setup 
 void ucBusDrop_setup(void);
 
@@ -80,7 +76,7 @@ void ucBusDrop_txcISR(void);
 
 // handlers (define in main.cpp, these are application interfaces)
 void ucBusDrop_onRxISR(void);
-void ucBusDrop_onPacketARx(void);
+void ucBusDrop_onPacketARx(uint8_t* inBufferA, volatile uint16_t len);
 
 // the api, eh 
 void ucBusDrop_setup(boolean useDipPick, uint8_t ID);

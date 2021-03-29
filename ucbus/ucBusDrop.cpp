@@ -183,7 +183,7 @@ void ucBusDrop_rxISR(void){
     } else if ((inHeader & 0b00110000) == 0b00000000) { // ------------------------------ no-token, CHA
       if(lastWordAHadToken){
         inBufferALen = inBufferAWp;
-        ucBusDrop_onPacketARx();
+        ucBusDrop_onPacketARx(inBufferA, inBufferALen);
       }
       lastWordAHadToken = false;
     } else if ((inHeader & 0b00110000) == 0b00110000) { // ------------------------------ has-token, CHB 
