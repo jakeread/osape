@@ -82,9 +82,11 @@ class UCBus_Drop {
     volatile uint16_t inBufferAWp = 0;
     volatile uint16_t inBufferALen = 0; // writes at terminal zero, 
     volatile boolean lastWordBHadToken = false;
-    uint8_t inBufferB[UBD_BUFSIZE];
+    uint8_t inBufferB[UBD_BUFSIZE];   // rx-action buffer
     volatile uint16_t inBufferBWp = 0;
     volatile uint16_t inBufferBLen = 0;
+    uint8_t inBufferBF[UBD_BUFSIZE];  // packet-is ours stash 
+    volatile uint16_t inBufferBFLen = 0;
     volatile unsigned long inBArrival = 0;
     // output, 
     volatile uint8_t outWord[2];

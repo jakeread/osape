@@ -159,6 +159,7 @@ void UCBus_Drop::rxISR(void){
       lastWordBHadToken = true;
       if(inBufferBLen != 0){
         // missed the last, bad 
+        ERRLIGHT_ON;
         inBufferBLen = 0;
       }
       inBufferB[inBufferBWp] = inByte;
@@ -170,7 +171,12 @@ void UCBus_Drop::rxISR(void){
           rcrxb = inBufferB[1];
           lastrc = millis(); 
           inBArrival = lastrc;
+          __disable_irq();
+          memcpy(inBufferBF, &(inBufferB[2]), inBufferBLen - 2);
+          inBufferBFLen = inBufferBLen - 2;
           inBufferBWp = 0;
+          inBufferBLen = 0;
+          __enable_irq();
         } else {  // packet is not ours, ignore, ready for next read 
           inBufferBWp = 0;
           inBufferBLen = 0;
@@ -254,7 +260,7 @@ boolean UCBus_Drop::ctr_a(void){
 }
 
 boolean UCBus_Drop::ctr_b(void){
-  if(inBufferBLen > 0){
+  if(inBufferBFLen > 0){
     return true;
   } else {
     return false;
@@ -280,10 +286,9 @@ size_t UCBus_Drop::read_b(uint8_t *dest){
   //NVIC_DisableIRQ(SERCOM1_2_IRQn);
   __disable_irq();
   // bytes 0 and 1 are the ID and rcrxb, respectively, so app. is concerned with the rest 
-  size_t len = inBufferBLen - 2;
-  memcpy(dest, &inBufferB[2], len);
-  inBufferBLen = 0;
-  inBufferBWp = 0;
+  size_t len = inBufferBFLen;
+  memcpy(dest, inBufferBF, len);
+  inBufferBFLen = 0;
   //NVIC_EnableIRQ(SERCOM1_2_IRQn);
   __enable_irq();
   return len;
@@ -291,24 +296,15 @@ size_t UCBus_Drop::read_b(uint8_t *dest){
 
 size_t UCBus_Drop::read_b_ptr(uint8_t** dest, unsigned long* pat){
   if(ctr_b()){
-    if(inBufferB[2] == 1){
-      sysError("-> " + String(inBufferB[0]) + ", "
-      + String(inBufferB[1]) + ", "
-      + String(inBufferB[2]) + ", "
-      + String(inBufferB[3]));
-      *dest = &(inBufferB[3]);
-    } else {
-      *dest = &(inBufferB[2]);
-    }
+    *dest = inBufferBF;
     *pat = inBArrival;
-    return inBufferBLen - 2;
+    return inBufferBFLen;
   }
   return 0;
 }
 
 void UCBus_Drop::clear_b_ptr(void){
-  inBufferBLen = 0;
-  inBufferBWp = 0;
+  inBufferBFLen = 0;
 }
 
 boolean UCBus_Drop::cts(void){
