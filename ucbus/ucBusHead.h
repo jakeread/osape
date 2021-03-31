@@ -47,7 +47,7 @@ is; no warranty is provided, and users accept all liability.
 // 43690 for a trotting pace of 1MHz
 // 21845 for the E30 2MHz
 // 0 for max-speed 3MHz
-#define UBH_BAUD_VAL 0
+#define UBH_BAUD_VAL 43690
 
 #define UBH_DE_PIN 16 // driver output enable: set HI to enable, LO to tri-state the driver 
 #define UBH_DE_BM (uint32_t)(1 << UBH_DE_PIN)
