@@ -17,37 +17,50 @@ no warranty is provided, and users accept all liability.
 
 #include <arduino.h>
 
+// -------------------------------------------------------- Vertex Type Keys
+// will likely use these in the netrunner: 
+
+#define VT_TYPE_ROOT 22
+#define VT_TYPE_MODULE 23
+#define VT_TYPE_ENDPOINT 24 
+#define VT_TYPE_VPORT 44
+#define VT_TYPE_VBUS 45 // maybe bus-drop / bus-head / bus-cohost are differentiated 
+
+// -------------------------------------------------------- TIMES
+
+#define TIMES_STALE_MSG 800
+
 // -------------------------------------------------------- Routing (Packet) Keys
 
-#define PK_PPACK 77
 #define PK_PTR 88
 #define PK_DEST 99
-#define PK_LLERR 44
-#define PK_PORTF_KEY 11
-#define PK_PORTF_INC 3
-#define PK_BUSF_KEY 12
-#define PK_BUSF_INC 5
-#define PK_BUSB_KEY 14
-#define PK_BUSB_INC 5
+#define PK_SIB_KEY 15 
+#define PK_SIB_INC 3 
+#define PK_PARENT_KEY 16 
+#define PK_PARENT_INC 3 
+#define PK_CHILD_KEY 14 
+#define PK_CHILD_INC 3 
+#define PK_PFWD_KEY 11 
+#define PK_PFWD_INC 1 
+#define PK_BFWD_KEY 12
+#define PK_BFWD_INC 3
+#define PK_SCOPE_KEY 21
+#define PK_SCOPE_INC 1 
+#define PK_LLESCAPE_KEY 44
+#define PK_LLESCAPE_INC 1
 
-// -------------------------------------------------------- Destination Keys (arrival layer)
+// -------------------------------------------------------- Endpoint Keys 
 
-#define DK_APP 100 // application codes, go to -> main 
-#define DK_PINGREQ 101  // ping request
-#define DK_PINGRES 102  // ping reply
-#define DK_EPREQ 103
-#define DK_EPRES 104 
-#define DK_RREQ 111     // read request
-#define DK_RRES 112     // read response
-#define DK_WREQ 113     // write request
-#define DK_WRES 114     // write response
-#define DK_LLBYTES 121  // routed byte escape 
-#define DK_VMODULE 202          // datagram is obj for a vmodule: 4x 16b indices follow: from vm, obj / to vm, obj
-#define DK_VMODULE_NACK 203     // your datagram recieved here but was occupied  
-#define DK_VMODULE_YACK 204     // recieved and cleared at this endpoint 
-#define DK_VMODULE_QUERY 212
-#define DK_VMODULE_QUERY_ERR 213 
-#define DK_VMODULE_QUERY_RES 214 
+#define EP_SS_ACK 101       // the ack 
+#define EP_SS_ACKLESS 121   // single segment, no ack 
+#define EP_SS_ACKED 122     // single segment, request ack 
+#define EP_QUERY 131        // query request 
+#define EP_QUERY_RESP 132   // reply to query request 
+
+// -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
+
+#define UB_AK_SETPOS 102
+#define UB_AK_GOTOPOS 105 
 
 // -------------------------------------------------------- Type Keys 
 
@@ -65,69 +78,6 @@ no warranty is provided, and users accept all liability.
 #define TK_FLOAT16  24
 #define TK_FLOAT32  26
 #define TK_FLOAT64  28
-
-// -------------------------------------------------------- Application Keys 
-
-#define AK_OK 100
-#define AK_ERR 200 
-#define AK_GOTOPOS 101           // goto pos 
-#define AK_SETPOS 102            // set position to xyz 
-#define AK_SETCURRENT 103       // set currents xyz 
-#define AK_SETWAITTIME 104      // set queue wait time 
-#define AK_SETRPM 105           // set spindle 
-#define AK_QUERYMOVING 111          // is moving?
-#define AK_QUERYPOS 112         // get current pos 
-#define AK_QUERYQUEUELEN 113    // current queue len? 
-
-#define AK_RUNCALIB 121
-#define AK_READCALIB 122 
-#define AK_SET_TC 123 
-
-#define AK_BUSECHO 131
-
-// -------------------------------------------------------- MVC Endpoints
-
-#define EP_ERRKEY 150
-#define EP_ERRKEY_QUERYDOWN 151
-#define EP_ERRKEY_EMPTY 153
-#define EP_ERRKEY_UNCLEAR 154
-
-#define EP_NAME 171
-#define EP_DESCRIPTION 172
-
-#define EP_NUMVPORTS 181
-#define EP_VPORT 182
-#define EP_PORTTYPEKEY 183
-#define EP_MAXSEGLENGTH 184
-#define EP_PORTSTATUS 185
-#define EP_MAXADDRESSES 186 
-
-#define EP_PORTSTATUS_CLOSED 0
-#define EP_PORTSTATUS_OPEN 1
-#define EP_PORTSTATUS_CLOSING 2
-#define EP_PORTSTATUS_OPENING 3 
-
-#define EP_PORTTYPEKEY_DUPLEX 191
-#define EP_PORTTYPEKEY_BUSHEAD 192
-#define EP_PORTTYPEKEY_BUSDROP 193 
-
-#define EP_NUMVMODULES 201
-#define EP_VMODULE 202
-
-#define EP_NUMINPUTS 211
-#define EP_INPUT 212
-
-#define EP_NUMOUTPUTS 221
-#define EP_OUTPUT 222
-
-#define EP_TYPE 231
-#define EP_VALUE 232
-#define EP_STATUS 233
-
-#define EP_NUMROUES 243
-#define EP_ROUTE 235
-
-// ... etc, later
 
 // -------------------------------------------------------- Chunks
 

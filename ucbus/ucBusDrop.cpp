@@ -1,5 +1,5 @@
 /*
-osap/drivers/ucbus_head.cpp
+osap/drivers/ucBusDrop.cpp
 
 beginnings of a uart-based clock / bus combo protocol
 
@@ -12,36 +12,68 @@ projects. Copyright is retained and must be preserved. The work is provided as
 is; no warranty is provided, and users accept all liability.
 */
 
-#include "ucbus_drop.h"
+#include "ucBusDrop.h"
 
 #ifdef UCBUS_IS_DROP
 
-UCBus_Drop* UCBus_Drop::instance = 0;
+// input buffer & word 
+volatile uint8_t inWord[2];
+volatile uint8_t inHeader;
+volatile uint8_t inByte;
 
-UCBus_Drop* UCBus_Drop::getInstance(void){
-	if(instance == 0){
-		instance = new UCBus_Drop();
-	}
-	return instance;
-}
+volatile boolean lastWordAHadToken = false;
+uint8_t inBufferA[UBD_BUFSIZE];
+volatile uint16_t inBufferAWp = 0;
+volatile uint16_t inBufferALen = 0; // writes at terminal zero, 
 
-// making this instance globally available, when built, 
-// recall extern declaration in .h 
-UCBus_Drop* ucBusDrop = UCBus_Drop::getInstance();
+volatile boolean lastWordBHadToken = false;
+uint8_t inBufferB[UBD_NUM_B_BUFFERS][UBD_BUFSIZE];
+volatile uint16_t inBufferBLen[UBD_NUM_B_BUFFERS];
+volatile unsigned long inBArrival[UBD_NUM_B_BUFFERS];
+volatile uint8_t inBufferBHead = 0;
+volatile uint8_t inBufferBTail = 0;
+volatile uint16_t inBufferBWp = 0;
 
-UCBus_Drop::UCBus_Drop(void) {}
+// output, 
+volatile uint8_t outWord[2];
+volatile uint8_t outHeader;
+volatile uint8_t outByte;
+uint8_t outBuffer[UBD_BUFSIZE];
+volatile uint16_t outBufferRp = 0;
+volatile uint16_t outBufferLen = 0;
+const uint8_t headerMask = 0b00111111;
+const uint8_t dropIdMask = 0b00001111; 
+const uint8_t tokenWord = 0b00100000;
+const uint8_t noTokenWord = 0b00000000;
 
-void UCBus_Drop::init(boolean useDipPick, uint8_t ID) {
-  dip_init();
+// available time count, 
+volatile uint16_t timeTick = 0;
+// timing, 
+volatile uint64_t timeBlink = 0;
+uint16_t blinkTime = 10000;
+
+//void onPacketBRx(void);
+// our physical bus address, 
+volatile uint8_t id = 0;
+volatile uint8_t rcrxb = 0; // reciprocal rx buffer 0: head has no room to rx, donot send, 1: has room
+volatile unsigned long lastrc = 0;
+
+void ucBusDrop_setup(boolean useDipPick, uint8_t ID) {
+  dip_setup();
   if(useDipPick){
     // set our id, 
-    id = dip_read_lower_four(); // should read lower 4, now that cha / chb 
+    id = dip_readLowerFour(); // should read lower 4, now that cha / chb 
     if(id > 14){ id = 14; };  // max 14 drops, logical addresses 0 - 14
   } else {
     id = ID;
   }
   if(id > 14){
     id = 14;
+  }
+  // inbuffer ringbuffer states;
+  for(uint8_t i = 0; i < UBD_NUM_B_BUFFERS; i ++){
+    inBufferBLen[i] = 0;
+    inBArrival[i] = 0;
   }
   // set driver output LO to start: tri-state 
   UBD_DE_PORT.DIRSET.reg = UBD_DE_BM;
@@ -52,7 +84,7 @@ void UCBus_Drop::init(boolean useDipPick, uint8_t ID) {
   // termination resistor should be set only on one drop, 
   // or none and physically with a 'tail' cable, or something? 
   UBD_TE_PORT.DIRSET.reg = UBD_TE_BM;
-  if(dip_read_pin_1()){
+  if(dip_readPin1()){
     UBD_TE_PORT.OUTCLR.reg = UBD_TE_BM;
   } else {
     UBD_TE_PORT.OUTSET.reg = UBD_TE_BM;
@@ -107,10 +139,10 @@ void UCBus_Drop::init(boolean useDipPick, uint8_t ID) {
 
 void SERCOM1_2_Handler(void){
   //ERRLIGHT_TOGGLE;
-	ucBusDrop->rxISR();
+	ucBusDrop_rxISR();
 }
 
-void UCBus_Drop::rxISR(void){
+void ucBusDrop_rxISR(void){
   //DEBUG2PIN_ON;
   // check parity bit,
   uint16_t perr = UBD_SER_USART.STATUS.bit.PERR;
@@ -132,7 +164,7 @@ void UCBus_Drop::rxISR(void){
       CLKLIGHT_TOGGLE;
       timeBlink = 0;
     }
-    onRxISR(); // on start of each word 
+    ucBusDrop_onRxISR(); // on start of each word 
   } else { // end of word on every 0th bit 
     inWord[1] = data;
     // now decouple, 
@@ -140,7 +172,7 @@ void UCBus_Drop::rxISR(void){
     inByte = ((inWord[0] << 4) & 0b11110000) | (inWord[1] & 0b00001111);
     // now check incoming data, 
     // could speed this up to not re-evaluate (inHeader & 0b00110000) every time 
-    if((inHeader & 0b00110000) == 0b00100000){ // has-token, CHA
+    if((inHeader & 0b00110000) == 0b00100000){ // --------------------------------------- has-token, CHA
       lastWordAHadToken = true;
       if(inBufferALen != 0){ // in this case, we didn't read-out of the buffer in time, 
         inBufferALen = 0;    // so we reset it, missing the last packet !
@@ -148,38 +180,40 @@ void UCBus_Drop::rxISR(void){
       }
       inBufferA[inBufferAWp] = inByte;
       inBufferAWp ++;
-    } else if ((inHeader & 0b00110000) == 0b00000000) { // no-token, CHA
+    } else if ((inHeader & 0b00110000) == 0b00000000) { // ------------------------------ no-token, CHA
       if(lastWordAHadToken){
         inBufferALen = inBufferAWp;
-        onPacketARx();
+        ucBusDrop_onPacketARx(inBufferA, inBufferALen);
       }
       lastWordAHadToken = false;
-    } else if ((inHeader & 0b00110000) == 0b00110000) { // has-token, CHB 
+    } else if ((inHeader & 0b00110000) == 0b00110000) { // ------------------------------ has-token, CHB 
       //DEBUG1PIN_ON;
       lastWordBHadToken = true;
-      if(inBufferBLen != 0){
-        // missed the last, bad 
-        ERRLIGHT_ON;
-        inBufferBLen = 0;
+      if(inBufferBLen[inBufferBHead] != 0){
+        // missed one, bad 
+        inBufferBLen[inBufferBHead] = 0;
       }
-      inBufferB[inBufferBWp] = inByte;
+      inBufferB[inBufferBHead][inBufferBWp] = inByte;
       inBufferBWp ++;
-    } else if ((inHeader & 0b00110000) == 0b00010000) { // no-token, CHB
+    } else if ((inHeader & 0b00110000) == 0b00010000) { // ------------------------------ no-token, CHB
       if(lastWordBHadToken){ // falling edge, packet delineation 
-        inBufferBLen = inBufferBWp;
-        if(inBufferB[0] == id){ //check if pck is for us and update reciprocal buffer len 
-          rcrxb = inBufferB[1];
+        inBufferBLen[inBufferBHead] = inBufferBWp;
+        if(inBufferB[inBufferBHead][0] == id){ //check if pck is for us and update reciprocal buffer len 
+          // otherwise, if head is flushing next b-ch packet out following, we start overwriting 
+          // and hit the 'missed case' above... 
+          rcrxb = inBufferB[inBufferBHead][1];
           lastrc = millis(); 
-          inBArrival = lastrc;
-          __disable_irq();
-          memcpy(inBufferBF, &(inBufferB[2]), inBufferBLen - 2);
-          inBufferBFLen = inBufferBLen - 2;
+          inBArrival[inBufferBHead] = lastrc;
+          // now write into next head 
+          inBufferBHead ++;
+          if(inBufferBHead >= UBD_NUM_B_BUFFERS){
+            inBufferBHead = 0;
+          }
+          // and reset write pointer, 
           inBufferBWp = 0;
-          inBufferBLen = 0;
-          __enable_irq();
-        } else {  // packet is not ours, ignore, ready for next read 
+        } else {  // packet is not ours, ignore, ready for next read, don't inc head 
           inBufferBWp = 0;
-          inBufferBLen = 0;
+          inBufferBLen[inBufferBHead] = 0;
         }
       }
       lastWordBHadToken = false;
@@ -199,8 +233,8 @@ void UCBus_Drop::rxISR(void){
         outByte = outBuffer[outBufferRp];
         outHeader = headerMask & (tokenWord | (id & 0b00011111));
       } else {
-        // whenever free space on the line, transmit our recieve buffer # spaces available 
-        if(inBufferBLen == 0 && inBufferBWp == 0){
+        // whenever free space on the line, transmit whether out recieve buffer has space available 
+        if(ucBusDrop_isRTR()){
           outByte = 1;  // have clear space available, communicate that to partner 
         } else {
           outByte = 0;  // currently receiving or have packet awaiting handling 
@@ -230,28 +264,43 @@ void UCBus_Drop::rxISR(void){
 } // end rx-isr 
 
 void SERCOM1_0_Handler(void){
-	ucBusDrop->dreISR();
+	ucBusDrop_dreISR();
 }
 
-void UCBus_Drop::dreISR(void){
+void ucBusDrop_dreISR(void){
   UBD_SER_USART.DATA.reg = outWord[1]; // tx the next word,
   UBD_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_DRE; // clear this interrupt
   UBD_SER_USART.INTENSET.reg = SERCOM_USART_INTENSET_TXC; // now watch transmit complete
 }
 
 void SERCOM1_1_Handler(void){
-  ucBusDrop->txcISR();
+  ucBusDrop_txcISR();
 }
 
-void UCBus_Drop::txcISR(void){
+void ucBusDrop_txcISR(void){
   UBD_SER_USART.INTFLAG.bit.TXC = 1; // clear the flag by writing 1 
   UBD_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_TXC; // turn off the interrupt 
   UBD_DRIVER_DISABLE; // turn off the driver, 
 }
 
+// check buffer state: is it OK for us to rx new pcks from head? 
+boolean ucBusDrop_isRTR(void){
+  // if *current && next head* is empty (i.e. have at least two spaces)
+  if(inBufferBLen[inBufferBHead] == 0){
+    uint8_t next = inBufferBHead + 1;
+    if(next >= UBD_NUM_B_BUFFERS){
+      next = 0;
+    }
+    if(inBufferBLen[next] == 0){
+      return true;
+    } 
+  } 
+  return false;
+}
+
 // -------------------------------------------------------- ASYNC API
 
-boolean UCBus_Drop::ctr_a(void){
+boolean ucBusDrop_ctrA(void){
   if(inBufferALen > 0){
     return true;
   } else {
@@ -259,16 +308,16 @@ boolean UCBus_Drop::ctr_a(void){
   }
 }
 
-boolean UCBus_Drop::ctr_b(void){
-  if(inBufferBFLen > 0){
-    return true;
-  } else {
+boolean ucBusDrop_ctrB(void){
+  if(inBufferBHead == inBufferBTail){
     return false;
+  } else {
+    return true;
   }
 }
 
-size_t UCBus_Drop::read_a(uint8_t *dest){
-	if(!ctr_a()) return 0;
+size_t ucBusDrop_readA(uint8_t *dest){
+	if(!ucBusDrop_ctrA()) return 0;
   //NVIC_DisableIRQ(SERCOM1_2_IRQn);
   __disable_irq();
   // copy out, irq disabled, TODO safety on missing an interrupt in this case?? clock jitter? 
@@ -281,44 +330,37 @@ size_t UCBus_Drop::read_a(uint8_t *dest){
   return len;
 }
 
-size_t UCBus_Drop::read_b(uint8_t *dest){
-  if(!ctr_b()) return 0;
+size_t ucBusDrop_readB(uint8_t *dest){
+  if(!ucBusDrop_ctrB()) return 0;
   //NVIC_DisableIRQ(SERCOM1_2_IRQn);
   __disable_irq();
+  // read from the tail, 
   // bytes 0 and 1 are the ID and rcrxb, respectively, so app. is concerned with the rest 
-  size_t len = inBufferBFLen;
-  memcpy(dest, inBufferBF, len);
-  inBufferBFLen = 0;
+  size_t len = inBufferBLen[inBufferBTail] - 2;
+  memcpy(dest, &(inBufferB[inBufferBTail][2]), len);
+  inBufferBLen[inBufferBTail] = 0;
+  inBufferBWp = 0;
+  inBufferBTail ++;
+  if(inBufferBTail >= UBD_NUM_B_BUFFERS){
+    inBufferBTail = 0;
+  }
   //NVIC_EnableIRQ(SERCOM1_2_IRQn);
   __enable_irq();
   return len;
 }
 
-size_t UCBus_Drop::read_b_ptr(uint8_t** dest, unsigned long* pat){
-  if(ctr_b()){
-    *dest = inBufferBF;
-    *pat = inBArrival;
-    return inBufferBFLen;
-  }
-  return 0;
-}
-
-void UCBus_Drop::clear_b_ptr(void){
-  inBufferBFLen = 0;
-}
-
-boolean UCBus_Drop::cts(void){
-  if(outBufferLen > 0 || rcrxb == 0){
-    return false;
-  } else {
+boolean ucBusDrop_ctsB(void){
+  if(outBufferLen == 0 && rcrxb > 0){
     return true;
+  } else {
+    return false;
   }
 }
 
-void UCBus_Drop::transmit(uint8_t *data, uint16_t len){
-  if(!cts()){ return; }
+void ucBusDrop_transmitB(uint8_t *data, uint16_t len){
+  if(!ucBusDrop_ctsB()){ return; }
   // 1st byte: num of spaces we have to rx messages at this drop, i.e. buffer space 
-  if(inBufferBLen == 0 && inBufferBWp == 0){ // nothing currently reading in, nothing awaiting handle 
+  if(ucBusDrop_isRTR()){ // nothing currently reading in, nothing awaiting handle 
     outBuffer[0] = 1;
   } else { // are either currently recieving, or have recieved an unhandled packet 
     outBuffer[1] = 0;

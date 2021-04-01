@@ -1,5 +1,5 @@
 /*
-osap/drivers/ucbus_head.cpp
+osap/drivers/ucBusHead.cpp
 
 beginnings of a uart-based clock / bus combo protocol
 
@@ -12,27 +12,50 @@ projects. Copyright is retained and must be preserved. The work is provided as
 is; no warranty is provided, and users accept all liability.
 */
 
-#include "ucbus_head.h"
+#include "ucBusHead.h"
 
 #ifdef UCBUS_IS_HEAD
 
-UCBus_Head* UCBus_Head::instance = 0;
+// input buffers / space 
+volatile uint8_t inWord[2];
+volatile uint8_t inHeader;
+volatile uint8_t inByte;
+uint8_t inBuffer[UBH_DROP_OPS][UBH_BUFSIZE];  // per-drop incoming bytes 
+volatile uint16_t inBufferWp[UBH_DROP_OPS];   // per-drop incoming write pointer
+volatile uint16_t inBufferLen[UBH_DROP_OPS];  // per-drop incoming bytes, len of, set when EOP detected
+volatile unsigned long inArrivalTime[UBH_DROP_OPS];
+volatile boolean inLastHadToken[UBH_DROP_OPS];
 
-UCBus_Head* UCBus_Head::getInstance(void){
-	if(instance == 0){
-		instance = new UCBus_Head();
-	}
-	return instance;
-}
+// transmit buffers for A / B Channels 
+uint8_t outBufferA[UBH_BUFSIZE];
+volatile uint16_t outBufferARp = 0;
+volatile uint16_t outBufferALen = 0;
+uint8_t outBufferB[UBH_BUFSIZE];
+volatile uint16_t outBufferBRp = 0;
+volatile uint16_t outBufferBLen = 0;
 
-// making this instance globally available, when built, 
-// recall extern declaration in .h 
-UCBus_Head* ucBusHead = UCBus_Head::getInstance();
+// doublet outgoing word / state 
+volatile uint8_t outWord[2];
+volatile uint8_t currentDropTap = 0; // drop we are currently 'txing' to / drop that will reply on this cycle
+volatile uint8_t outHeader;
+volatile uint8_t outByte;
 
-UCBus_Head::UCBus_Head(void) {}
+// word masks 
+const uint8_t headerMask =    0b00111111;
+const uint8_t dropIdMask =    0b00001111; 
+                              // 0b00|token|channel|4bit id
+const uint8_t tokenWordA =    0b00100000; // CHA, data byte present 
+const uint8_t noTokenWordA =  0b00000000; // CHA, data byte not present 
+const uint8_t tokenWordB =    0b00110000; // CHB, data byte present 
+const uint8_t noTokenWordB =  0b00010000; // CHB, data byte not present 
+volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
 
-// uart init 
-void UCBus_Head::startupUART(void){
+// reciprocal recieve buffer spaces 
+volatile uint8_t rcrxb[UBH_DROP_OPS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+volatile unsigned long lastrc[UBH_DROP_OPS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+// uart init (file scoped)
+void setupUART(void){
   // driver output is always on at head, set HI to enable
   UBH_DE_PORT.DIRSET.reg = UBH_DE_BM;
   UBH_DE_PORT.OUTSET.reg = UBH_DE_BM;
@@ -89,16 +112,29 @@ void UCBus_Head::startupUART(void){
 	UBH_SER_USART.INTENSET.bit.RXC = 1;
 }
 
-void UCBus_Head::init(void) {
-  // clear buffers to begin,
+// TX Handler, for second bytes initiated by timer, 
+void SERCOM1_0_Handler(void){
+	ucBusHead_txISR();
+}
+
+// rx handler, for incoming
+void SERCOM1_2_Handler(void){
+	ucBusHead_rxISR();
+}
+
+// startup, 
+void ucBusHead_setup(void){
+// clear buffers to begin,
   for(uint8_t d = 0; d < UBH_DROP_OPS; d ++){
     inBufferLen[d] = 0;
     inBufferWp[d] = 0;
   }
-  startupUART();
+  // start the uart, 
+  setupUART();
+  // ! alert ! need to setup timer in main.cpp 
 }
 
-void UCBus_Head::timerISR(void){
+void ucBusHead_timerISR(void){
   // debug zero
   if(currentDropTap == 0){
     //DEBUG1PIN_TOGGLE;
@@ -170,21 +206,13 @@ void UCBus_Head::timerISR(void){
   }
 }
 
-// TX Handler, for second bytes initiated by timer, 
-void SERCOM1_0_Handler(void){
-	ucBusHead->txISR();
-}
-
-void UCBus_Head::txISR(void){
+void ucBusHead_txISR(void){
   UBH_SER_USART.DATA.reg = outWord[1]; // just services the next byte in the word: timer initiates 
   UBH_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_DRE; // turn this interrupt off 
 }
 
-void SERCOM1_2_Handler(void){
-	ucBusHead->rxISR();
-}
 
-void UCBus_Head::rxISR(void){
+void ucBusHead_rxISR(void){
   // check parity bit,
   uint16_t perr = UBH_SER_USART.STATUS.bit.PERR;
   if(perr){
@@ -233,7 +261,7 @@ void UCBus_Head::rxISR(void){
   }
 }
 
-// drop transmit like:
+// drop transmits like so:
 /*
 if(outBufferLen > 0){
         outByte = outBuffer[outBufferRp];
@@ -248,7 +276,8 @@ if(outBufferLen > 0){
 
 // -------------------------------------------------------- API 
 
-boolean UCBus_Head::ctr(uint8_t drop){
+// clear to read ? 
+boolean ucBusHead_ctr(uint8_t drop){
   if(drop >= UBH_DROP_OPS) return false;
   if(inBufferLen[drop] > 0){
     return true;
@@ -257,8 +286,8 @@ boolean UCBus_Head::ctr(uint8_t drop){
   }
 }
 
-size_t UCBus_Head::read(uint8_t drop, uint8_t *dest){
-  if(!ctr(drop)) return 0;
+size_t ucBusHead_read(uint8_t drop, uint8_t *dest){
+  if(!ucBusHead_ctr(drop)) return 0;
   //NVIC_DisableIRQ(SERCOM1_2_IRQn);
   __disable_irq();
   // byte 1 is the drop's rcrxb transmitted with this packet
@@ -271,63 +300,44 @@ size_t UCBus_Head::read(uint8_t drop, uint8_t *dest){
   return len;
 }
 
-size_t UCBus_Head::readPtr(uint8_t* drop, uint8_t** dest, unsigned long *pat){
-  // loop thru drops, find next occupied 
-  uint8_t d = _lastDropHandled;
-  for(uint8_t i = 0; i < UBH_DROP_OPS; i ++){
-    d ++;
-    if(d >= UBH_DROP_OPS) { d = 0; }
-    if(ctr(d)){
-      *drop = d;
-      _lastDropHandled = d;
-      *dest = &(inBuffer[d][1]); // 1st byte of each inbuffer is the rcrxb transmitted along with pck
-      *pat = inArrivalTime[d];
-      return inBufferLen[d] - 1;
-    }
-  }
-  // if we reach here, no len 
-  return 0;
-}
-
-void UCBus_Head::clearPtr(uint8_t drop){
-  inBufferLen[drop] = 0;
-  inBufferWp[drop] = 0;
-}
-
 // mod cts(channel) and transmit(data, len, channel)
 // then do an example for channel-b-write currents, then do drop code, then test 
 
-boolean UCBus_Head::cts_a(void){
-	if(outBufferALen > 0){ // only condition is that our transmit buffer is zero, are not currently tx'ing on this channel 
-		return false;
-	} else {
+boolean ucBusHead_ctsA(void){
+	if(outBufferALen == 0){ // only condition is that our transmit buffer is zero, are not currently tx'ing on this channel 
 		return true;
+	} else {
+		return false;
 	}
 }
 
-boolean UCBus_Head::cts_b(uint8_t drop){
-  if(outBufferBLen > 0 || rcrxb[drop] == 0){
-    return false; 
+boolean ucBusHead_ctsB(uint8_t drop){
+  // escape states 
+  // sysError("drop: " + String(drop) + " obl: " + String(outBufferBLen) + " rc: " + String(rcrxb[0]) + " " + String(rcrxb[1]) + " " + String(rcrxb[2]) + " ");
+  if(outBufferBLen == 0 && rcrxb[drop] > 0){
+    return true; 
   } else {
-    return true;
+    return false;
   }
 }
 
-void UCBus_Head::transmit_a(uint8_t *data, uint16_t len){
-	if(!cts_a()) return;
+void ucBusHead_transmitA(uint8_t *data, uint16_t len){
+	if(!ucBusHead_ctsA()) return;
   __disable_irq();
+  // transmits w/o any addnl info 
   memcpy(outBufferA, data, len);
 	outBufferALen = len; //encLen;
 	outBufferARp = 0;
   __enable_irq();
 }
 
-void UCBus_Head::transmit_b(uint8_t *data, uint16_t len, uint8_t drop){
-  if(!cts_b(drop)) return;
+void ucBusHead_transmitB(uint8_t *data, uint16_t len, uint8_t drop){
+  if(!ucBusHead_ctsB(drop)) return;
   __disable_irq();
+  // transmits w/ two addnl bytes: 
   // 1st byte: drop identifier 
   outBufferB[0] = drop;
-  // 2nd byte: number of spaces here drop can transmit into, at the moment this is 1 or 0 
+  // 2nd byte: number of spaces present here (in the head) that drop can transmit into, at the moment this is 1 or 0 
   if(inBufferLen[drop] == 0 && inBufferWp[drop] == 0){
     outBufferB[1] = 1;  // no packet awaiting read (len-full) or currently writing into (wp-full)
   } else {

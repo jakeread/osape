@@ -1,7 +1,7 @@
 /*
 osap/endpoint.cpp
 
-data element / osap software runtime api 
+network : software interface
 
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2021
@@ -13,44 +13,67 @@ no warranty is provided, and users accept all liability.
 */
 
 #include "endpoint.h"
+#include "osapUtils.h"
+#include "../../drivers/indicators.h"
+#include "../utils/syserror.h"
 
-Endpoint::Endpoint(boolean (*pfp)(uint8_t* data, uint16_t len)){
-    onNewData = pfp;
-}
+uint8_t ack[VT_SLOTSIZE];
 
-Endpoint::Endpoint(boolean (*pfp)(uint8_t* data, uint16_t len), boolean (*qfp)(void)){
-    onNewData = pfp;
-    onQuery = qfp;
-}
-
-void Endpoint::fill(uint8_t* pck, uint16_t ptr, pckm_t* pckm, uint16_t txVM, uint16_t txEP){
-    // copy the full packet to our local store, 
-    // TODO: should also align with 'write' ... 
-    // at the moment, they are disconnected and that's broken 
-    memcpy(pckStore, pck, pckm->len);
-    dataStart = ptr;
-    dataLen = pckm->checksum - 9;
-    // this is true now, 
-    dataNew = true; 
-    // copy all meta information in, 
-    pckmStore.vpa = pckm->vpa;
-    pckmStore.len = pckm->len;
-    pckmStore.at = pckm->at;
-    pckmStore.location = pckm->location;
-    pckmStore.rxAddr = pckm->rxAddr;
-    pckmStore.txAddr = pckm->txAddr;
-    pckmStore.segSize = pckm->segSize;
-    pckmStore.checksum = pckm->checksum;
-    // incl. this turnaround meta 
-    rxFromVM = txVM;
-    rxFromEP = txEP;
-}
-
-boolean Endpoint::consume(){
-    return onNewData(&(pckStore[dataStart]), dataLen);
-}
-
-void Endpoint::write(uint8_t* data, uint16_t len){
-    memcpy(dataStore, data, len);
-    dataStoreLen = len;
+// handle, return true to clear out. false to wait one turn 
+// item->data[ptr] == PK_DEST here 
+// item->data[ptr + 1, ptr + 2] = segsize !
+boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr){
+	ptr += 3;
+	switch(item->data[ptr]){
+		case EP_SS_ACKLESS:
+			if(vt->ep->onData(&(item->data[ptr + 1]), item->len - ptr - 1)){
+				// data accepted... copy in to local store & clear 
+				memcpy(vt->ep->data, &(item->data[ptr + 1]), item->len - ptr - 1);
+				vt->ep->dataLen = item->len - ptr - 1;
+				return true;
+			} else {
+				return false;
+			}
+			break;
+		case EP_SS_ACKED:
+			// check if we can ack it, then if we can accept it: 
+			if(stackEmptySlot(vt, VT_STACK_ORIGIN)){
+				if(vt->ep->onData(&(item->data[ptr + 2]), item->len - ptr - 2)){
+					// accepted, we can copy in 
+					memcpy(vt->ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
+					vt->ep->dataLen = item->len - ptr - 2;
+					// now generate are reply, 
+					uint16_t wptr = 0;
+					if(!reverseRoute(item->data, ptr - 4, ack, &wptr)) return true; // if we can't reverse it, bail 
+					// the ack, 
+					ack[wptr ++] = EP_SS_ACK;
+					ack[wptr ++] = item->data[ptr + 1];
+					stackLoadSlot(vt, VT_STACK_ORIGIN, ack, wptr);
+					return true;
+				} else {	// data not accepted at endpoint, wait 
+					return false;
+				}
+			} else { // no available ack space, await: 
+				return false; 
+			}
+			break;
+		case EP_QUERY:
+			// if can generate new message, 
+			if(stackEmptySlot(vt, VT_STACK_ORIGIN)){
+				vt->ep->beforeQuery();
+				uint16_t wptr = 0;
+				if(!reverseRoute(item->data, ptr - 4, ack, &wptr)) return true;
+				ack[wptr ++] = EP_QUERY_RESP;
+				ack[wptr ++] = item->data[ptr + 1];
+				memcpy(&(ack[wptr]), vt->ep->data, vt->ep->dataLen);
+				wptr += vt->ep->dataLen;
+				stackLoadSlot(vt, VT_STACK_ORIGIN, ack, wptr);
+			}
+		case EP_SS_ACK:
+		case EP_QUERY_RESP:
+		default:
+			// not yet handling embedded endpoints as data sources ... nor having embedded query function 
+			// not recognized, bail city, get it outta here,
+			return true;
+	}
 }
