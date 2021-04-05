@@ -40,19 +40,14 @@ volatile uint8_t currentDropTap = 0; // drop we are currently 'txing' to / drop 
 
 // word masks 
 #define HEADER_DROP_TAP(drop) (drop << 24)
-#define HEADER_CHA_TOKEN(count) (count >= 3) ? (3 << 30) : (count << 30)
+#define HEADER_TOKEN(count) (count >= 3) ? (3 << 30) : (count << 30)
+#define HEADER_CH(ch) ch ? (1 << 29) : 0
 #define FRAME_BYTE_FILL(pos, byte) ((uint32_t)byte << (pos * 8))
 
-const uint8_t headerMask =    0b00111111;
-const uint8_t dropIdMask =    0b00001111; 
-                              // 0b00|token|channel|4bit id
-const uint8_t tokenWordA =    0b00100000; // CHA, data byte present 
-const uint8_t noTokenWordA =  0b00000000; // CHA, data byte not present 
-const uint8_t tokenWordB =    0b00110000; // CHB, data byte present 
-const uint8_t noTokenWordB =  0b00010000; // CHB, data byte not present 
 volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
 
 // reciprocal recieve buffer spaces 
+#warning should be for 30 drops, right (?) 0 clkreset, 1:31 ids, 
 volatile uint8_t rcrxb[UBH_DROP_OPS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 volatile unsigned long lastrc[UBH_DROP_OPS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -154,7 +149,7 @@ void ucBusHead_timerISR(void){
   }
   // always do cha bytes first, 
   if(outBufferALen > 0){
-    DEBUG2PIN_TOGGLE;
+    DEBUG2PIN_HI;
     // tx from cha
     uint8_t numTx = outBufferALen - outBufferARp;
     if(numTx > 3) numTx = 3;
@@ -162,23 +157,20 @@ void ucBusHead_timerISR(void){
     for(uint8_t i = 0; i < numTx; i ++){
       outWord |= FRAME_BYTE_FILL(i, outBufferA[outBufferARp ++]);
     }
+    // fill header, 
+    outWord |= HEADER_TOKEN(numTx) | HEADER_CH(0);
     // check / increment posn w/r/t buffer
     if(numTx < 3){
-      // packet will terminate with this frame, 
-      outWord |= HEADER_CHA_TOKEN(numTx);
-      // terminated, so can reset these 
+      // packet will terminate with this frame, so can reset these:
       outBufferALen = 0;
       outBufferARp = 0;
-    } else {
-      // maybe mid-packet, write and increment 
-      outWord |= HEADER_CHA_TOKEN(3);
     }
   } else if (outBufferBLen > 0){
     // tx from chb
-    outWord = 0;
+    
   } else {
     // nothing to tx, 
-    outWord = 0;
+    DEBUG2PIN_LO;
   }
   // finally, do the action 
   UBH_SER_USART.DATA.reg = outWord;
