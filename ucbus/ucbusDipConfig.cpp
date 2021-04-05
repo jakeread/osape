@@ -27,7 +27,7 @@ void dip_setup(void){
     DIP_PORT.OUTCLR.reg = D_BM(D0_PIN) | D_BM(D1_PIN) | D_BM(D2_PIN) | D_BM(D3_PIN) | D_BM(D4_PIN) | D_BM(D5_PIN) | D_BM(D6_PIN) | D_BM(D7_PIN);
 }
 
-uint8_t dip_readLowerFour(void){
+uint8_t dip_readLowerFive(void){
     uint32_t bits[5] = {0,0,0,0,0};
     if(DIP_PORT.IN.reg & D_BM(D7_PIN)) { bits[0] = 1; }
     if(DIP_PORT.IN.reg & D_BM(D6_PIN)) { bits[1] = 1; }
@@ -41,6 +41,7 @@ uint8_t dip_readLowerFour(void){
     bits[3] = (DIP_PORT.IN.reg & D_BM(D4_PIN)) >> D4_PIN;
     bits[4] = (DIP_PORT.IN.reg & D_BM(D3_PIN)) >> D3_PIN;
     */
+    // not sure why I wrote this as uint32 (?) 
     uint32_t word = 0;
     word = word | (bits[4] << 4) | (bits[3] << 3) | (bits[2] << 2) | (bits[1] << 1) | (bits[0] << 0);
     return (uint8_t)word;

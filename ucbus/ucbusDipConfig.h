@@ -19,6 +19,6 @@
 #define D_BM(val) ((uint32_t)(1 << val))
 
 void dip_setup(void);
-uint8_t dip_readLowerFour(void);  // id, four bits, less the last two... 14 ids: 16 bit, 1 place clock reset, one token (iirc)
-boolean dip_readPin0(void); // bus-head (hi) or bus-drop (lo)
+uint8_t dip_readLowerFive(void);  // id, five bits, 0: clock reset, 1:31: drop ids, 
+boolean dip_readPin0(void); // bus-head (hi) or bus-drop (lo) (not used: firmware config drop or head) 
 boolean dip_readPin1(void); // if bus-drop, te-enable (hi) or no (lo)

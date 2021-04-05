@@ -17,9 +17,7 @@ is; no warranty is provided, and users accept all liability.
 #ifdef UCBUS_IS_DROP
 
 // input buffer & word 
-volatile uint8_t inWord[2];
-volatile uint8_t inHeader;
-volatile uint8_t inByte;
+volatile uint32_t inWord;
 
 volatile boolean lastWordAHadToken = false;
 uint8_t inBufferA[UBD_BUFSIZE];
@@ -35,16 +33,13 @@ volatile uint8_t inBufferBTail = 0;
 volatile uint16_t inBufferBWp = 0;
 
 // output, 
-volatile uint8_t outWord[2];
-volatile uint8_t outHeader;
-volatile uint8_t outByte;
+volatile uint32_t outWord;
 uint8_t outBuffer[UBD_BUFSIZE];
 volatile uint16_t outBufferRp = 0;
 volatile uint16_t outBufferLen = 0;
-const uint8_t headerMask = 0b00111111;
-const uint8_t dropIdMask = 0b00001111; 
-const uint8_t tokenWord = 0b00100000;
-const uint8_t noTokenWord = 0b00000000;
+
+#define TOKEN_COUNT(data) (uint8_t)(data >> 30)
+#define CH_COUNT(data) (data & 0b00100000000000000000000000000000) // lol 
 
 // available time count, 
 volatile uint16_t timeTick = 0;
@@ -62,8 +57,8 @@ void ucBusDrop_setup(boolean useDipPick, uint8_t ID) {
   dip_setup();
   if(useDipPick){
     // set our id, 
-    id = dip_readLowerFour(); // should read lower 4, now that cha / chb 
-    if(id > 14){ id = 14; };  // max 14 drops, logical addresses 0 - 14
+    id = dip_readLowerFive(); // should read lower 4, now that cha / chb 
+    if(id > 31){ id = 31; };  // max 14 drops, logical addresses 0 - 14
   } else {
     id = ID;
   }
@@ -118,16 +113,18 @@ void ucBusDrop_setup(boolean useDipPick, uint8_t ID) {
   UBD_SER_USART.CTRLA.bit.SWRST = 1;
   while(UBD_SER_USART.SYNCBUSY.bit.SWRST);
   while(UBD_SER_USART.SYNCBUSY.bit.SWRST || UBD_SER_USART.SYNCBUSY.bit.ENABLE);
-  // ok, well
+  // ctrla 
   UBD_SER_USART.CTRLA.reg = SERCOM_USART_CTRLA_MODE(1) | SERCOM_USART_CTRLA_DORD;
   UBD_SER_USART.CTRLA.reg |= SERCOM_USART_CTRLA_RXPO(UBD_RXPO) | SERCOM_USART_CTRLA_TXPO(0);
   UBD_SER_USART.CTRLA.reg |= SERCOM_USART_CTRLA_FORM(1); // enable even parity 
+  // ctrlb 
   while(UBD_SER_USART.SYNCBUSY.bit.CTRLB);
   UBD_SER_USART.CTRLB.reg = SERCOM_USART_CTRLB_RXEN | SERCOM_USART_CTRLB_TXEN | SERCOM_USART_CTRLB_CHSIZE(0);
+  // ctrlc for 32bit 
+  UBD_SER_USART.CTRLC.reg |= SERCOM_USART_CTRLC_DATA32B(3);
 	// enable interrupts 
 	NVIC_EnableIRQ(SERCOM1_2_IRQn); // rx, 
-  NVIC_EnableIRQ(SERCOM1_1_IRQn); // txc ?
-  NVIC_EnableIRQ(SERCOM1_0_IRQn); // tx, 
+  NVIC_EnableIRQ(SERCOM1_1_IRQn); // tx complete 
 	// set baud 
   UBD_SER_USART.BAUD.reg = UBD_BAUD_VAL;
   // and finally, a kickoff
@@ -135,6 +132,8 @@ void ucBusDrop_setup(boolean useDipPick, uint8_t ID) {
   UBD_SER_USART.CTRLA.bit.ENABLE = 1;
   // enable rx interrupt 
   UBD_SER_USART.INTENSET.bit.RXC = 1;
+  // to enable tx complete, 
+  UBD_SER_USART.INTENSET.reg = SERCOM_USART_INTENSET_TXC; // now watch transmit complete
 }
 
 void SERCOM1_2_Handler(void){
@@ -143,7 +142,6 @@ void SERCOM1_2_Handler(void){
 }
 
 void ucBusDrop_rxISR(void){
-  //DEBUG2PIN_ON;
   // check parity bit,
   uint16_t perr = UBD_SER_USART.STATUS.bit.PERR;
   if(perr){
@@ -154,124 +152,172 @@ void ucBusDrop_rxISR(void){
   } 
 	// cleared by reading out, but we are blind feed forward atm 
   // get the data 
-  uint8_t data = UBD_SER_USART.DATA.reg;
-  // for now, just running the clk on every word 
-  if((data >> 7) == 0){ // timer bit, on every 0th bit, and beginning of word 
-    inWord[0] = data;
-    timeTick ++;
-    timeBlink ++;
-    if(timeBlink >= blinkTime){
-      CLKLIGHT_TOGGLE;
-      timeBlink = 0;
+  uint32_t data = UBD_SER_USART.DATA.reg;
+  // every tick, 
+  timeTick ++;
+  timeBlink ++;
+  if(timeBlink >= blinkTime){
+    CLKLIGHT_TOGGLE; 
+    timeBlink = 0;
+  }
+
+  // switch on header, 
+  uint8_t numRx = TOKEN_COUNT(data);
+  boolean chb = CH_COUNT(data);
+
+  if(numRx > 0){
+    DEBUG1PIN_ON;
+  } else {
+    DEBUG1PIN_OFF;
+  }
+
+  here 
+  // the issue w/ this current approach is that the sercom usart / 32bit extension
+  // just links up four x 8-bit words: the recipient has no way to delineate *individual frames* 
+
+  if(!chb){
+    // handle cha incoming
+    // if we have previous data (len > 0) but are rx'ing bytes on cha, reset that pck, 
+    if(numRx > 0 && inBufferALen != 0){
+      inBufferALen = 0;
+      inBufferAWp = 0;
     }
-    ucBusDrop_onRxISR(); // on start of each word 
-  } else { // end of word on every 0th bit 
-    inWord[1] = data;
-    // now decouple, 
-    inHeader = ((inWord[0] >> 1) & 0b00111000) | ((inWord[1] >> 4) & 0b00000111);
-    inByte = ((inWord[0] << 4) & 0b11110000) | (inWord[1] & 0b00001111);
-    // now check incoming data, 
-    // could speed this up to not re-evaluate (inHeader & 0b00110000) every time 
-    if((inHeader & 0b00110000) == 0b00100000){ // --------------------------------------- has-token, CHA
+    // for each token present, load bytes:
+    for(uint8_t i = 0; i < numRx; i ++){
+      inBufferA[inBufferAWp ++] = (data >> (i * 8));
+    }
+    // find eop, 
+    if(numRx == 3){
+      // definitely not eop, 
       lastWordAHadToken = true;
-      if(inBufferALen != 0){ // in this case, we didn't read-out of the buffer in time, 
-        inBufferALen = 0;    // so we reset it, missing the last packet !
-        inBufferAWp = 0;
-      }
-      inBufferA[inBufferAWp] = inByte;
-      inBufferAWp ++;
-    } else if ((inHeader & 0b00110000) == 0b00000000) { // ------------------------------ no-token, CHA
-      if(lastWordAHadToken){
-        inBufferALen = inBufferAWp;
-        ucBusDrop_onPacketARx(inBufferA, inBufferALen);
-      }
+    } else if ((numRx == 0 && lastWordAHadToken) || (numRx > 0)){
+      // packet delineation w/ token edge, 
+      inBufferALen = inBufferAWp;
       lastWordAHadToken = false;
-    } else if ((inHeader & 0b00110000) == 0b00110000) { // ------------------------------ has-token, CHB 
-      //DEBUG1PIN_ON;
-      lastWordBHadToken = true;
-      if(inBufferBLen[inBufferBHead] != 0){
-        // missed one, bad 
-        inBufferBLen[inBufferBHead] = 0;
-      }
-      inBufferB[inBufferBHead][inBufferBWp] = inByte;
-      inBufferBWp ++;
-    } else if ((inHeader & 0b00110000) == 0b00010000) { // ------------------------------ no-token, CHB
-      if(lastWordBHadToken){ // falling edge, packet delineation 
-        inBufferBLen[inBufferBHead] = inBufferBWp;
-        if(inBufferB[inBufferBHead][0] == id){ //check if pck is for us and update reciprocal buffer len 
-          // otherwise, if head is flushing next b-ch packet out following, we start overwriting 
-          // and hit the 'missed case' above... 
-          rcrxb = inBufferB[inBufferBHead][1];
-          lastrc = millis(); 
-          inBArrival[inBufferBHead] = lastrc;
-          // now write into next head 
-          inBufferBHead ++;
-          if(inBufferBHead >= UBD_NUM_B_BUFFERS){
-            inBufferBHead = 0;
-          }
-          // and reset write pointer, 
-          inBufferBWp = 0;
-        } else {  // packet is not ours, ignore, ready for next read, don't inc head 
-          inBufferBWp = 0;
-          inBufferBLen[inBufferBHead] = 0;
-        }
-      }
-      lastWordBHadToken = false;
+      ucBusDrop_onPacketARx(inBufferA, inBufferALen);
+    } else {
+      // 0 bytes in frame, and none previous, noop 
     }
-    // now check if outgoing tick is ours, 
-    // possible bugfarm: if we (potentially) fire the onPacketARx() handler up there, 
-    // and then return here to also do all of this work, we might have a l e n g t h y interrupt 
-    if((inHeader & dropIdMask) == id){
-      // this drop is currently 'tapped' - if it's token less, the data byte was rcrxb for us 
-      if(!(inHeader & 0b00100000)){
-        rcrxb = inByte;
-        lastrc = millis();
-      }
-      // our transmit 
-      if(outBufferLen > 0){
-        // ongoing / starting transmit of bytes from our outbuffer onto the line, 
-        outByte = outBuffer[outBufferRp];
-        outHeader = headerMask & (tokenWord | (id & 0b00011111));
-      } else {
-        // whenever free space on the line, transmit whether out recieve buffer has space available 
-        if(ucBusDrop_isRTR()){
-          outByte = 1;  // have clear space available, communicate that to partner 
-        } else {
-          outByte = 0;  // currently receiving or have packet awaiting handling 
-        }
-        outHeader = headerMask & (noTokenWord | (id & 0b00011111));
-      }
-      outWord[0] = 0b00000000 | ((outHeader << 1) & 0b01110000) | (outByte >> 4);
-      outWord[1] = 0b10000000 | ((outHeader << 4) & 0b01110000) | (outByte & 0b00001111);
-      // now transmit, 
-      UBD_DRIVER_ENABLE;
-      UBD_SER_USART.DATA.reg = outWord[0];
-      UBD_SER_USART.INTENSET.bit.DRE = 1;
-      // now do this, 
-      if(outBufferLen > 0){
-        outBufferRp ++;
-        if(outBufferRp >= outBufferLen){
-          outBufferRp = 0;
-          outBufferLen = 0;
-        }
-      }
-    } else if ((inHeader & dropIdMask) == UBD_CLOCKRESET){
-      // reset 
-      timeTick = 0;
-    }
-  } // end 1th bit case, 
+  } else {
+    // handle chb incoming
+  }
+
+  // ... 
+  // ...
+  // to transmit out, 
+  //outWord = 0;
+  //UBD_DRIVER_ENABLE;
+  //UBD_SER_USART.DATA.reg = outWord;
+  // now that we have next byte on the line, can execute this generalized application code:
+  ucBusDrop_onRxISR();
+
+  // // for now, just running the clk on every word 
+  // if((data >> 7) == 0){ // timer bit, on every 0th bit, and beginning of word 
+  //   inWord[0] = data;
+  //   timeTick ++;
+  //   timeBlink ++;
+  //   if(timeBlink >= blinkTime){
+  //     CLKLIGHT_TOGGLE;
+  //     timeBlink = 0;
+  //   }
+  //   ucBusDrop_onRxISR(); // on start of each word 
+  // } else { // end of word on every 0th bit 
+  //   inWord[1] = data;
+  //   // now decouple, 
+  //   inHeader = ((inWord[0] >> 1) & 0b00111000) | ((inWord[1] >> 4) & 0b00000111);
+  //   inByte = ((inWord[0] << 4) & 0b11110000) | (inWord[1] & 0b00001111);
+  //   // now check incoming data, 
+  //   // could speed this up to not re-evaluate (inHeader & 0b00110000) every time 
+  //   if((inHeader & 0b00110000) == 0b00100000){ // --------------------------------------- has-token, CHA
+  //     lastWordAHadToken = true;
+  //     if(inBufferALen != 0){ // in this case, we didn't read-out of the buffer in time, 
+  //       inBufferALen = 0;    // so we reset it, missing the last packet !
+  //       inBufferAWp = 0;
+  //     }
+  //     inBufferA[inBufferAWp] = inByte;
+  //     inBufferAWp ++;
+  //   } else if ((inHeader & 0b00110000) == 0b00000000) { // ------------------------------ no-token, CHA
+  //     if(lastWordAHadToken){
+  //       inBufferALen = inBufferAWp;
+  //       ucBusDrop_onPacketARx(inBufferA, inBufferALen);
+  //     }
+  //     lastWordAHadToken = false;
+  //   } else if ((inHeader & 0b00110000) == 0b00110000) { // ------------------------------ has-token, CHB 
+  //     //DEBUG1PIN_ON;
+  //     lastWordBHadToken = true;
+  //     if(inBufferBLen[inBufferBHead] != 0){
+  //       // missed one, bad 
+  //       inBufferBLen[inBufferBHead] = 0;
+  //     }
+  //     inBufferB[inBufferBHead][inBufferBWp] = inByte;
+  //     inBufferBWp ++;
+  //   } else if ((inHeader & 0b00110000) == 0b00010000) { // ------------------------------ no-token, CHB
+  //     if(lastWordBHadToken){ // falling edge, packet delineation 
+  //       inBufferBLen[inBufferBHead] = inBufferBWp;
+  //       if(inBufferB[inBufferBHead][0] == id){ //check if pck is for us and update reciprocal buffer len 
+  //         // otherwise, if head is flushing next b-ch packet out following, we start overwriting 
+  //         // and hit the 'missed case' above... 
+  //         rcrxb = inBufferB[inBufferBHead][1];
+  //         lastrc = millis(); 
+  //         inBArrival[inBufferBHead] = lastrc;
+  //         // now write into next head 
+  //         inBufferBHead ++;
+  //         if(inBufferBHead >= UBD_NUM_B_BUFFERS){
+  //           inBufferBHead = 0;
+  //         }
+  //         // and reset write pointer, 
+  //         inBufferBWp = 0;
+  //       } else {  // packet is not ours, ignore, ready for next read, don't inc head 
+  //         inBufferBWp = 0;
+  //         inBufferBLen[inBufferBHead] = 0;
+  //       }
+  //     }
+  //     lastWordBHadToken = false;
+  //   }
+  //   // now check if outgoing tick is ours, 
+  //   // possible bugfarm: if we (potentially) fire the onPacketARx() handler up there, 
+  //   // and then return here to also do all of this work, we might have a l e n g t h y interrupt 
+  //   if((inHeader & dropIdMask) == id){
+  //     // this drop is currently 'tapped' - if it's token less, the data byte was rcrxb for us 
+  //     if(!(inHeader & 0b00100000)){
+  //       rcrxb = inByte;
+  //       lastrc = millis();
+  //     }
+  //     // our transmit 
+  //     if(outBufferLen > 0){
+  //       // ongoing / starting transmit of bytes from our outbuffer onto the line, 
+  //       outByte = outBuffer[outBufferRp];
+  //       outHeader = headerMask & (tokenWord | (id & 0b00011111));
+  //     } else {
+  //       // whenever free space on the line, transmit whether out recieve buffer has space available 
+  //       if(ucBusDrop_isRTR()){
+  //         outByte = 1;  // have clear space available, communicate that to partner 
+  //       } else {
+  //         outByte = 0;  // currently receiving or have packet awaiting handling 
+  //       }
+  //       outHeader = headerMask & (noTokenWord | (id & 0b00011111));
+  //     }
+  //     outWord[0] = 0b00000000 | ((outHeader << 1) & 0b01110000) | (outByte >> 4);
+  //     outWord[1] = 0b10000000 | ((outHeader << 4) & 0b01110000) | (outByte & 0b00001111);
+  //     // now transmit, 
+  //     UBD_DRIVER_ENABLE;
+  //     UBD_SER_USART.DATA.reg = outWord[0];
+  //     UBD_SER_USART.INTENSET.bit.DRE = 1;
+  //     // now do this, 
+  //     if(outBufferLen > 0){
+  //       outBufferRp ++;
+  //       if(outBufferRp >= outBufferLen){
+  //         outBufferRp = 0;
+  //         outBufferLen = 0;
+  //       }
+  //     }
+  //   } else if ((inHeader & dropIdMask) == UBD_CLOCKRESET){
+  //     // reset 
+  //     timeTick = 0;
+  //   }
+  // } // end 1th bit case, 
   //DEBUG2PIN_OFF;
 } // end rx-isr 
-
-void SERCOM1_0_Handler(void){
-	ucBusDrop_dreISR();
-}
-
-void ucBusDrop_dreISR(void){
-  UBD_SER_USART.DATA.reg = outWord[1]; // tx the next word,
-  UBD_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_DRE; // clear this interrupt
-  UBD_SER_USART.INTENSET.reg = SERCOM_USART_INTENSET_TXC; // now watch transmit complete
-}
 
 void SERCOM1_1_Handler(void){
   ucBusDrop_txcISR();
@@ -279,8 +325,8 @@ void SERCOM1_1_Handler(void){
 
 void ucBusDrop_txcISR(void){
   UBD_SER_USART.INTFLAG.bit.TXC = 1; // clear the flag by writing 1 
-  UBD_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_TXC; // turn off the interrupt 
-  UBD_DRIVER_DISABLE; // turn off the driver, 
+  //UBD_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_TXC; // turn off the interrupt 
+  UBD_DRIVER_DISABLE; // turn off the driver to not-compete with other drops, 
 }
 
 // check buffer state: is it OK for us to rx new pcks from head? 
