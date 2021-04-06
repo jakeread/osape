@@ -16,9 +16,7 @@ is; no warranty is provided, and users accept all liability.
 
 #ifdef UCBUS_IS_DROP
 
-// input buffer & word 
-volatile uint32_t inWord;
-
+// input buffer
 volatile boolean lastWordAHadToken = false;
 uint8_t inBufferA[UBD_BUFSIZE];
 volatile uint16_t inBufferAWp = 0;
@@ -40,6 +38,16 @@ volatile uint16_t outBufferLen = 0;
 
 #define TOKEN_COUNT(data) (uint8_t)(data >> 30)
 #define CH_COUNT(data) (data & 0b00100000000000000000000000000000) // lol 
+
+// mask data w/ unf-bits, check if markers in place: 
+#define FRAME_VALID(data) ((data & 0b11000000110000001100000011000000) == (0b00000000010000001000000011000000))
+// read frame, 
+#define RF_HEADER(data) (((uint8_t)(data >> 22) & 0b11111100) | ((uint8_t)(data >> 18) & 0b00000011))
+#define RF_WORD0(data)
+#define RF_WORD1(data) 
+
+// read header, 
+#define HEADER_NUMRX(header) ((header >> 6) & 0b00000011)
 
 // available time count, 
 volatile uint16_t timeTick = 0;
@@ -158,48 +166,32 @@ void ucBusDrop_rxISR(void){
   timeBlink ++;
   if(timeBlink >= blinkTime){
     CLKLIGHT_TOGGLE; 
+    ERRLIGHT_OFF;
     timeBlink = 0;
   }
 
-  // switch on header, 
-  uint8_t numRx = TOKEN_COUNT(data);
-  boolean chb = CH_COUNT(data);
+  // we can have this case where the frame is not properly aligned, check / correct by resetting 
+  // and hopefully eventually catch the edge properly... 
+  // this should only happen once, on startup... 
+  if(!FRAME_VALID(data)){
+    // reset 
+    ERRLIGHT_ON;
+    while(UBD_SER_USART.SYNCBUSY.bit.ENABLE);
+    UBD_SER_USART.CTRLA.bit.ENABLE = 0;
+    while(UBD_SER_USART.SYNCBUSY.bit.ENABLE);
+    UBD_SER_USART.CTRLA.bit.ENABLE = 1;
+    return;
+  } 
 
-  if(numRx > 0){
+  // reclaim header & data bytes, 
+  uint8_t inHeader = RF_HEADER(data);
+  //uint8_t inWord[2] = {RF_WORD0(data), RF_WORD1(data)};
+
+  uint8_t numToken = HEADER_NUMRX(inHeader);
+  if(numToken > 0){
     DEBUG1PIN_ON;
   } else {
     DEBUG1PIN_OFF;
-  }
-
-  here 
-  // the issue w/ this current approach is that the sercom usart / 32bit extension
-  // just links up four x 8-bit words: the recipient has no way to delineate *individual frames* 
-
-  if(!chb){
-    // handle cha incoming
-    // if we have previous data (len > 0) but are rx'ing bytes on cha, reset that pck, 
-    if(numRx > 0 && inBufferALen != 0){
-      inBufferALen = 0;
-      inBufferAWp = 0;
-    }
-    // for each token present, load bytes:
-    for(uint8_t i = 0; i < numRx; i ++){
-      inBufferA[inBufferAWp ++] = (data >> (i * 8));
-    }
-    // find eop, 
-    if(numRx == 3){
-      // definitely not eop, 
-      lastWordAHadToken = true;
-    } else if ((numRx == 0 && lastWordAHadToken) || (numRx > 0)){
-      // packet delineation w/ token edge, 
-      inBufferALen = inBufferAWp;
-      lastWordAHadToken = false;
-      ucBusDrop_onPacketARx(inBufferA, inBufferALen);
-    } else {
-      // 0 bytes in frame, and none previous, noop 
-    }
-  } else {
-    // handle chb incoming
   }
 
   // ... 
