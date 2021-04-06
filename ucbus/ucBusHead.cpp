@@ -35,14 +35,20 @@ volatile uint16_t outBufferBRp = 0;
 volatile uint16_t outBufferBLen = 0;
 
 // doublet outgoing word / state 
-volatile uint32_t outWord = 0;
+volatile uint32_t outFrame = 0;
+volatile uint8_t outHeader = 0; 
+volatile uint8_t outWord[2] = {0,0};
 volatile uint8_t currentDropTap = 0; // drop we are currently 'txing' to / drop that will reply on this cycle
 
-// word masks 
-#define HEADER_DROP_TAP(drop) (drop << 24)
-#define HEADER_TOKEN(count) (count >= 3) ? (3 << 30) : (count << 30)
-#define HEADER_CH(ch) ch ? (1 << 29) : 0
-#define FRAME_BYTE_FILL(pos, byte) ((uint32_t)byte << (pos * 8))
+#define HEADER_DROP(drop) (drop & 0b00011111)
+#define HEADER_CH(ch) ((ch << 5) & 0b00100000)
+#define HEADER_NUMTX(ntx) ((numTx << 6) & 0b11000000)
+//#define FRAME_TRACKING (0b00000000010000001000000011000000)
+// write frames, 
+#define WF_0(header) (uint32_t)(0b00000000 | ((header >> 2) & 0b00111111))
+#define WF_1(header, word0) (uint32_t)(0b01000000 | ((header << 4) & 0b00110000) | ((word0 >> 4) & 0b00001111))
+#define WF_2(word0, word1) (uint32_t)(0b10000000 | ((word0 << 2) & 0b00111100) | ((word1 >> 6) & 0b00000011))
+#define WF_3(word1) (uint32_t)(0b11000000 | (word1 & 0b00111111))
 
 volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
 
@@ -141,7 +147,7 @@ void ucBusHead_timerISR(void){
   DEBUG3PIN_HI;
   // first: on each transmit, we 'tap' some drop, it's their turn to reply: 
   // also init the outgoing word with this call, 
-  outWord = 0 | HEADER_DROP_TAP(currentDropTap);
+  outHeader = HEADER_DROP(currentDropTap);
   // increment that, 
   currentDropTap ++;
   if(currentDropTap > 31){
@@ -150,17 +156,18 @@ void ucBusHead_timerISR(void){
   // always do cha bytes first, 
   if(outBufferALen > 0){
     DEBUG2PIN_HI;
-    // tx from cha
+    // find / fill words: 
     uint8_t numTx = outBufferALen - outBufferARp;
-    if(numTx > 3) numTx = 3;
+    if(numTx > 2) numTx = 2;
+    // write header, 
+    // tx is from cha, 
+    outHeader |= HEADER_CH(0) | HEADER_NUMTX(numTx);
     //fill bytes accordingly, 
     for(uint8_t i = 0; i < numTx; i ++){
-      outWord |= FRAME_BYTE_FILL(i, outBufferA[outBufferARp ++]);
+      outWord[i] = outBufferA[outBufferARp ++];
     }
-    // fill header, 
-    outWord |= HEADER_TOKEN(numTx) | HEADER_CH(0);
     // check / increment posn w/r/t buffer
-    if(numTx < 3){
+    if(numTx < 2){
       // packet will terminate with this frame, so can reset these:
       outBufferALen = 0;
       outBufferARp = 0;
@@ -173,7 +180,8 @@ void ucBusHead_timerISR(void){
     DEBUG2PIN_LO;
   }
   // finally, do the action 
-  UBH_SER_USART.DATA.reg = outWord;
+  outFrame = (WF_0(outHeader) << 24) | (WF_1(outHeader, outWord[0])) << 16 | WF_2(outWord[0], outWord[1]) << 8 | WF_3(outWord[1]);//(outHeader, outWord[0], outWord[1]);
+  UBH_SER_USART.DATA.reg = outFrame;
   DEBUG3PIN_LO;
   // // debug zero
   // if(currentDropTap == 0){
