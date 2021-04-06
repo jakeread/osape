@@ -194,36 +194,34 @@ void ucBusDrop_rxISR(void){
 
   if(!ch){ // --------------------------------------------- CHA RX 
     // channel a rx, 
-    if(numToken > 0){
-      // reset on edge of new packet, 
-      if(inBufferALen != 0){
-        DEBUG1PIN_ON;
-        inBufferALen = 0;
-        inBufferAWp = 0;
-      }
-      // write in 
-      // write into buffer, 
-      for(uint8_t i = 0; i < numToken; i ++){
-        inBufferA[inBufferAWp ++] = inWord[i];
-      }
-      // if != 2, token edge inside frame 
-      if(numToken == 1){
-        lastWordAHadToken = false;
-        inBufferALen = inBufferAWp;
-        ucBusDrop_onPacketARx(inBufferA, inBufferALen);
-        DEBUG1PIN_OFF;
-      } else {
-        lastWordAHadToken = true;
-      }
-    } else {
-      // no token, cha, could be delineation 
-      if(lastWordAHadToken){
-        lastWordAHadToken = false;
-        inBufferALen = inBufferAWp;
-        ucBusDrop_onPacketARx(inBufferA, inBufferALen);
-        DEBUG1PIN_OFF;
-      }
+    if(numToken > 0 && inBufferALen != 0){
+      // packet edge, reset
+      DEBUG1PIN_ON;
+      inBufferALen = 0;
+      inBufferAWp = 0;
     }
+    // write in 
+    for(uint8_t i = 0; i < numToken; i ++){
+      inBufferA[inBufferAWp ++] = inWord[i];
+    }
+    // switch on # tokens
+    switch(numToken){
+      case 2:
+        // noop
+        break;
+      case 1:
+        lastWordAHadToken = true;
+        // the next is meant to switch through: 
+      case 0:
+        if(lastWordAHadToken){
+          lastWordAHadToken = false;
+          inBufferALen = inBufferAWp;
+          ucBusDrop_onPacketARx(inBufferA, inBufferALen);
+          DEBUG1PIN_OFF;
+        } else {
+          // noop, out of frame... 
+        }
+    } // end switch 
   } else { // --------------------------------------------- CHB RX 
     // channel b rx, 
   }
