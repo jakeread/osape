@@ -43,11 +43,12 @@ volatile uint16_t outBufferLen = 0;
 #define FRAME_VALID(data) ((data & 0b11000000110000001100000011000000) == (0b00000000010000001000000011000000))
 // read frame, 
 #define RF_HEADER(data) (((uint8_t)(data >> 22) & 0b11111100) | ((uint8_t)(data >> 18) & 0b00000011))
-#define RF_WORD0(data)
-#define RF_WORD1(data) 
+#define RF_WORD0(data) (((uint8_t)(data >> 12) & 0b11110000) | ((uint8_t)(data >> 10) & 0b00001111))
+#define RF_WORD1(data) (((uint8_t)(data >> 2) & 0b11000000) | ((uint8_t)(data) & 0b00111111))
 
 // read header, 
 #define HEADER_NUMRX(header) ((header >> 6) & 0b00000011)
+#define HEADER_CHRX(header) (header & 0b00100000)
 
 // available time count, 
 volatile uint16_t timeTick = 0;
@@ -185,13 +186,46 @@ void ucBusDrop_rxISR(void){
 
   // reclaim header & data bytes, 
   uint8_t inHeader = RF_HEADER(data);
-  //uint8_t inWord[2] = {RF_WORD0(data), RF_WORD1(data)};
+  uint8_t inWord[2] = {RF_WORD0(data), RF_WORD1(data)};
 
+  // count number of rx'd in & ch, 
   uint8_t numToken = HEADER_NUMRX(inHeader);
-  if(numToken > 0){
-    DEBUG1PIN_ON;
-  } else {
-    DEBUG1PIN_OFF;
+  boolean ch = HEADER_CHRX(inHeader);
+
+  if(!ch){ // --------------------------------------------- CHA RX 
+    // channel a rx, 
+    if(numToken > 0){
+      // reset on edge of new packet, 
+      if(inBufferALen != 0){
+        DEBUG1PIN_ON;
+        inBufferALen = 0;
+        inBufferAWp = 0;
+      }
+      // write in 
+      // write into buffer, 
+      for(uint8_t i = 0; i < numToken; i ++){
+        inBufferA[inBufferAWp ++] = inWord[i];
+      }
+      // if != 2, token edge inside frame 
+      if(numToken == 1){
+        lastWordAHadToken = false;
+        inBufferALen = inBufferAWp;
+        ucBusDrop_onPacketARx(inBufferA, inBufferALen);
+        DEBUG1PIN_OFF;
+      } else {
+        lastWordAHadToken = true;
+      }
+    } else {
+      // no token, cha, could be delineation 
+      if(lastWordAHadToken){
+        lastWordAHadToken = false;
+        inBufferALen = inBufferAWp;
+        ucBusDrop_onPacketARx(inBufferA, inBufferALen);
+        DEBUG1PIN_OFF;
+      }
+    }
+  } else { // --------------------------------------------- CHB RX 
+    // channel b rx, 
   }
 
   // ... 
