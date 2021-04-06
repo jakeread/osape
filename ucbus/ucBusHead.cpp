@@ -160,15 +160,14 @@ void ucBusHead_timerISR(void){
     uint8_t numTx = outBufferALen - outBufferARp;
     if(numTx > 2) numTx = 2;
     // write header, 
-    // tx is from cha, 
-    outHeader |= HEADER_CH(0) | HEADER_NUMTX(numTx);
+    // tx is from cha, and has this count... 
+    outHeader |= HEADER_NUMTX(numTx) | HEADER_CH(0);
     //fill bytes accordingly, 
     for(uint8_t i = 0; i < numTx; i ++){
       outWord[i] = outBufferA[outBufferARp ++];
     }
-    // check / increment posn w/r/t buffer
+    // check / increment posn w/r/t buffer: if numTx < 2, packet will terminate this frame, can reset 
     if(numTx < 2){
-      // packet will terminate with this frame, so can reset these:
       outBufferALen = 0;
       outBufferARp = 0;
     }
