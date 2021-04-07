@@ -74,7 +74,7 @@ void ucBusDrop_setup(boolean useDipPick, uint8_t ID) {
     id = dip_readLowerFive(); // should read lower 4, now that cha / chb 
   } else {
     id = ID;
-  }  
+  }
   if(id > 31){ id = 31; }   // max 31 drops, logical addresses 1 - 31
   if(id == 0){ id = 1; }    // 0 'tap' is the clk reset, bump up... maybe cause confusion: instead could flash err light 
 
@@ -327,7 +327,7 @@ boolean ucBusDrop_isRTR(void){
 // -------------------------------------------------------- ASYNC API
 
 boolean ucBusDrop_ctrB(void){
-  if(inBufferBHead == inBufferBTail){
+  if(inBufferBHead == inBufferBTail){ // head == tail when the thing is empty 
     return false;
   } else {
     return true;
@@ -352,7 +352,8 @@ size_t ucBusDrop_readB(uint8_t *dest){
 }
 
 boolean ucBusDrop_ctsB(void){
-  if(outBufferLen == 0 && rcrxb > 0){
+  #warning here deleted flowcontrol 
+  if(outBufferLen == 0){//} && rcrxb > 0){
     return true;
   } else {
     return false;

@@ -43,6 +43,8 @@ void vt_ucBusDrop_loop(void){
     if(stackEmptySlot(&_vt_ucBusDrop, VT_STACK_ORIGIN)){
       // copy in to origin stack 
       uint16_t len = ucBusDrop_readB(_tempBuffer);
+      if(len == 13 && _tempBuffer[0] == 2) PA13_TOGGLE;
+      ucBusDrop_transmitB(_tempBuffer, len);
       stackLoadSlot(&_vt_ucBusDrop, VT_STACK_ORIGIN, _tempBuffer, len);
     } else {
       // no empty space, will wait in bus 
