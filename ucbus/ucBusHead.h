@@ -62,8 +62,8 @@ is; no warranty is provided, and users accept all liability.
 #define UBH_BUFSIZE 1024
 
 // # of drops to look for 
-// count 15: 2^4 bits, with one case reserved for the clock reset 
-#define UBH_DROP_OPS 14
+// count 31: 2^5 bits, with one case reserved for the clock reset (id 0)
+#define UBH_DROP_OPS 31
 
 // setup, 
 void ucBusHead_setup(void);

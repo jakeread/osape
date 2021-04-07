@@ -40,15 +40,21 @@ volatile uint8_t outHeader = 0;
 volatile uint8_t outWord[2] = {0,0};
 volatile uint8_t currentDropTap = 0; // drop we are currently 'txing' to / drop that will reply on this cycle
 
-#define HEADER_DROP(drop) (drop & 0b00011111)
-#define HEADER_CH(ch) ((ch << 5) & 0b00100000)
-#define HEADER_NUMTX(ntx) ((numTx << 6) & 0b11000000)
+// TX'ing things:
+#define HEADER_TX_DROP(drop) (drop & 0b00011111)
+#define HEADER_TX_CH(ch) ((ch << 5) & 0b00100000)
+#define HEADER_TX_TOKEN(ntx) ((numTx << 6) & 0b11000000)
 //#define FRAME_TRACKING (0b00000000010000001000000011000000)
 // write frames, 
 #define WF_0(header) (uint32_t)(0b00000000 | ((header >> 2) & 0b00111111))
 #define WF_1(header, word0) (uint32_t)(0b01000000 | ((header << 4) & 0b00110000) | ((word0 >> 4) & 0b00001111))
 #define WF_2(word0, word1) (uint32_t)(0b10000000 | ((word0 << 2) & 0b00111100) | ((word1 >> 6) & 0b00000011))
 #define WF_3(word1) (uint32_t)(0b11000000 | (word1 & 0b00111111))
+
+// RX'ing things 
+#define HEADER_RX_DROP(data) ((uint8_t)(data >> 24) & 0b00011111)
+#define HEADER_RX_TOKEN(data) ((uint8_t)(data >> 29) & 0b00000011)
+#define RF(data, i) ((uint8_t)(data >> 8 * i))
 
 volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
 
@@ -147,21 +153,21 @@ void ucBusHead_timerISR(void){
   DEBUG3PIN_HI;
   // first: on each transmit, we 'tap' some drop, it's their turn to reply: 
   // also init the outgoing word with this call, 
-  outHeader = HEADER_DROP(currentDropTap);
+  outHeader = HEADER_TX_DROP(currentDropTap);
   // increment that, 
   currentDropTap ++;
   if(currentDropTap > 31){
     currentDropTap = 0;
   }
-  // always do cha bytes first, 
+
+  // ------------------------------------------------------ TX CHA
   if(outBufferALen > 0){
     DEBUG2PIN_HI;
     // find / fill words: 
     uint8_t numTx = outBufferALen - outBufferARp;
     if(numTx > 2) numTx = 2;
-    // write header, 
-    // tx is from cha, and has this count... 
-    outHeader |= HEADER_NUMTX(numTx) | HEADER_CH(0);
+    // write header, tx is from cha, and has this count... 
+    outHeader |= HEADER_TX_TOKEN(numTx) | HEADER_TX_CH(0);
     //fill bytes accordingly, 
     for(uint8_t i = 0; i < numTx; i ++){
       outWord[i] = outBufferA[outBufferARp ++];
@@ -171,86 +177,43 @@ void ucBusHead_timerISR(void){
       outBufferALen = 0;
       outBufferARp = 0;
     }
-  } else if (outBufferBLen > 0){
+  } else if (outBufferBLen > 0){  // ---------------------- TX CHB 
     // tx from chb
-    
+    // find / fill words 
+    uint8_t numTx = outBufferBLen - outBufferBRp;
+    if(numTx > 2) numTx = 2;
+    // write header: tx from chb, has this count 
+    outHeader |= HEADER_TX_TOKEN(numTx) | HEADER_TX_CH(1);
+    // fill bytes, 
+    for(uint8_t i = 0; i < numTx; i ++){
+      outWord[i] = outBufferB[outBufferBRp];
+    }
+    // check / increment posn w/r/t buffer, if numTx < 2, packet terminates this frame 
+    if(numTx < 2){
+      outBufferBLen = 0;
+      outBufferBRp = 0;
+    }
   } else {
-    // nothing to tx, 
+    // nothing to tx, do rcrxb to that drop (?) 
+    if(inBufferLen[currentDropTap] == 0 && inBufferWp[currentDropTap] == 0){
+      outWord[0] = 1;
+    } else {
+      outWord[0] = 0;
+    }
+    // alternate spare closures on cha / chb 
+    if(lastSpareEOP == 0){
+      outHeader |= HEADER_TX_CH(1);
+      lastSpareEOP = 1;
+    } else {
+      outHeader |= HEADER_TX_CH(0);
+      lastSpareEOP = 0;
+    }
     DEBUG2PIN_LO;
   }
   // finally, do the action 
-  outFrame = (WF_0(outHeader) << 24) | (WF_1(outHeader, outWord[0])) << 16 | WF_2(outWord[0], outWord[1]) << 8 | WF_3(outWord[1]);//(outHeader, outWord[0], outWord[1]);
+  outFrame = (WF_0(outHeader) << 24) | (WF_1(outHeader, outWord[0])) << 16 | WF_2(outWord[0], outWord[1]) << 8 | WF_3(outWord[1]);
   UBH_SER_USART.DATA.reg = outFrame;
   DEBUG3PIN_LO;
-  // // debug zero
-  // if(currentDropTap == 0){
-  //   //DEBUG1PIN_TOGGLE;
-  // }
-  // // so, would formulate the out bytes,
-  // // in either case we formulate the outByte and outHeader, then bit shift identically into 
-  // // the word ... 
-  // __disable_irq();
-  // if(outBufferALen > 0){ // always transmit channel A before B 
-  //   // have bytes, write word to encapsulate outBuffer[outBufferRp]; the do outBufferRp ++ and check wrap 
-  //   // mask: 6 bit, 
-  //   if(outBufferARp >= outBufferALen){
-  //     // this is the EOP frame, 
-  //     outByte = 0;
-  //     outHeader = headerMask & (noTokenWordA | (currentDropTap & dropIdMask));
-  //     // now it's clear, 
-  //     outBufferARp = 0;
-  //     outBufferALen = 0;
-  //   } else {
-  //     // this is a regular frame 
-  //     outByte = outBufferA[outBufferARp];
-  //     outHeader = headerMask & (tokenWordA | (currentDropTap & dropIdMask));
-  //     outBufferARp ++; // increment for next byte, 
-  //   }
-  // } else if (outBufferBLen > 0){
-  //   if(outBufferBRp >= outBufferBLen){
-  //     DEBUG2PIN_TOGGLE;
-  //     // CHB EOP frame 
-  //     outByte = 0;
-  //     outHeader = headerMask & (noTokenWordB | (currentDropTap & dropIdMask));
-  //     // now is clear, 
-  //     outBufferBRp = 0;
-  //     outBufferBLen = 0;
-  //   } else {
-  //     //DEBUG2PIN_ON;
-  //     // ahn regular CHB frame 
-  //     outByte = outBufferB[outBufferBRp];
-  //     outHeader = headerMask & (tokenWordB | (currentDropTap & dropIdMask));
-  //     outBufferBRp ++;
-  //   }
-  // } else {
-  //   // no token, no EOP on either channel 
-  //   // transmit our recieve buffer spaces available to this drop using the out byte 
-  //   if(inBufferLen[currentDropTap] == 0 && inBufferWp[currentDropTap] == 0){
-  //     outByte = 1;
-  //   } else {
-  //     outByte = 0;
-  //   }
-  //   // alternate channels, in case spurious packets not closed on one ... ensure close 
-  //   if(lastSpareEOP == 0){
-  //     outHeader = headerMask & (noTokenWordA | (currentDropTap & dropIdMask));
-  //     lastSpareEOP = 1;
-  //   } else {
-  //     outHeader = headerMask & (noTokenWordB | (currentDropTap & dropIdMask));
-  //     lastSpareEOP = 0;
-  //   }
-  // }
-  // outWord[0] = 0b00000000 | ((outHeader << 1) & 0b01110000) | (outByte >> 4);
-  // outWord[1] = 0b10000000 | ((outHeader << 4) & 0b01110000) | (outByte & 0b00001111);
-  // __enable_irq();
-  // // put the UART to work before more clocks on buffer incrementing 
-  // UBH_SER_USART.DATA.reg = outWord[0];
-  // // and setup the interrupt to handle the second, 
-  // UBH_SER_USART.INTENSET.bit.DRE = 1;
-  // // and loop through returns, 
-  // currentDropTap ++;
-  // if(currentDropTap >= UBH_DROP_OPS){
-  //   currentDropTap = 0;
-  // }
 }
 
 // void ucBusHead_txISR(void){
@@ -270,56 +233,36 @@ void ucBusHead_rxISR(void){
 	// cleared by reading out
   // get the byte, 
   uint32_t data = UBH_SER_USART.DATA.reg;
+  // retrieve header, 
+  uint8_t numRx = HEADER_RX_TOKEN(data); // numRx constrained to 3 via 0b00000011
+  uint8_t dropRx = HEADER_RX_DROP(data);
 
-  // if((data >> 7) == 0){
-  //   inWord[0] = data;
-  // } else {
-  //   inWord[1] = data;
-  //   // now decouple, 
-  //   inHeader = ((inWord[0] >> 1) & 0b00111000) | ((inWord[1] >> 4) & 0b00000111);
-  //   inByte = ((inWord[0] << 4) & 0b11110000) | (inWord[1] & 0b00001111);
-  //   // the drop reporting 
-  //   uint8_t drop = inHeader & dropIdMask;
-  //   // if reported drop is greater than # of max drops, something strange,
-  //   if(drop > UBH_DROP_OPS) return;
-  //   // otherwise, should check if has a token, right? 
-  //   if(inHeader & tokenWordA){ // token, 
-  //     inLastHadToken[drop] = true;
-  //     if(inBufferLen[drop] != 0){ // didn't read the last in time, will drop 
-  //       inBufferLen[drop] = 0;
-  //       inBufferWp[drop] = 0;
-  //     }
-  //     inBuffer[drop][inBufferWp[drop]] = inByte; // stuff bytes 
-  //     inBufferWp[drop] += 1;
-  //   } else { // no token, 
-  //     if(inLastHadToken[drop]){ // falling edge, packet delineation 
-  //       rcrxb[drop] = inBuffer[drop][0]; // 1st byte of the packet was the rcrxb (reciprocal recieve buffer size)
-  //       unsigned long arrivalTime = millis();
-  //       lastrc[drop] = arrivalTime;
-  //       inArrivalTime[drop] = arrivalTime;
-  //       inBufferLen[drop] = inBufferWp[drop]; // this signals to outside observers that we are packet-ful
-  //     }
-  //     inLastHadToken[drop] = false;
-  //     // on token-less words, the data byte is the rcrxb: that way this is always updating if 
-  //     // out-of-packet spaces exist. otherwise it updates w/ the first byte of each packet 
-  //     rcrxb[drop] = inByte;
-  //     lastrc[drop] = millis();
-  //   }
-  // }
-}
+  // escape fake drops, 
+  if(dropRx > UBH_DROP_OPS || dropRx == 0) return;
 
-// drop transmits like so:
-/*
-if(outBufferLen > 0){
-        outByte = outBuffer[outBufferRp];
-        outHeader = headerMask & (tokenWord | (id & 0b00011111));
-      } else {
-        outByte = 0;
-        outHeader = headerMask & (noTokenWord | (id & 0b00011111));
+  // write in to this drop's buffer, 
+  for(uint8_t i = 0; i < numRx; i ++){
+      inBuffer[dropRx][inBufferWp[dropRx] + i] = RF(data, i); 
+    }
+  inBufferWp[dropRx] += numRx;
+
+  // switch on numRx,
+  switch(numRx){
+    case 3:
+      inLastHadToken[dropRx] = true;
+      break;
+    case 2:
+    case 1:
+      inLastHadToken[dropRx] = true; // switch through, 
+    case 0: // packet edge, meaning *byte 3 here, always no-token if we are in this switch, is rcrxb*
+      rcrxb[dropRx] = RF(data, 2);
+      if(inLastHadToken[dropRx]){
+        // 1st byte is this drop's rcrxb,
+        inBufferLen[dropRx] = inBufferWp[dropRx];
       }
-      outWord[0] = 0b00000000 | ((outHeader << 1) & 0b01110000) | (outByte >> 4);
-      outWord[1] = 0b10000000 | ((outHeader << 4) & 0b01110000) | (outByte & 0b00001111);
-*/
+      break;
+  }
+}
 
 // -------------------------------------------------------- API 
 
@@ -335,14 +278,12 @@ boolean ucBusHead_ctr(uint8_t drop){
 
 size_t ucBusHead_read(uint8_t drop, uint8_t *dest){
   if(!ucBusHead_ctr(drop)) return 0;
-  //NVIC_DisableIRQ(SERCOM1_2_IRQn);
-  __disable_irq();
   // byte 1 is the drop's rcrxb transmitted with this packet
   size_t len = inBufferLen[drop] - 1;
   memcpy(dest, &(inBuffer[drop][1]), len);
+  __disable_irq();
   inBufferLen[drop] = 0;
   inBufferWp[drop] = 0;
-  //NVIC_EnableIRQ(SERCOM1_2_IRQn);
   __enable_irq();
   return len;
 }
@@ -370,10 +311,6 @@ boolean ucBusHead_ctsB(uint8_t drop){
 
 void ucBusHead_transmitA(uint8_t *data, uint16_t len){
 	if(!ucBusHead_ctsA()) return;
-  // force reset while not operating, 
-  __disable_irq();
-  outBufferARp = 0;
-  __enable_irq();
   // copy in, 
   memcpy(outBufferA, data, len);
   // now set length, 
@@ -385,8 +322,6 @@ void ucBusHead_transmitA(uint8_t *data, uint16_t len){
 
 void ucBusHead_transmitB(uint8_t *data, uint16_t len, uint8_t drop){
   if(!ucBusHead_ctsB(drop)) return;
-  #warning also curious about this potentially long-time disabled interrupt... 
-  __disable_irq();
   // transmits w/ two addnl bytes: 
   // 1st byte: drop identifier 
   outBufferB[0] = drop;
@@ -397,6 +332,7 @@ void ucBusHead_transmitB(uint8_t *data, uint16_t len, uint8_t drop){
     outBufferB[1] = 0;  // packet either mid-recieve (wp nonzero) or is awaiting read (len-full)
   }
   memcpy(&(outBufferB[2]), data, len);
+  __disable_irq();
   outBufferBLen = len + 2; // + 1 for the drop + 1 for the spaces 
   outBufferBRp = 0;
   __enable_irq();
