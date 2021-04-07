@@ -23,7 +23,6 @@ volatile uint8_t inByte;
 uint8_t inBuffer[UBH_DROP_OPS][UBH_BUFSIZE];  // per-drop incoming bytes 
 volatile uint16_t inBufferWp[UBH_DROP_OPS];   // per-drop incoming write pointer
 volatile uint16_t inBufferLen[UBH_DROP_OPS];  // per-drop incoming bytes, len of, set when EOP detected
-volatile unsigned long inArrivalTime[UBH_DROP_OPS];
 volatile boolean inLastHadToken[UBH_DROP_OPS];
 
 // transmit buffers for A / B Channels 
@@ -38,7 +37,7 @@ volatile uint16_t outBufferBLen = 0;
 volatile uint32_t outFrame = 0;
 volatile uint8_t outHeader = 0; 
 volatile uint8_t outWord[2] = {0,0};
-volatile uint8_t currentDropTap = 0; // drop we are currently 'txing' to / drop that will reply on this cycle
+volatile uint8_t currentDropTap = 1; // drop we are currently 'txing' to / drop that will reply on this cycle
 
 // TX'ing things:
 #define HEADER_TX_DROP(drop) (drop & 0b00011111)
@@ -53,8 +52,8 @@ volatile uint8_t currentDropTap = 0; // drop we are currently 'txing' to / drop 
 
 // RX'ing things 
 #define HEADER_RX_DROP(data) ((uint8_t)(data >> 24) & 0b00011111)
-#define HEADER_RX_TOKEN(data) ((uint8_t)(data >> 29) & 0b00000011)
-#define RF(data, i) ((uint8_t)(data >> 8 * i))
+#define HEADER_RX_TOKEN(data) ((uint8_t)(data >> 30) & 0b00000011)
+#define RF(data, i) ((uint8_t)(data >> 8 * (2 - i)))
 
 volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
 
@@ -114,8 +113,8 @@ void setupUART(void){
   // CTRLC: setup 32 bit on read and write:
   UBH_SER_USART.CTRLC.reg = SERCOM_USART_CTRLC_DATA32B(3); 
 	// enable interrupts 
-	//NVIC_EnableIRQ(SERCOM1_2_IRQn); // tx complete interrupts, won't be using these w/ 32bit... 
-	NVIC_EnableIRQ(SERCOM1_0_IRQn);
+	NVIC_EnableIRQ(SERCOM1_2_IRQn); // rx interrupts 
+	//NVIC_EnableIRQ(SERCOM1_0_IRQn); // tx complete interrupts, won't be using these w/ 32bit... 
 	// set baud 
   UBH_SER_USART.BAUD.reg = UBH_BAUD_VAL;
   // and finally, a kickoff
@@ -129,11 +128,6 @@ void setupUART(void){
 // void SERCOM1_0_Handler(void){
 // 	ucBusHead_txISR();
 // }
-
-// rx handler, for incoming
-void SERCOM1_2_Handler(void){
-	ucBusHead_rxISR();
-}
 
 // startup, 
 void ucBusHead_setup(void){
@@ -156,13 +150,12 @@ void ucBusHead_timerISR(void){
   outHeader = HEADER_TX_DROP(currentDropTap);
   // increment that, 
   currentDropTap ++;
-  if(currentDropTap > 31){
-    currentDropTap = 0;
+  if(currentDropTap > 31){ // tapping '0' does clock reset 
+    currentDropTap = 1;
   }
 
   // ------------------------------------------------------ TX CHA
   if(outBufferALen > 0){
-    DEBUG2PIN_HI;
     // find / fill words: 
     uint8_t numTx = outBufferALen - outBufferARp;
     if(numTx > 2) numTx = 2;
@@ -178,6 +171,7 @@ void ucBusHead_timerISR(void){
       outBufferARp = 0;
     }
   } else if (outBufferBLen > 0){  // ---------------------- TX CHB 
+    DEBUG2PIN_HI;
     // tx from chb
     // find / fill words 
     uint8_t numTx = outBufferBLen - outBufferBRp;
@@ -186,10 +180,11 @@ void ucBusHead_timerISR(void){
     outHeader |= HEADER_TX_TOKEN(numTx) | HEADER_TX_CH(1);
     // fill bytes, 
     for(uint8_t i = 0; i < numTx; i ++){
-      outWord[i] = outBufferB[outBufferBRp];
+      outWord[i] = outBufferB[outBufferBRp ++];
     }
     // check / increment posn w/r/t buffer, if numTx < 2, packet terminates this frame 
     if(numTx < 2){
+      DEBUG2PIN_LO;
       outBufferBLen = 0;
       outBufferBRp = 0;
     }
@@ -208,7 +203,6 @@ void ucBusHead_timerISR(void){
       outHeader |= HEADER_TX_CH(0);
       lastSpareEOP = 0;
     }
-    DEBUG2PIN_LO;
   }
   // finally, do the action 
   outFrame = (WF_0(outHeader) << 24) | (WF_1(outHeader, outWord[0])) << 16 | WF_2(outWord[0], outWord[1]) << 8 | WF_3(outWord[1]);
@@ -216,10 +210,10 @@ void ucBusHead_timerISR(void){
   DEBUG3PIN_LO;
 }
 
-// void ucBusHead_txISR(void){
-//   UBH_SER_USART.DATA.reg = outWord[1]; // just services the next byte in the word: timer initiates 
-//   UBH_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_DRE; // turn this interrupt off 
-// }
+// rx handler, for incoming
+void SERCOM1_2_Handler(void){
+	ucBusHead_rxISR();
+}
 
 void ucBusHead_rxISR(void){
   // check parity bit,
@@ -278,9 +272,8 @@ boolean ucBusHead_ctr(uint8_t drop){
 
 size_t ucBusHead_read(uint8_t drop, uint8_t *dest){
   if(!ucBusHead_ctr(drop)) return 0;
-  // byte 1 is the drop's rcrxb transmitted with this packet
-  size_t len = inBufferLen[drop] - 1;
-  memcpy(dest, &(inBuffer[drop][1]), len);
+  size_t len = inBufferLen[drop];
+  memcpy(dest, inBuffer[drop], len);
   __disable_irq();
   inBufferLen[drop] = 0;
   inBufferWp[drop] = 0;
@@ -302,7 +295,8 @@ boolean ucBusHead_ctsA(void){
 boolean ucBusHead_ctsB(uint8_t drop){
   // escape states 
   // sysError("drop: " + String(drop) + " obl: " + String(outBufferBLen) + " rc: " + String(rcrxb[0]) + " " + String(rcrxb[1]) + " " + String(rcrxb[2]) + " ");
-  if(outBufferBLen == 0 && rcrxb[drop] > 0){
+  #warning here deleted flowcontrol 
+  if(outBufferBLen == 0){//} && rcrxb[drop] > 0){
     return true; 
   } else {
     return false;

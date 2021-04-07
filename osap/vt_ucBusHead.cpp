@@ -44,10 +44,10 @@ void vt_ucBusHead_loop() {
   // we need to shift items from the bus into the origin stack here
   // we can shift multiple in per turn, if stack space exists
   uint8_t drop = _lastDropHandled;
-  for (uint8_t i = 0; i < UBH_DROP_OPS; i++) {
+  for (uint8_t i = 1; i < UBH_DROP_OPS; i++) {
     drop++;
     if (drop >= UBH_DROP_OPS) {
-      drop = 0;
+      drop = 1;
     }
     if (ucBusHead_ctr(drop)) {
       // find a stack slot,
@@ -55,6 +55,7 @@ void vt_ucBusHead_loop() {
       if (stackEmptySlot(&_vt_ucBusHead, VT_STACK_ORIGIN)) {
         // copy it in, 
         uint16_t len = ucBusHead_read(drop, _tempBuffer);
+        if(len == 13 && _tempBuffer[0] == 2) DEBUG4PIN_TOGGLE;
         stackLoadSlot(&_vt_ucBusHead, VT_STACK_ORIGIN, _tempBuffer, len);
       } else {
         // no more empty spaces this turn, continue 
