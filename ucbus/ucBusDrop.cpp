@@ -16,28 +16,38 @@ is; no warranty is provided, and users accept all liability.
 
 #ifdef UCBUS_IS_DROP
 
-// input buffer
-volatile boolean lastWordAHadToken = false;
+// input buffer A (single)
 uint8_t inBufferA[UBD_BUFSIZE];
 volatile uint16_t inBufferAWp = 0;
 volatile uint16_t inBufferALen = 0; // writes at terminal zero, 
+volatile boolean lastWordAHadToken = false;
 
-volatile boolean lastWordBHadToken = false;
+// input buffer B (ringbuffer)
 uint8_t inBufferB[UBD_NUM_B_BUFFERS][UBD_BUFSIZE];
 volatile uint16_t inBufferBLen[UBD_NUM_B_BUFFERS];
-volatile unsigned long inBArrival[UBD_NUM_B_BUFFERS];
+volatile boolean lastWordBHadToken = false;
 volatile uint8_t inBufferBHead = 0;
 volatile uint8_t inBufferBTail = 0;
 volatile uint16_t inBufferBWp = 0;
 
-// output, 
-volatile uint32_t outFrame;
+// output buffer 
 uint8_t outBuffer[UBD_BUFSIZE];
 volatile uint16_t outBufferRp = 0;
 volatile uint16_t outBufferLen = 0;
 
-#define TOKEN_COUNT(data) (uint8_t)(data >> 30)
-#define CH_COUNT(data) (data & 0b00100000000000000000000000000000) // lol 
+// outgoing word 
+volatile uint32_t outFrame;
+
+// reciprocal buffer space, for flowcontrol 
+volatile uint8_t rcrxb = 0;
+
+// our physical bus address, 
+volatile uint8_t id = 0;
+
+// available time count, 
+volatile uint16_t timeTick = 0;
+volatile uint64_t timeBlink = 0;
+uint16_t blinkTime = 10000;
 
 // mask data w/ unf-bits, check if markers in place: 
 #define FRAME_VALID(data) ((data & 0b11000000110000001100000011000000) == (0b00000000010000001000000011000000))
@@ -48,24 +58,12 @@ volatile uint16_t outBufferLen = 0;
 
 // transmit frame ... supposing its always 0s that are shifted in, 
 #define WF_TOKEN(token, id, d0, d1, d2) ( 0 | (((uint32_t)(token & 0b00000011)) << 30) | (((uint32_t)(id & 0b00011111)) << 24) | (((uint32_t)d0) << 16) | (((uint32_t)d1) << 8) | ((uint32_t)(d2)) )
-#define WF_NOTOKEN(id, space) ( 0 | (((uint32_t)(id & 0b00011111)) << 24) | (((uint32_t)space) << 24) )
+#define WF_NOTOKEN(id, space) ( 0 | (((uint32_t)(id & 0b00011111)) << 24) | ((uint32_t)space) )
 
 // read header, 
 #define HEADER_RX_TOKEN(header) ((header & 0b11000000) >> 6)
-#define HEADER_RX_CH(header) (header & 0b00100000)
 #define HEADER_RX_DROPTAP(header) (header & 0b00011111)
-
-// available time count, 
-volatile uint16_t timeTick = 0;
-// timing, 
-volatile uint64_t timeBlink = 0;
-uint16_t blinkTime = 10000;
-
-//void onPacketBRx(void);
-// our physical bus address, 
-volatile uint8_t id = 0;
-volatile uint8_t rcrxb = 0; // reciprocal rx buffer 0: head has no room to rx, donot send, 1: has room
-volatile unsigned long lastrc = 0;
+#define HEADER_RX_CH(header) (header & 0b00100000)
 
 void ucBusDrop_setup(boolean useDipPick, uint8_t ID) {
   dip_setup();
@@ -81,7 +79,6 @@ void ucBusDrop_setup(boolean useDipPick, uint8_t ID) {
   // inbuffer ringbuffer states;
   for(uint8_t i = 0; i < UBD_NUM_B_BUFFERS; i ++){
     inBufferBLen[i] = 0;
-    inBArrival[i] = 0;
   }
   // set driver output LO to start: tri-state 
   UBD_DE_PORT.DIRSET.reg = UBD_DE_BM;
@@ -225,7 +222,7 @@ void ucBusDrop_rxISR(void){
           ucBusDrop_onPacketARx(inBufferA, inBufferALen);
           //DEBUG1PIN_OFF;
         } else {
-          // noop, out of frame / catch rcrxb (?) 
+          // noop, out of frame
         }
         break;
     } // end cha token count switch 
@@ -251,7 +248,7 @@ void ucBusDrop_rxISR(void){
           lastWordBHadToken = false;
           // if was for us, 
           if(inBufferB[inBufferBHead][0] == id){
-            // set packet fullness, increment ringbuffer, 2nd byte is rcrxb, 
+            // set packet fullness, increment ringbuffer, 2nd byte is rcrxb for us 
             rcrxb = inBufferB[inBufferBHead][1];
             inBufferBLen[inBufferBHead] = inBufferBWp;
             inBufferBWp = 0;
@@ -260,11 +257,11 @@ void ucBusDrop_rxISR(void){
               inBufferBHead = 0;
             }
           } else {
-            // not our packet, 
+            // not our packet, set to write next, 
             inBufferBWp = 0;
           }
         } else {
-          // noop, out of frame, / catch rcrxb (?) 
+          // noop, out of frame, 
         }
         break;
     } // end chb token count switch 
@@ -274,19 +271,24 @@ void ucBusDrop_rxISR(void){
   if(dropTap == id){
     // our turn in time, forumlate byte & git it oot 
     DEBUG1PIN_ON;
+    // 1st op: if numToken < 2, word[1] is rcrxb for us, 
+    if(numToken < 2) rcrxb = inWord[1];
+    // now, if we have outgoing to tx: 
     if(outBufferLen > 0){ // transmit out if it's present, 
       // num to transmit, 
       uint8_t numTx = outBufferLen - outBufferRp;
       if(numTx > 3) numTx = 3;
-      outFrame = WF_TOKEN(numTx, id, outBuffer[outBufferRp], outBuffer[outBufferRp + 1], outBuffer[outBufferRp + 2]);
-      outBufferRp += numTx;
-      // if numTx was < 3, packet terminates this frame, 
-      if(numTx < 3){
+      if(numTx < 3){ // when on tail of pck edge, fill last byte w/ rcrxb for us for head 
+        outFrame = WF_TOKEN(numTx, id, outBuffer[outBufferRp], outBuffer[outBufferRp + 1], (ucBusDrop_isRTR() ? 1 : 0));
         outBufferLen = 0;
         outBufferRp = 0;
+      } else {
+        // full stack, tx on all words 
+        outFrame = WF_TOKEN(numTx, id, outBuffer[outBufferRp], outBuffer[outBufferRp + 1], outBuffer[outBufferRp + 2]);
+        outBufferRp += numTx;
       }
     } else {  // otherwise, transmit our chb recieve side flowcontrol info w/ no token 
-      outFrame = WF_NOTOKEN(id, ucBusDrop_isRTR() ? 1 : 0);
+      outFrame = WF_NOTOKEN(id, (ucBusDrop_isRTR() ? 1 : 0));
     }
     UBD_DRIVER_ENABLE;
     UBD_SER_USART.DATA.reg = outFrame;
@@ -341,7 +343,6 @@ size_t ucBusDrop_readB(uint8_t *dest){
   size_t len = inBufferBLen[inBufferBTail] - 2;
   memcpy(dest, &(inBufferB[inBufferBTail][2]), len);
   inBufferBLen[inBufferBTail] = 0;
-  inBufferBWp = 0;
   __disable_irq(); // shouldn't need to guard here, right? not sure 
   inBufferBTail ++;
   if(inBufferBTail >= UBD_NUM_B_BUFFERS){
@@ -352,8 +353,7 @@ size_t ucBusDrop_readB(uint8_t *dest){
 }
 
 boolean ucBusDrop_ctsB(void){
-  #warning here deleted flowcontrol 
-  if(outBufferLen == 0){//} && rcrxb > 0){
+  if(outBufferLen == 0 && rcrxb > 0){
     return true;
   } else {
     return false;
