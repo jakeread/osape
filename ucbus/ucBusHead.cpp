@@ -40,21 +40,29 @@ volatile uint8_t currentDropTap = 1; // drop we are currently 'txing' to / drop 
 volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
 volatile uint8_t rcrxb[UBH_DROP_OPS];     // reciprocal's recieve buffer space (for flow control)
 
+// mask data w/ unf-bits, check if markers in place: 
+#define FRAME_VALID(data) ((data & 0b11000000110000001100000011000000) == (0b00000000010000001000000011000000))
+
 // TX'ing things:
 #define HEADER_TX_DROP(drop) (drop & 0b00011111)
 #define HEADER_TX_CH(ch) ((ch << 5) & 0b00100000)
 #define HEADER_TX_TOKEN(ntx) ((numTx << 6) & 0b11000000)
-//#define FRAME_TRACKING (0b00000000010000001000000011000000)
+
 // write frames, 
 #define WF_0(header) (uint32_t)(0b00000000 | ((header >> 2) & 0b00111111))
 #define WF_1(header, word0) (uint32_t)(0b01000000 | ((header << 4) & 0b00110000) | ((word0 >> 4) & 0b00001111))
 #define WF_2(word0, word1) (uint32_t)(0b10000000 | ((word0 << 2) & 0b00111100) | ((word1 >> 6) & 0b00000011))
 #define WF_3(word1) (uint32_t)(0b11000000 | (word1 & 0b00111111))
 
-// RX'ing things 
-#define HEADER_RX_DROP(data) ((uint8_t)(data >> 24) & 0b00011111)
-#define HEADER_RX_TOKEN(data) ((uint8_t)(data >> 30) & 0b00000011)
-#define RF(data, i) ((uint8_t)(data >> 8 * (2 - i)))
+// read frame, 
+#define RF_HEADER(data) (((uint8_t)(data >> 22) & 0b11111100) | ((uint8_t)(data >> 20) & 0b00000011))
+#define RF_WORD0(data) (((uint8_t)(data >> 12) & 0b11110000) | ((uint8_t)(data >> 10) & 0b00001111))
+#define RF_WORD1(data) (((uint8_t)(data >> 2) & 0b11000000) | ((uint8_t)(data) & 0b00111111))
+
+// read header, 
+#define HEADER_RX_TOKEN(header) ((header & 0b11000000) >> 6)
+#define HEADER_RX_DROPTAP(header) (header & 0b00011111)
+#define HEADER_RX_CH(header) (header & 0b00100000)
 
 // uart init (file scoped)
 void setupUART(void){
@@ -221,29 +229,44 @@ void ucBusHead_rxISR(void){
 	// cleared by reading out
   // get the byte, 
   uint32_t data = UBH_SER_USART.DATA.reg;
-  // retrieve header, 
-  uint8_t numRx = HEADER_RX_TOKEN(data); // numRx constrained to 3 via 0b00000011
-  uint8_t dropRx = HEADER_RX_DROP(data);
+  // check if borked, 
+  if(!FRAME_VALID(data)){
+    DEBUG4PIN_LO;
+    // reset RX, try to capture new edge 
+    while(UBH_SER_USART.SYNCBUSY.bit.CTRLB);
+    UBH_SER_USART.CTRLB.bit.RXEN = 0;
+    while(UBH_SER_USART.SYNCBUSY.bit.CTRLB);
+    UBH_SER_USART.CTRLB.bit.RXEN = 1;
+    return;
+  } else {
+    DEBUG4PIN_HI;
+  }
+
+  uint8_t inHeader = RF_HEADER(data);
+  uint8_t inWord[2] = { RF_WORD0(data), RF_WORD1(data) };
+
+  // count num rx'd / 
+  uint8_t numRx = HEADER_RX_TOKEN(inHeader);
+  uint8_t dropRx = HEADER_RX_DROPTAP(inHeader);
 
   // escape fake drops, 
   if(dropRx > UBH_DROP_OPS || dropRx == 0) return;
 
   // write in to this drop's buffer, 
   for(uint8_t i = 0; i < numRx; i ++){
-      inBuffer[dropRx][inBufferWp[dropRx] + i] = RF(data, i); 
+      inBuffer[dropRx][inBufferWp[dropRx] + i] = inWord[i]; 
     }
   inBufferWp[dropRx] += numRx;
 
   // switch on numRx,
   switch(numRx){
-    case 3:
+    case 2:
       inLastHadToken[dropRx] = true;
       break;
-    case 2:
     case 1:
       inLastHadToken[dropRx] = true; // switch through, 
     case 0: // packet edge, meaning *byte 3 here, always no-token if we are in this switch, is rcrxb*
-      rcrxb[dropRx] = RF(data, 2);
+      rcrxb[dropRx] = inWord[1];
       if(inLastHadToken[dropRx]){
         // len here is fullness, 
         inBufferLen[dropRx] = inBufferWp[dropRx];
@@ -259,7 +282,6 @@ boolean ucBusHead_ctr(uint8_t drop){
   // called once per loop, so here's where this debug goes:
   (rcrxb[1] > 0) ? DEBUG2PIN_HI : DEBUG2PIN_LO;
   (rcrxb[2] > 0) ? DEBUG3PIN_HI : DEBUG3PIN_LO;
-  (rcrxb[3] > 0) ? DEBUG4PIN_HI : DEBUG4PIN_LO;
   if(drop >= UBH_DROP_OPS) return false;
   if(inBufferLen[drop] > 0){
     return true;
