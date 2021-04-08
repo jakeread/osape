@@ -46,17 +46,25 @@ is; no warranty is provided, and users accept all liability.
 // 0 for max-speed 3MHz
 #define UBD_BAUD_VAL 0
 
+#ifdef IS_OG_MODULE 
 #define UBD_DE_PIN 16 // driver output enable: set HI to enable, LO to tri-state the driver 
-#define UBD_DE_BM (uint32_t)(1 << UBD_DE_PIN)
 #define UBD_DE_PORT PORT->Group[1] 
+#define UBD_RE_PIN 19 // receiver output enable, set LO to enable the RO, set HI to tri-state RO 
+#define UBD_RE_PORT PORT->Group[0]
+#else 
+#define UBD_DE_PIN 19 // driver output enable: set HI to enable, LO to tri-state the driver 
+#define UBD_DE_PORT PORT->Group[0] 
+#define UBD_RE_PIN 9 // receiver output enable, set LO to enable the RO, set HI to tri-state RO 
+#define UBD_RE_PORT PORT->Group[1]
+#endif 
+
+#define UBD_TE_PIN 17  // termination enable, drive LO to enable to internal termination resistor, HI to disable
+#define UBD_TE_PORT PORT->Group[0]
+#define UBD_DE_BM (uint32_t)(1 << UBD_DE_PIN)
+#define UBD_TE_BM (uint32_t)(1 << UBD_TE_PIN)
+#define UBD_RE_BM (uint32_t)(1 << UBD_RE_PIN)
 #define UBD_DRIVER_ENABLE UBD_DE_PORT.OUTSET.reg = UBD_DE_BM
 #define UBD_DRIVER_DISABLE UBD_DE_PORT.OUTCLR.reg = UBD_DE_BM
-#define UBD_RE_PIN 19 // receiver output enable, set LO to enable the RO, set HI to tri-state RO 
-#define UBD_RE_BM (uint32_t)(1 << UBD_RE_PIN)
-#define UBD_RE_PORT PORT->Group[0]
-#define UBD_TE_PIN 17  // termination enable, drive LO to enable to internal termination resistor, HI to disable
-#define UBD_TE_BM (uint32_t)(1 << UBD_TE_PIN)
-#define UBD_TE_PORT PORT->Group[0]
 
 #define UBD_BUFSIZE 1024
 #define UBD_NUM_B_BUFFERS 4

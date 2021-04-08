@@ -152,6 +152,12 @@ void SERCOM1_2_Handler(void){
 }
 
 void ucBusDrop_rxISR(void){
+  // check rcrxb,
+  if(rcrxb){
+    ERRLIGHT_OFF;
+  } else {
+    ERRLIGHT_ON;
+  }
   // check parity bit,
   uint16_t perr = UBD_SER_USART.STATUS.bit.PERR;
   if(perr){
@@ -166,8 +172,8 @@ void ucBusDrop_rxISR(void){
   timeTick ++;
   timeBlink ++;
   if(timeBlink >= blinkTime){
-    CLKLIGHT_TOGGLE; 
-    ERRLIGHT_OFF;
+    //CLKLIGHT_TOGGLE; 
+    //ERRLIGHT_OFF;
     timeBlink = 0;
   }
 
@@ -176,7 +182,7 @@ void ucBusDrop_rxISR(void){
   // this should only happen once, on startup... 
   if(!FRAME_VALID(data)){
     // reset 
-    ERRLIGHT_ON;
+    //ERRLIGHT_ON;
     while(UBD_SER_USART.SYNCBUSY.bit.ENABLE);
     UBD_SER_USART.CTRLA.bit.ENABLE = 0;
     while(UBD_SER_USART.SYNCBUSY.bit.ENABLE);
@@ -198,7 +204,6 @@ void ucBusDrop_rxISR(void){
     // channel a rx, 
     if(numToken > 0 && inBufferALen != 0){
       // packet edge, reset
-      //DEBUG1PIN_ON;
       inBufferALen = 0;
       inBufferAWp = 0;
     }
@@ -220,7 +225,6 @@ void ucBusDrop_rxISR(void){
           // set packet fullness, execute 
           inBufferALen = inBufferAWp;
           ucBusDrop_onPacketARx(inBufferA, inBufferALen);
-          //DEBUG1PIN_OFF;
         } else {
           // noop, out of frame
         }
@@ -270,7 +274,6 @@ void ucBusDrop_rxISR(void){
   // ------------------------------------------------------ CHECK FOR TX 
   if(dropTap == id){
     // our turn in time, forumlate byte & git it oot 
-    DEBUG1PIN_ON;
     // 1st op: if numToken < 2, word[1] is rcrxb for us, 
     if(numToken < 2) rcrxb = inWord[1];
     // now, if we have outgoing to tx: 
@@ -308,7 +311,6 @@ void ucBusDrop_txcISR(void){
   UBD_SER_USART.INTFLAG.bit.TXC = 1; // clear the flag by writing 1 
   //UBD_SER_USART.INTENCLR.reg = SERCOM_USART_INTENCLR_TXC; // turn off the interrupt 
   UBD_DRIVER_DISABLE; // turn off the driver to not-compete with other drops, 
-  DEBUG1PIN_OFF;
 }
 
 // check buffer state: is it OK for us to rx new pcks from head? 
