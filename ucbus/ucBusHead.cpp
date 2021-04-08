@@ -140,7 +140,6 @@ void ucBusHead_setup(void){
 uint32_t count = 0;
 
 void ucBusHead_timerISR(void){
-  DEBUG3PIN_HI;
   // first: on each transmit, we 'tap' some drop, it's their turn to reply: 
   // also init the outgoing word with this call, 
   outHeader = HEADER_TX_DROP(currentDropTap);
@@ -174,7 +173,6 @@ void ucBusHead_timerISR(void){
       outBufferARp = 0;
     }
   } else if (outBufferBLen > 0){  // ---------------------- TX CHB 
-    DEBUG2PIN_HI;
     // tx from chb
     // find / fill words 
     uint8_t numTx = outBufferBLen - outBufferBRp;
@@ -187,7 +185,6 @@ void ucBusHead_timerISR(void){
     }
     // check / increment posn w/r/t buffer, if numTx < 2, packet terminates this frame 
     if(numTx < 2){
-      DEBUG2PIN_LO;
       outBufferBLen = 0;
       outBufferBRp = 0;
     }
@@ -205,7 +202,6 @@ void ucBusHead_timerISR(void){
   // finally, do the action 
   outFrame = (WF_0(outHeader) << 24) | (WF_1(outHeader, outWord[0])) << 16 | WF_2(outWord[0], outWord[1]) << 8 | WF_3(outWord[1]);
   UBH_SER_USART.DATA.reg = outFrame;
-  DEBUG3PIN_LO;
 }
 
 // rx handler, for incoming
@@ -260,6 +256,10 @@ void ucBusHead_rxISR(void){
 
 // clear to read ? 
 boolean ucBusHead_ctr(uint8_t drop){
+  // called once per loop, so here's where this debug goes:
+  (rcrxb[1] > 0) ? DEBUG2PIN_HI : DEBUG2PIN_LO;
+  (rcrxb[2] > 0) ? DEBUG3PIN_HI : DEBUG3PIN_LO;
+  (rcrxb[3] > 0) ? DEBUG4PIN_HI : DEBUG4PIN_LO;
   if(drop >= UBH_DROP_OPS) return false;
   if(inBufferLen[drop] > 0){
     return true;
@@ -292,7 +292,6 @@ boolean ucBusHead_ctsA(void){
 
 boolean ucBusHead_ctsB(uint8_t drop){
   // escape states 
-  // sysError("drop: " + String(drop) + " obl: " + String(outBufferBLen) + " rc: " + String(rcrxb[0]) + " " + String(rcrxb[1]) + " " + String(rcrxb[2]) + " ");
   if(outBufferBLen == 0 && rcrxb[drop] > 0){
     return true; 
   } else {

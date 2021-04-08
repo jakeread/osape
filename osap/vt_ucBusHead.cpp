@@ -55,7 +55,6 @@ void vt_ucBusHead_loop() {
       if (stackEmptySlot(&_vt_ucBusHead, VT_STACK_ORIGIN)) {
         // copy it in, 
         uint16_t len = ucBusHead_read(drop, _tempBuffer);
-        if(len == 13 && _tempBuffer[0] == 2) DEBUG4PIN_TOGGLE;
         stackLoadSlot(&_vt_ucBusHead, VT_STACK_ORIGIN, _tempBuffer, len);
       } else {
         // no more empty spaces this turn, continue 
@@ -67,18 +66,15 @@ void vt_ucBusHead_loop() {
 
 boolean vt_ucBusHead_cts(uint8_t rxAddr) {
   // mapping rxAddr in osap space (where 0 is head) to ucbus drop-id space...
-  return ucBusHead_ctsB(rxAddr - 1);
+  return ucBusHead_ctsB(rxAddr);
 }
 
 void vt_ucBusHead_send(uint8_t* data, uint16_t len, uint8_t rxAddr) {
-  // logical address is drop + 1: 0th 'drop' is the head in address space.
-  // this might be a bugfarm, but the bit is extra address space, so it
-  // lives...
   if (rxAddr == 0) {
     sysError("attempt to busf from head to self");
     return;
   }
-  ucBusHead_transmitB(data, len, rxAddr - 1);
+  ucBusHead_transmitB(data, len, rxAddr);
 }
 
 #endif
