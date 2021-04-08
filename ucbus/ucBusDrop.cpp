@@ -36,7 +36,9 @@ volatile uint16_t outBufferRp = 0;
 volatile uint16_t outBufferLen = 0;
 
 // outgoing word 
-volatile uint32_t outFrame;
+volatile uint32_t outFrame = 0;
+volatile uint8_t outHeader = 0;
+volatile uint8_t outWord[2] = {0,0};
 
 // reciprocal buffer space, for flowcontrol 
 volatile uint8_t rcrxb = 0;
@@ -51,14 +53,22 @@ uint16_t blinkTime = 10000;
 
 // mask data w/ unf-bits, check if markers in place: 
 #define FRAME_VALID(data) ((data & 0b11000000110000001100000011000000) == (0b00000000010000001000000011000000))
+
+// write header, 
+#define HEADER_TX_TOKEN(ntx) ((numTx << 6) & 0b11000000)
+#define HEADER_TX_DROP(drop) (drop & 0b00011111)
+#define HEADER_TX_CH(ch) ((ch << 5) & 0b00100000)
+
+// write frames 
+#define WF_0(header) (uint32_t)(0b00000000 | ((header >> 2) & 0b00111111))
+#define WF_1(header, word0) (uint32_t)(0b01000000 | ((header << 4) & 0b00110000) | ((word0 >> 4) & 0b00001111))
+#define WF_2(word0, word1) (uint32_t)(0b10000000 | ((word0 << 2) & 0b00111100) | ((word1 >> 6) & 0b00000011))
+#define WF_3(word1) (uint32_t)(0b11000000 | (word1 & 0b00111111))
+
 // read frame, 
 #define RF_HEADER(data) (((uint8_t)(data >> 22) & 0b11111100) | ((uint8_t)(data >> 20) & 0b00000011))
 #define RF_WORD0(data) (((uint8_t)(data >> 12) & 0b11110000) | ((uint8_t)(data >> 10) & 0b00001111))
 #define RF_WORD1(data) (((uint8_t)(data >> 2) & 0b11000000) | ((uint8_t)(data) & 0b00111111))
-
-// transmit frame ... supposing its always 0s that are shifted in, 
-#define WF_TOKEN(token, id, d0, d1, d2) ( 0 | (((uint32_t)(token & 0b00000011)) << 30) | (((uint32_t)(id & 0b00011111)) << 24) | (((uint32_t)d0) << 16) | (((uint32_t)d1) << 8) | ((uint32_t)(d2)) )
-#define WF_NOTOKEN(id, space) ( 0 | (((uint32_t)(id & 0b00011111)) << 24) | ((uint32_t)space) )
 
 // read header, 
 #define HEADER_RX_TOKEN(header) ((header & 0b11000000) >> 6)
@@ -153,7 +163,7 @@ void SERCOM1_2_Handler(void){
 
 void ucBusDrop_rxISR(void){
   // check rcrxb,
-  if(rcrxb){
+  if(rcrxb > 0){
     ERRLIGHT_OFF;
   } else {
     ERRLIGHT_ON;
@@ -172,8 +182,8 @@ void ucBusDrop_rxISR(void){
   timeTick ++;
   timeBlink ++;
   if(timeBlink >= blinkTime){
-    //CLKLIGHT_TOGGLE; 
-    //ERRLIGHT_OFF;
+    CLKLIGHT_TOGGLE; 
+    ERRLIGHT_OFF;
     timeBlink = 0;
   }
 
@@ -182,7 +192,7 @@ void ucBusDrop_rxISR(void){
   // this should only happen once, on startup... 
   if(!FRAME_VALID(data)){
     // reset 
-    //ERRLIGHT_ON;
+    ERRLIGHT_ON;
     while(UBD_SER_USART.SYNCBUSY.bit.ENABLE);
     UBD_SER_USART.CTRLA.bit.ENABLE = 0;
     while(UBD_SER_USART.SYNCBUSY.bit.ENABLE);
@@ -276,23 +286,27 @@ void ucBusDrop_rxISR(void){
     // our turn in time, forumlate byte & git it oot 
     // 1st op: if numToken < 2, word[1] is rcrxb for us, 
     if(numToken < 2) rcrxb = inWord[1];
+    // header is from us, 
+    outHeader = HEADER_TX_DROP(id);
+    // now, we write our rtr-ness into outWord[1], for them, 
+    outWord[1] = (ucBusDrop_isRTR() ? 1 : 0);
     // now, if we have outgoing to tx: 
-    if(outBufferLen > 0){ // transmit out if it's present, 
+    if(outBufferLen > 0){
       // num to transmit, 
       uint8_t numTx = outBufferLen - outBufferRp;
-      if(numTx > 3) numTx = 3;
-      if(numTx < 3){ // when on tail of pck edge, fill last byte w/ rcrxb for us for head 
-        outFrame = WF_TOKEN(numTx, id, outBuffer[outBufferRp], outBuffer[outBufferRp + 1], (ucBusDrop_isRTR() ? 1 : 0));
+      if(numTx > 2) numTx = 2;
+      outHeader |= HEADER_TX_TOKEN(numTx);
+      // fill bytes, 
+      for(uint8_t i = 0; i < numTx; i ++){
+        outWord[i] = outBuffer[outBufferRp ++];
+      }
+      // terminate packet, 
+      if(numTx < 2){
         outBufferLen = 0;
         outBufferRp = 0;
-      } else {
-        // full stack, tx on all words 
-        outFrame = WF_TOKEN(numTx, id, outBuffer[outBufferRp], outBuffer[outBufferRp + 1], outBuffer[outBufferRp + 2]);
-        outBufferRp += numTx;
       }
-    } else {  // otherwise, transmit our chb recieve side flowcontrol info w/ no token 
-      outFrame = WF_NOTOKEN(id, (ucBusDrop_isRTR() ? 1 : 0));
     }
+    outFrame = (WF_0(outHeader) << 24) | (WF_1(outHeader, outWord[0])) << 16 | WF_2(outWord[0], outWord[1]) << 8 | WF_3(outWord[1]);
     UBD_DRIVER_ENABLE;
     UBD_SER_USART.DATA.reg = outFrame;
   }
