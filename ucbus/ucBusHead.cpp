@@ -17,9 +17,6 @@ is; no warranty is provided, and users accept all liability.
 #ifdef UCBUS_IS_HEAD
 
 // input buffers / space 
-volatile uint8_t inWord[2];
-volatile uint8_t inHeader;
-volatile uint8_t inByte;
 uint8_t inBuffer[UBH_DROP_OPS][UBH_BUFSIZE];  // per-drop incoming bytes 
 volatile uint16_t inBufferWp[UBH_DROP_OPS];   // per-drop incoming write pointer
 volatile uint16_t inBufferLen[UBH_DROP_OPS];  // per-drop incoming bytes, len of, set when EOP detected
@@ -39,6 +36,10 @@ volatile uint8_t outHeader = 0;
 volatile uint8_t outWord[2] = {0,0};
 volatile uint8_t currentDropTap = 1; // drop we are currently 'txing' to / drop that will reply on this cycle
 
+// bonus state 
+volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
+volatile uint8_t rcrxb[UBH_DROP_OPS];     // reciprocal's recieve buffer space (for flow control)
+
 // TX'ing things:
 #define HEADER_TX_DROP(drop) (drop & 0b00011111)
 #define HEADER_TX_CH(ch) ((ch << 5) & 0b00100000)
@@ -54,13 +55,6 @@ volatile uint8_t currentDropTap = 1; // drop we are currently 'txing' to / drop 
 #define HEADER_RX_DROP(data) ((uint8_t)(data >> 24) & 0b00011111)
 #define HEADER_RX_TOKEN(data) ((uint8_t)(data >> 30) & 0b00000011)
 #define RF(data, i) ((uint8_t)(data >> 8 * (2 - i)))
-
-volatile uint8_t lastSpareEOP = 0;        // last channel we transmitted spare end-of-packet on
-
-// reciprocal recieve buffer spaces 
-#warning should be for 30 drops, right (?) 0 clkreset, 1:31 ids, 
-volatile uint8_t rcrxb[UBH_DROP_OPS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-volatile unsigned long lastrc[UBH_DROP_OPS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // uart init (file scoped)
 void setupUART(void){
@@ -135,6 +129,8 @@ void ucBusHead_setup(void){
   for(uint8_t d = 0; d < UBH_DROP_OPS; d ++){
     inBufferLen[d] = 0;
     inBufferWp[d] = 0;
+    rcrxb[d] = 0;
+    inLastHadToken[d] = false;
   }
   // start the uart, 
   setupUART();
@@ -148,6 +144,13 @@ void ucBusHead_timerISR(void){
   // first: on each transmit, we 'tap' some drop, it's their turn to reply: 
   // also init the outgoing word with this call, 
   outHeader = HEADER_TX_DROP(currentDropTap);
+  // for flowcontrol policy, word[1] is by default *our availability to rx from this drop*
+  // this is likely to be overwritten when we are otherwise tx'ing, but we stash it here if empty space appears 
+  if(inBufferLen[currentDropTap] == 0 && inBufferWp[currentDropTap] == 0){
+    outWord[1] = 1;
+  } else {
+    outWord[1] = 0;
+  }
   // increment that, 
   currentDropTap ++;
   if(currentDropTap > 31){ // tapping '0' does clock reset 
@@ -189,13 +192,8 @@ void ucBusHead_timerISR(void){
       outBufferBRp = 0;
     }
   } else {
-    // nothing to tx, do rcrxb to that drop (?) 
-    if(inBufferLen[currentDropTap] == 0 && inBufferWp[currentDropTap] == 0){
-      outWord[0] = 1;
-    } else {
-      outWord[0] = 0;
-    }
-    // alternate spare closures on cha / chb 
+    // nothing to tx: have already setup to tx word[1] as current dropTap's rxb space, 
+    // alternate spare closures on cha / chb, in case we somehow missed a packet edge 
     if(lastSpareEOP == 0){
       outHeader |= HEADER_TX_CH(1);
       lastSpareEOP = 1;
@@ -251,7 +249,7 @@ void ucBusHead_rxISR(void){
     case 0: // packet edge, meaning *byte 3 here, always no-token if we are in this switch, is rcrxb*
       rcrxb[dropRx] = RF(data, 2);
       if(inLastHadToken[dropRx]){
-        // 1st byte is this drop's rcrxb,
+        // len here is fullness, 
         inBufferLen[dropRx] = inBufferWp[dropRx];
       }
       break;
@@ -295,8 +293,7 @@ boolean ucBusHead_ctsA(void){
 boolean ucBusHead_ctsB(uint8_t drop){
   // escape states 
   // sysError("drop: " + String(drop) + " obl: " + String(outBufferBLen) + " rc: " + String(rcrxb[0]) + " " + String(rcrxb[1]) + " " + String(rcrxb[2]) + " ");
-  #warning here deleted flowcontrol 
-  if(outBufferBLen == 0){//} && rcrxb[drop] > 0){
+  if(outBufferBLen == 0 && rcrxb[drop] > 0){
     return true; 
   } else {
     return false;

@@ -81,36 +81,4 @@ void vt_ucBusHead_send(uint8_t* data, uint16_t len, uint8_t rxAddr) {
   ucBusHead_transmitB(data, len, rxAddr - 1);
 }
 
-/*
-void VPort_UCBus_Head::read(uint8_t** pck, pckm_t* pckm){
-    // track last-drop-dished, increment thru to find next w/ occupied space
-    uint8_t dr = 0; // drop recieved: ubh->readPtr() fills this in,
-    unsigned long pat = 0;
-    pckm->vpa = this;
-    pckm->len = ucBusHead->readPtr(&dr, pck, &pat);
-    pckm->at = pat; // arrival time
-    pckm->location = dr + 1; // quick hack, at the moment pwp is just the drop
-... see note in clear pckm->txAddr = dr + 1; // addr that tx'd this packet
-    pckm->rxAddr = 0; // us, who rx'd it
-    return;
-}
-
-void VPort_UCBus_Head::clear(uint8_t location){
-    // eventually, should be drop, pwp: if we ever buffer more than 1 space in
-each drop space ucBusHead->clearPtr(location - 1);
-}
-*/
-
-/*
-// relic,
-uint8_t VPort_UCBus_Head::status(uint16_t rxAddr){
-    // use time of last byte arrival from this drop,
-    if(ucBusHead->lastrc[rxAddr - 1] + 500 < millis()){
-        return EP_PORTSTATUS_CLOSED;
-    } else {
-        return EP_PORTSTATUS_OPEN;
-    }
-}
-*/
-
 #endif
