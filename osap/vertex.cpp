@@ -13,7 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 #include "vertex.h"
-#include "../utils/syserror.h"
+#include "../../../syserror.h"
 
 void stackReset(vertex_t* vt){
   // clear all elements & write next ptrs in linear order 

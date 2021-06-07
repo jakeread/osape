@@ -17,7 +17,7 @@ no warranty is provided, and users accept all liability.
 
 #include <Arduino.h> 
 #include "ts.h"
-#include "vertexConfig.h"
+#include "../../vertices/vertexConfig.h" // vertex config is build dependent, define in <folder-containing-osape>/vertices/vertexConfig.h 
 #include "endpoint.h"
 
 #define VT_STACK_ORIGIN 0 

@@ -14,7 +14,7 @@ no warranty is provided, and users accept all liability.
 
 #include "osapUtils.h"
 #include "ts.h"
-#include "../utils/syserror.h"
+#include "../../../syserror.h"
 
 boolean ptrLoop(uint8_t* pck, uint16_t* pt){
   uint16_t ptr = *pt;

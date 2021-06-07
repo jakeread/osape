@@ -14,8 +14,8 @@ no warranty is provided, and users accept all liability.
 
 #include "endpoint.h"
 #include "osapUtils.h"
-#include "../../drivers/indicators.h"
-#include "../utils/syserror.h"
+#include "../../../indicators.h" 	// indicators are circuit specific, should live 3 levels up 
+#include "../../../syserror.h" 		// syserror is also circuit specific, ibid 
 
 uint8_t ack[VT_SLOTSIZE];
 

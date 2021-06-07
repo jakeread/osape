@@ -14,8 +14,8 @@ no warranty is provided, and users accept all liability.
 
 #include "osapLoop.h"
 #include "osapUtils.h"
-#include "../../drivers/indicators.h"
-#include "../utils/syserror.h"
+#include "../../../indicators.h"
+#include "../../../syserror.h"
 
 //#define LOOP_DEBUG
 
