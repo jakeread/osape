@@ -26,6 +26,9 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 	ptr += 3;
 	switch(item->data[ptr]){
 		case EP_SS_ACKLESS:
+			// NOTE: endpoints can only wait or accept data, should be able to reject (no-write) but clear the message
+			// this might be masked in application, where endpoint handlers normally copy data out to local variables, but is important (?) for 
+			// future queries (i.e.) 
 			if(vt->ep->onData(&(item->data[ptr + 1]), item->len - ptr - 1)){
 				// data accepted... copy in to local store & clear 
 				memcpy(vt->ep->data, &(item->data[ptr + 1]), item->len - ptr - 1);
@@ -38,6 +41,7 @@ boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr)
 		case EP_SS_ACKED:
 			// check if we can ack it, then if we can accept it: 
 			if(stackEmptySlot(vt, VT_STACK_ORIGIN)){
+				// NOTE: endpoints can only wait or accept data, should be able to reject (no-write) but clear the message
 				if(vt->ep->onData(&(item->data[ptr + 2]), item->len - ptr - 2)){
 					// accepted, we can copy in 
 					memcpy(vt->ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
