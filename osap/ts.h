@@ -15,7 +15,7 @@ no warranty is provided, and users accept all liability.
 #ifndef TS_H_
 #define TS_H_
 
-#include <arduino.h>
+#include <Arduino.h>
 
 // -------------------------------------------------------- Vertex Type Keys
 // will likely use these in the netrunner: 
