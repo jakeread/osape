@@ -15,7 +15,7 @@ no warranty is provided, and users accept all liability.
 #ifndef UTIL_COBS_H_
 #define UTIL_COBS_H_
 
-#include <arduino.h>
+#include <Arduino.h>
 
 size_t cobsEncode(uint8_t *src, size_t len, uint8_t *dest);
 
