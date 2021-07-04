@@ -192,7 +192,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           #ifdef LOOP_DEBUG 
           sysError("busf " + String(rxAddr));
           #endif
-          sysError("be " + String(item->arrivalTime));
+          //sysError("be " + String(item->arrivalTime));
           ptr -= 4;
           pck[ptr ++] = PK_BFWD_KEY;
           ts_writeUint16(vt->ownRxAddr, pck, &ptr);
