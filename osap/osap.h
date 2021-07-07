@@ -26,9 +26,10 @@ void osapSetup(void);
 void osapLoop(void);
 
 boolean osapAddVertex(vertex_t* vertex);
+
 vertex_t* osapBuildEndpoint(
     String name, 
-    boolean (*onData)(uint8_t* data, uint16_t len), 
+    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), 
     boolean (*beforeQuery)(void)
 );
 

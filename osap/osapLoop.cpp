@@ -96,21 +96,33 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           // all four: we are ignoring dms, wipe it:
           stackClearSlot(vt, od, item);
           break;
-        case VT_TYPE_ENDPOINT:
-          if(endpointHandler(vt, od, item, ptr)){
-            stackClearSlot(vt, od, item);
-          } else {
-            // ok, will wait, but not try again for this stack: 
-            _attemptedInstructions[_numAttemptedInstructions] = PK_DEST;
-            _numAttemptedInstructions ++;
+        case VT_TYPE_ENDPOINT: 
+          {
+            EP_ONDATA_RESPONSES resp = endpointHandler(vt, od, item, ptr);
+            switch(resp){
+              case EP_ONDATA_REJECT:
+              case EP_ONDATA_ACCEPT: // in either case, msg is handled / out of stack, we can clear it 
+                stackClearSlot(vt, od, item);
+                break;
+              case EP_ONDATA_WAIT: // not handled: want to wait in the stack, so update time & come back next 
+                item->arrivalTime = now;
+                _attemptedInstructions[_numAttemptedInstructions] = PK_DEST;
+                _numAttemptedInstructions ++;
+                break;
+              default:
+                sysError("on endpoint dest. handle, unknown ondata response");
+                stackClearSlot(vt, od, item);
+            } // end response switch 
           }
           break;
         default:
-          // poorly typed endpoint, 
+          // vertex has a 'type' we don't recognize, 
+          // best I can do is deletion 
+          sysError("unknown vertext type, when handling msg-at-destination");
           stackClearSlot(vt, od, item);
           break;
       } // end vt typeswitch 
-      break;
+      break; // end PK_DEST case 
     case PK_SIB_KEY: {  // instruction to pass to this sibling, 
       // need the indice, 
       uint16_t si;

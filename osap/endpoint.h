@@ -20,14 +20,17 @@ no warranty is provided, and users accept all liability.
 typedef struct vertex_t vertex_t;
 typedef struct stackItem stackItem;
 
-boolean endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr);
+// endpoint handler responses must be one of these enum - 
+enum EP_ONDATA_RESPONSES { EP_ONDATA_REJECT, EP_ONDATA_ACCEPT, EP_ONDATA_WAIT };
+
+EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr);
 
 struct endpoint_t {
   vertex_t* vt;
   // local data store & length, 
   uint8_t data[VT_SLOTSIZE];
   uint16_t dataLen = 0; 
-  boolean (*onData)(uint8_t* data, uint16_t len) = nullptr;
+  EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len) = nullptr;
   boolean (*beforeQuery)(void) = nullptr;
 };
 

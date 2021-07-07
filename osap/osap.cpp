@@ -45,15 +45,15 @@ boolean osapAddVertex(vertex_t* vt) {
   }
 }
 
-boolean onDataDefault(uint8_t* data, uint16_t len){
-  return true;
+EP_ONDATA_RESPONSES onDataDefault(uint8_t* data, uint16_t len){
+  return EP_ONDATA_ACCEPT;
 }
 
 boolean beforeQueryDefault(void){
   return true;
 }
 
-vertex_t* osapBuildEndpoint(String name, boolean (*onData)(uint8_t* data, uint16_t len), boolean (*beforeQuery)(void)){
+vertex_t* osapBuildEndpoint(String name, EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), boolean (*beforeQuery)(void)){
   vertex_t* vt = new vertex_t; // allocates new to heap someplace, 
   vt->type = VT_TYPE_ENDPOINT;
   stackReset(vt);
