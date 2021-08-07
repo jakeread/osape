@@ -14,47 +14,57 @@ no warranty is provided, and users accept all liability.
 // str8 crib from
 // https://en.wikipedia.org/wiki/Consistent_Overhead_Byte_Stuffing
 
-#define StartBlock()	(code_ptr = dst++, code = 1)
-#define FinishBlock()	(*code_ptr = code)
+/** COBS encode data to buffer
+	@param data Pointer to input data to encode
+	@param length Number of bytes to encode
+	@param buffer Pointer to encoded output buffer
+	@return Encoded buffer length in bytes
+*/
+size_t cobsEncode(const void *data, size_t length, uint8_t *buffer){
 
-size_t cobsEncode(uint8_t *ptr, size_t length, uint8_t *dst){
-  const uint8_t *start = dst, *end = ptr + length;
-  uint8_t code, *code_ptr; /* Where to insert the leading count */
+	uint8_t *encode = buffer; // Encoded byte pointer
+	uint8_t *codep = encode++; // Output code pointer
+	uint8_t code = 1; // Code value
 
-  StartBlock();
-  while (ptr < end) {
-  	if (code != 0xFF) {
-  		uint8_t c = *ptr++;
-  		if (c != 0) {
-  			*dst++ = c;
-  			code++;
-  			continue;
-  		}
-  	}
-  	FinishBlock();
-  	StartBlock();
-  }
-  FinishBlock();
-  // write the actual zero,
-  *dst++ = 0;
-  return dst - start;
-}
+	for (const uint8_t *byte = (const uint8_t *)data; length--; ++byte){
+		if (*byte) // Byte not zero, write it
+			*encode++ = *byte, ++code;
 
-size_t cobsDecode(uint8_t *ptr, size_t length, uint8_t *dst)
-{
-	const uint8_t *start = dst, *end = ptr + length;
-	uint8_t code = 0xFF, copy = 0;
-
-	for (; ptr < end; copy--) {
-		if (copy != 0) {
-			*dst++ = *ptr++;
-		} else {
-			if (code != 0xFF)
-				*dst++ = 0;
-			copy = code = *ptr++;
-			if (code == 0)
-				break; /* Source length too long */
+		if (!*byte || code == 0xff){ // Input is zero or block completed, restart
+			*codep = code, code = 1, codep = encode;
+			if (!*byte || length)
+				++encode;
 		}
 	}
-	return dst - start;
+	*codep = code;  // Write final code value
+  *codep++ = 0;   // write the actual zero 
+	return encode - buffer;
+}
+
+/** COBS decode data from buffer
+	@param buffer Pointer to encoded input bytes
+	@param length Number of bytes to decode
+	@param data Pointer to decoded output data
+	@return Number of bytes successfully decoded
+	@note Stops decoding if delimiter byte is found
+*/
+size_t cobsDecode(const uint8_t *buffer, size_t length, void *data){
+
+	const uint8_t *byte = buffer; // Encoded input byte pointer
+	uint8_t *decode = (uint8_t *)data; // Decoded output byte pointer
+
+	for (uint8_t code = 0xff, block = 0; byte < buffer + length; --block){
+		if (block) // Decode block byte
+			*decode++ = *byte++;
+		else
+		{
+			if (code != 0xff) // Encoded zero, write it
+				*decode++ = 0;
+			block = code = *byte++; // Next block length
+			if (code == 0x00) // Delimiter code found
+				break;
+		}
+	}
+
+	return decode - (uint8_t *)data;
 }

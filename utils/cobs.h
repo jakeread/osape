@@ -17,8 +17,8 @@ no warranty is provided, and users accept all liability.
 
 #include <Arduino.h>
 
-size_t cobsEncode(uint8_t *src, size_t len, uint8_t *dest);
+size_t cobsEncode(const void *data, size_t length, uint8_t *buffer);
 
-size_t cobsDecode(uint8_t *src, size_t len, uint8_t *dest);
+size_t cobsDecode(const uint8_t *buffer, size_t length, void *data);
 
 #endif
