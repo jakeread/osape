@@ -19,6 +19,7 @@ no warranty is provided, and users accept all liability.
 	@param length Number of bytes to encode
 	@param buffer Pointer to encoded output buffer
 	@return Encoded buffer length in bytes
+	@note doesn't write stop delimiter 
 */
 size_t cobsEncode(const void *data, size_t length, uint8_t *buffer){
 
@@ -37,7 +38,6 @@ size_t cobsEncode(const void *data, size_t length, uint8_t *buffer){
 		}
 	}
 	*codep = code;  // Write final code value
-  *codep++ = 0;   // write the actual zero 
 	return encode - buffer;
 }
 
