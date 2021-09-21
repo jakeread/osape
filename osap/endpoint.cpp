@@ -97,8 +97,8 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 					sysError("on a query, can't reverse a route, rming msg");
 					return EP_ONDATA_REJECT;
 				} else {
-					ack[wptr ++] = EP_QUERY_RESP;
-					ack[wptr ++] = item->data[ptr + 1];
+					ack[wptr ++] = EP_QUERY_RESP;		// reply is response 
+					ack[wptr ++] = item->data[ptr + 1];	// has ID matched to request 
 					memcpy(&(ack[wptr]), vt->ep->data, vt->ep->dataLen);
 					wptr += vt->ep->dataLen;
 					stackLoadSlot(vt, VT_STACK_ORIGIN, ack, wptr);

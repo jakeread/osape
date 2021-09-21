@@ -56,7 +56,7 @@ boolean stackEmptySlot(vertex_t* vt, uint8_t od){
 // loads data into stack 
 void stackLoadSlot(vertex_t* vt, uint8_t od, uint8_t* data, uint16_t len){
   if(od > 1) return; // bad od, lost data 
-  // copy into firstFree element, 
+  // copy into first free element, 
   memcpy(vt->firstFree[od]->data, data, len);
   vt->firstFree[od]->len = len;
   vt->firstFree[od]->arrivalTime = millis();

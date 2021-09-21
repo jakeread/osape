@@ -55,14 +55,15 @@ void osapHandler(vertex_t* vt) {
       uint16_t ptr = 0;
       // check for decent ptr walk, 
       if(!ptrLoop(item->data, &ptr)){
-        sysError("main loop bad ptr walk " + String(item->indice) + " " + String(ptr) + " len " + String(item->len));
+        sysError("main loop bad ptr walk, from vt->indice: " + String(vt->indice) + " o/d: " + String(od) + " len: " + String(item->len));
+        logPacket(item->data, item->len);
         stackClearSlot(vt, od, item); // clears the msg 
         continue; 
       }
       // check timeouts, 
       #warning this should be above the ptrloop above for small perf gain, is here for debug 
       if(item->arrivalTime + TIMES_STALE_MSG < now){
-        sysError("T/O indice " + String(vt->indice) + " " + String(item->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
+        sysError("T/O indice " + String(vt->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
         stackClearSlot(vt, od, item);
         continue;
       }
@@ -194,6 +195,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
     case PK_BFWD_KEY:
       if(vt->type != VT_TYPE_VBUS || vt->cts == nullptr || vt->send == nullptr){
         sysError("bfwd to non-vbus vertex");
+        logPacket(item->data, item->len);
         stackClearSlot(vt, od, item);
       } else {
         // need tx rxaddr, for which drop on bus to tx to, 
