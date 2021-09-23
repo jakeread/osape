@@ -47,6 +47,8 @@ boolean ptrLoop(uint8_t* pck, uint16_t* pt){
   return false;
 }
 
+// pck: bytes, rptr: read ptr (should start at pck[rptr] = PTR / 88)
+// repl: reply bytes, replyPtr ... ptr after setup 
 boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* replyPtr){
   // so we should have here that 
   if(pck[rptr] != PK_PTR){
