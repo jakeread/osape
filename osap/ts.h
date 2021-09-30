@@ -44,8 +44,10 @@ no warranty is provided, and users accept all liability.
 #define PK_PFWD_INC 1 
 #define PK_BFWD_KEY 12
 #define PK_BFWD_INC 3
-#define PK_SCOPE_KEY 21
-#define PK_SCOPE_INC 1 
+#define PK_SCOPE_REQ_KEY 21
+#define PK_SCOPE_REQ_INC 1
+#define PK_SCOPE_RES_KEY 22 
+#define PK_SCOPE_RES_INC 1
 #define PK_LLESCAPE_KEY 44
 #define PK_LLESCAPE_INC 1
 

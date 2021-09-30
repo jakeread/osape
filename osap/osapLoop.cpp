@@ -220,7 +220,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         }
       }
       break;
-    case PK_SCOPE_KEY:
+    case PK_SCOPE_REQ_KEY:
       #warning TODO here for network sweep ! 
       // at the core layer, return brief packet 
       // w/r/t which next-steps are available from this point in the tree 
