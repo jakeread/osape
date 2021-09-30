@@ -220,11 +220,56 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         }
       }
       break;
-    case PK_SCOPE_REQ_KEY:
-      #warning TODO here for network sweep ! 
-      // at the core layer, return brief packet 
-      // w/r/t which next-steps are available from this point in the tree 
+    case PK_SCOPE_REQ_KEY: 
+      {
+        // so we want to write a brief packet in here, and we should do it str8 into the same item, 
+        // we need to reverse the route into a temp object:
+        uint8_t route[VT_SLOTSIZE];
+        uint16_t wptr = 0;
+        if(!reverseRoute(item->data, ptr - 1, route, &wptr)){
+          ERROR(1, "reverse route badness at scope request");
+          stackClearSlot(vt, od, item);
+        }
+        // because reverse route assumes dest, segsize / checksum, we actually want...
+        wptr -= 3;
+        // now we can write in:
+        memcpy(item->data, route, wptr);
+        // and write response key
+        item->data[wptr ++] = PK_SCOPE_RES_KEY;
+        // id from the REQ, should actually be untouched, right?
+        wptr ++;
+        // our type 
+        item->data[wptr ++] = vt->type;
+        // our own indice, our # of siblings, our # of children:
+        ts_writeUint16(vt->indice, item->data, &wptr);
+        if(vt->parent != nullptr){
+          ts_writeUint16(vt->parent->numChildren, item->data, &wptr);
+        } else {
+          ts_writeUint16(0, item->data, &wptr);
+        }
+        ts_writeUint16(vt->numChildren, item->data, &wptr);
+        // and our name... 
+        switch(vt->type){
+          case VT_TYPE_ENDPOINT:
+            ts_writeString("embedded-endpoint", item->data, &wptr);
+            break;
+          case VT_TYPE_ROOT:
+            ts_writeString("embedded-root", item->data, &wptr);
+            break;
+          case VT_TYPE_VPORT:
+            ts_writeString("embedded-vport", item->data, &wptr);
+            break;
+          default:
+            ts_writeString("embedded-vertex", item->data, &wptr);
+            break;
+        }
+        // ok then, we can reset this item, basically:
+        item->len = wptr;
+        item->arrivalTime = millis();
+        // osap will pick it up next loop, ship it back. 
+      }
       break;
+    case PK_SCOPE_RES_KEY:
     case PK_LLESCAPE_KEY:
     default:
       sysError("unrecognized ptr here");
