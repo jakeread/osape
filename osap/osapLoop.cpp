@@ -171,10 +171,43 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
     } 
     break; // end sib-fwd case, 
     case PK_PARENT_KEY:
+      if(vt->parent == nullptr){
+        ERROR(1, "requests traverse to parent from top level");
+        stackClearSlot(vt, od, item);
+      } else if(stackEmptySlot(vt->parent, VT_STACK_DESTINATION)){
+        #ifdef LOOP_DEBUG
+        sysError("copy to parent");
+        #endif 
+        ptr -= 1; // write in reversed instruction 
+        pck[ptr ++] = PK_CHILD_KEY;
+        ts_writeUint16(vt->indice, pck, &ptr);
+        pck[ptr ++] = PK_PTR;
+        // copy-in, set fullness and update time 
+        stackLoadSlot(vt->parent, VT_STACK_DESTINATION, pck, len);
+        stackClearSlot(vt, od, item);
+      }
+      break;
     case PK_CHILD_KEY:
-      // but is functionally identical to above, save small details... later 
-      sysError("nav to parent / child unwritten");
-      stackClearSlot(vt, od, item);
+      // find child 
+      uint16_t ci;
+      ptr ++;
+      ts_readUint16(&ci, pck, &ptr);
+      // can't do it w/o the child, 
+      if(vt->numChildren <= ci){
+        ERROR(1, "no child at this indice " + String(ci));
+        stackClearSlot(vt, od, item);
+      } else if (stackEmptySlot(vt->children[ci], VT_STACK_DESTINATION)){
+        #ifdef LOOP_DEBUG
+        sysError("copy to child");
+        #endif 
+        ptr -= 4;
+        pck[ptr ++] = PK_PARENT_KEY;
+        ts_writeUint16(0, pck, &ptr); // parent 'index' used bc packet length should be symmetric 
+        pck[ptr ++] = PK_PTR;
+        // do the copy-in, set fullness, etc 
+        stackLoadSlot(vt->children[ci], VT_STACK_DESTINATION, pck, len);
+        stackClearSlot(vt, od, item);
+      }
       break;
     case PK_PFWD_KEY:
       if(vt->type != VT_TYPE_VPORT || vt->cts == nullptr || vt->send == nullptr){
@@ -272,7 +305,8 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
     case PK_SCOPE_RES_KEY:
     case PK_LLESCAPE_KEY:
     default:
-      sysError("unrecognized ptr here");
+      sysError("unrecognized ptr here at " + String(ptr) + ": " + String(pck[ptr]));
+      logPacket(pck, len);
       stackClearSlot(vt, od, item);
       break;
   } // end main switch 
