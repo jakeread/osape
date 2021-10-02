@@ -50,6 +50,8 @@ struct vertex_t {
     // a type, a position, a name 
     uint8_t type = 0;
     uint16_t indice = 0;
+    // a time tag, for when we git scoped (need for graph traversals)
+    uint32_t scopeTimeTag = 0;
     // addnl' properties, can possess:
     endpoint_t* ep = nullptr; 
     vport_t* vp = nullptr;

@@ -271,6 +271,13 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         item->data[wptr ++] = PK_SCOPE_RES_KEY;
         // id from the REQ, should actually be untouched, right?
         wptr ++;
+        // want 2 of these 
+        uint16_t rptr = wptr;
+        // collect new timeTag 
+        uint32_t newScopeTimeTag;
+        ts_readUint32(&newScopeTimeTag, item->data, &rptr);
+        ts_writeUint32(vt->scopeTimeTag, item->data, &wptr);
+        vt->scopeTimeTag = newScopeTimeTag;
         // our type 
         item->data[wptr ++] = vt->type;
         // our own indice, our # of siblings, our # of children:
