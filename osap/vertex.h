@@ -4,7 +4,7 @@ osap/vertex.h
 graph vertex 
 
 Jake Read at the Center for Bits and Atoms
-(c) Massachusetts Institute of Technology 2019
+(c) Massachusetts Institute of Technology 2020
 
 This work may be reproduced, modified, distributed, performed, and
 displayed for any purpose, but must acknowledge the osap project.
@@ -50,6 +50,7 @@ struct vertex_t {
     // a type, a position, a name 
     uint8_t type = 0;
     uint16_t indice = 0;
+    String name; 
     // a time tag, for when we git scoped (need for graph traversals)
     uint32_t scopeTimeTag = 0;
     // addnl' properties, can possess:

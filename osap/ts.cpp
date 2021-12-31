@@ -70,12 +70,17 @@ void ts_writeFloat64(double val, volatile unsigned char* buf, uint16_t* ptr){
   buf[(*ptr) ++] = chunk.bytes[7];
 }
 
-void ts_writeString(String val, unsigned char* buf, uint16_t* ptr){
-  uint32_t len = val.length();
+void ts_writeString(String* val, unsigned char* buf, uint16_t* ptr){
+  uint32_t len = val->length();
   buf[(*ptr) ++] = len & 255;
   buf[(*ptr) ++] = (len >> 8) & 255;
   buf[(*ptr) ++] = (len >> 16) & 255;
   buf[(*ptr) ++] = (len >> 24) & 255;
-  val.getBytes(&buf[*ptr], len + 1);
+  val->getBytes(&buf[*ptr], len + 1);
   *ptr += len;
 }
+
+void ts_writeString(String val, unsigned char* buf, uint16_t* ptr){
+  ts_writeString(&val, buf, ptr);
+}
+

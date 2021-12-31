@@ -22,8 +22,9 @@ void loopDefault(void){
   // ... noop 
 }
 
-void osapSetup(void){
+void osapSetup(String name){
   _root.type = VT_TYPE_ROOT;
+  _root.name = name;
   _root.indice = 0;
   _root.loop = loopDefault;
   stackReset(&_root);
@@ -56,6 +57,7 @@ boolean beforeQueryDefault(void){
 vertex_t* osapBuildEndpoint(String name, EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), boolean (*beforeQuery)(void)){
   vertex_t* vt = new vertex_t; // allocates new to heap someplace, 
   vt->type = VT_TYPE_ENDPOINT;
+  vt->name = name;
   stackReset(vt);
   // add this to the system, 
   if(osapAddVertex(vt)){

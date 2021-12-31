@@ -22,7 +22,7 @@ is; no warranty is provided, and users accept all liability.
 
 extern vertex_t* osap;
 
-void osapSetup(void);
+void osapSetup(String name);
 void osapLoop(void);
 
 boolean osapAddVertex(vertex_t* vertex);

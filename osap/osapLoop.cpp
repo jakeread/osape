@@ -28,9 +28,6 @@ void osapRecursor(vertex_t* vt){
   };
 }
 
-uint8_t _attemptedInstructions[16];
-uint16_t _numAttemptedInstructions = 0;
-
 void osapHandler(vertex_t* vt) {
   //sysError("handler " + vt->name);
   // run vertex's own loop code (with reference to self)
@@ -42,17 +39,21 @@ void osapHandler(vertex_t* vt) {
 
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){
-    // reset attempts from last cycle 
-    _numAttemptedInstructions = 0;
     // try one handle per stack item, per loop:
     stackItem* items[vt->stackSize];
     uint8_t count = stackGetItems(vt, od, items, vt->stackSize);
     // want to track out-of-order issues to the loop. 
-    if(count) at0 = items[0]->arrivalTime;
+    // if(count) at0 = items[0]->arrivalTime; // pretty sure we can delete this as of 2021-12-31
     for(uint8_t i = 0; i < count; i ++){
       // the item, and ptr
       stackItem* item = items[i];
       uint16_t ptr = 0;
+      // check timeouts, 
+      if(item->arrivalTime + TIMES_STALE_MSG < now){
+        sysError("T/O indice " + String(vt->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
+        stackClearSlot(vt, od, item);
+        continue;
+      }
       // check for decent ptr walk, 
       if(!ptrLoop(item->data, &ptr)){
         sysError("main loop bad ptr walk, from vt->indice: " + String(vt->indice) + " o/d: " + String(od) + " len: " + String(item->len));
@@ -60,17 +61,10 @@ void osapHandler(vertex_t* vt) {
         stackClearSlot(vt, od, item); // clears the msg 
         continue; 
       }
-      // check timeouts, 
-      #warning this should be above the ptrloop above for small perf gain, is here for debug 
-      if(item->arrivalTime + TIMES_STALE_MSG < now){
-        sysError("T/O indice " + String(vt->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
-        stackClearSlot(vt, od, item);
-        continue;
-      }
       // check FIFO order, 
-      at1 = item->arrivalTime;
-      if(at1 - at0 < 0) sysError("out of order " + String(at1) + " " + String(at0));
-      at1 = at0;
+      // at1 = item->arrivalTime; // pretty sure we can delete this as of 2021-12-31
+      // if(at1 - at0 < 0) sysError("out of order " + String(at1) + " " + String(at0));
+      // at1 = at0;
       // handle it, 
       osapSwitch(vt, od, item, ptr, now);
     }
@@ -82,10 +76,6 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
   ptr ++;
   uint8_t* pck = item->data;
   uint16_t len = item->len;
-  // don't try / fail same instructions twice, 
-  for(uint8_t ins = 0; ins < _numAttemptedInstructions; ins ++){
-    if(pck[ptr] == _attemptedInstructions[ins]) return;
-  }
   // do things, 
   switch(pck[ptr]){
     case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
@@ -107,8 +97,6 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
                 break;
               case EP_ONDATA_WAIT: // not handled: want to wait in the stack, so update time & come back next 
                 item->arrivalTime = now;
-                _attemptedInstructions[_numAttemptedInstructions] = PK_DEST;
-                _numAttemptedInstructions ++;
                 break;
               default:
                 sysError("on endpoint dest. handle, unknown ondata response");
@@ -157,15 +145,6 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         // and we can finish here 
         break;
       } else {
-        // actually, don't *have* to do this here, as we know osap shifts
-        // items out of siblings' stacks **on this loop** and so 
-        // is guaranteed not to happen mid-cycle, 
-        /*
-        _attemptedInstructions[_numAttemptedInstructions][0] = PK_SIB_KEY;
-        _attemptedInstructions[_numAttemptedInstructions][1] = pck[ptr + 1];
-        _attemptedInstructions[_numAttemptedInstructions][2] = pck[ptr + 2];
-        _numAttemptedInstructions ++;
-        */
         // destination stack at target is full, msg stays in place, next loop checks 
       }
     } 
@@ -220,8 +199,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           vt->send(pck, len, 0);
           stackClearSlot(vt, od, item);
         } else {
-          _attemptedInstructions[_numAttemptedInstructions] = PK_PFWD_KEY;
-          _numAttemptedInstructions ++;
+          // failed to pfwd this turn, code will return here next go-round 
         }
       }
       break;
@@ -248,8 +226,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           vt->send(pck, len, rxAddr);
           stackClearSlot(vt, od, item);
         } else {
-          _attemptedInstructions[_numAttemptedInstructions] = PK_BFWD_KEY;
-          _numAttemptedInstructions ++;
+          // failed to bfwd this turn, code will return here next go-round 
         }
       }
       break;
@@ -266,6 +243,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         // because reverse route assumes dest, segsize / checksum, we actually want...
         wptr -= 3;
         // now we can write in:
+        // recall that item->data is the stack-item's little msg block... 
         memcpy(item->data, route, wptr);
         // and write response key
         item->data[wptr ++] = PK_SCOPE_RES_KEY;
@@ -273,7 +251,8 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         wptr ++;
         // want 2 of these 
         uint16_t rptr = wptr;
-        // collect new timeTag 
+        // collect new timeTag: vertex keeps 'last-time-scoped' state
+        // here we write-in to the response our *previous* time-scoped, and replace that w/ this requests' tag 
         uint32_t newScopeTimeTag;
         ts_readUint32(&newScopeTimeTag, item->data, &rptr);
         ts_writeUint32(vt->scopeTimeTag, item->data, &wptr);
@@ -289,6 +268,8 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         }
         ts_writeUint16(vt->numChildren, item->data, &wptr);
         // and our name... 
+        ts_writeString(vt->name, item->data, &wptr);
+        /*
         switch(vt->type){
           case VT_TYPE_ENDPOINT:
             ts_writeString("embedded-endpoint", item->data, &wptr);
@@ -303,6 +284,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
             ts_writeString("embedded-vertex", item->data, &wptr);
             break;
         }
+        */
         // ok then, we can reset this item, basically:
         item->len = wptr;
         item->arrivalTime = millis();
