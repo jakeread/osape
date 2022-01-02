@@ -75,6 +75,7 @@ vertex_t* osapBuildEndpoint(String name, EP_ONDATA_RESPONSES (*onData)(uint8_t* 
     // endpoints don't get loop fns 
     vt->loop = loopDefault;
     vt->ep = ep;
+    ep->vt = vt;
     return vt;
   } else {
     delete vt;

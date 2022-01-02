@@ -30,12 +30,14 @@ void osapRecursor(vertex_t* vt){
 
 void osapHandler(vertex_t* vt) {
   //sysError("handler " + vt->name);
-  // run vertex's own loop code (with reference to self)
-  if(vt->loop != nullptr) vt->loop();
   // time is now
   unsigned long now = millis();
-  unsigned long at0;
-  unsigned long at1;
+  //unsigned long at0;
+  //unsigned long at1;
+
+  // run vertex's own loop code (with reference to self)
+  if(vt->loop != nullptr) vt->loop();
+  if(vt->ep != nullptr) endpointLoop(vt->ep);
 
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){
@@ -287,7 +289,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         */
         // ok then, we can reset this item, basically:
         item->len = wptr;
-        item->arrivalTime = millis();
+        item->arrivalTime = now;
         // osap will pick it up next loop, ship it back. 
       }
       break;

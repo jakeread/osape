@@ -20,18 +20,51 @@ no warranty is provided, and users accept all liability.
 typedef struct vertex_t vertex_t;
 typedef struct stackItem stackItem;
 
-// endpoint handler responses must be one of these enum - 
-enum EP_ONDATA_RESPONSES { EP_ONDATA_REJECT, EP_ONDATA_ACCEPT, EP_ONDATA_WAIT };
+// endpoints have *routes* which they tx to... 
 
-EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr);
+#define ENDPOINT_MAX_ROUTES 4
+
+enum EP_ROUTE_MODES { EP_ROUTE_ACKLESS, EP_ROUTE_ACKED };
+enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK };
+
+struct endpoint_route_t {
+  uint8_t path[64];
+  uint8_t pathLen = 0;
+  uint8_t ackId = 77;    // this'll limit the # of simultaneously tx'd-to routes to 255, considering each needs unique ackid 
+  EP_ROUTE_STATES state = EP_TX_IDLE;
+  // properties likely to be exposed to mvc 
+  EP_ROUTE_MODES ackMode = EP_ROUTE_ACKLESS;
+  uint16_t segSize = 256;
+};
+
+// endpoint handler responses must be one of these enum - 
+
+enum EP_ONDATA_RESPONSES { EP_ONDATA_REJECT, EP_ONDATA_ACCEPT, EP_ONDATA_WAIT };
 
 struct endpoint_t {
   vertex_t* vt;
   // local data store & length, 
   uint8_t data[VT_SLOTSIZE];
   uint16_t dataLen = 0; 
+  // callbacks: on new data & before a query is written out 
   EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len) = nullptr;
   boolean (*beforeQuery)(void) = nullptr;
+  // routes, for tx-ing to:
+  endpoint_route_t routes[ENDPOINT_MAX_ROUTES];
+  uint16_t numRoutes = 0;
+  uint16_t lastRouteServiced = 0;
 };
+
+// route adder: 
+// vertex_t* ep is a mistake: osapBuildEndpoint is broken, and returns a vertex... 
+// we *should* have a better cpp API for this, but don't, that's next go-round 
+boolean addRouteToEndpoint(vertex_t* vt, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
+
+// endpoint check-tx-state-machine 
+void endpointLoop(endpoint_t* ep);
+
+// a master handler: 
+
+EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr);
 
 #endif 

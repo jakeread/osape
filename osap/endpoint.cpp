@@ -116,3 +116,78 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 			return EP_ONDATA_REJECT;
 	}
 }
+
+// add a route to an endpoint 
+boolean addRouteToEndpoint(vertex_t* vt, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode){
+	// if vertex is an endpoint, get handle for it 
+	if(vt->ep == nullptr) return false; 
+	endpoint_t* ep = vt->ep;
+	// guard against more-than-allowed routes 
+	if(ep->numRoutes >= ENDPOINT_MAX_ROUTES) return false;
+	// handle for the route we're going to modify (and increment # of active routes)
+	endpoint_route_t* rt = &(ep->routes[ep->numRoutes ++]);
+	// load the path -> the path 
+	memcpy(rt->path, path, pathLen);
+	rt->pathLen = pathLen;
+	rt->ackMode = mode;
+	// done 
+	return true; 
+}
+
+uint8_t EPOut[VT_SLOTSIZE];
+
+// check tx states, 
+void endpointLoop(endpoint_t* ep){
+	// we want to pluck 'em out on round-robin...
+	uint8_t r = ep->lastRouteServiced;
+	for(uint8_t i = 0; i < ep->numRoutes; i ++){
+		r ++;
+		if(r > ep->numRoutes) r = 0;
+		endpoint_route_t* rt = &(ep->routes[r]);
+		switch(rt->state){
+			case EP_TX_IDLE:
+				// no-op 
+				break;
+			case EP_TX_FRESH:
+				// foruml8 pck & tx it 
+				if(stackEmptySlot(ep->vt, VT_STACK_ORIGIN)){
+					// load it w/ data, 
+					#warning slow-load code:
+					// write ptr in the head, 
+					uint16_t wptr = 0;
+					EPOut[wptr ++] = PK_PTR;
+					// the path next, 
+					memcpy(EPOut, rt->path, rt->pathLen);
+					wptr += rt->pathLen;
+					// destination key, segment size 
+					EPOut[wptr ++] = PK_DEST;
+					ts_writeUint16(rt->segSize, EPOut, &wptr);
+					// mode-key, 
+					if(rt->ackMode == EP_ROUTE_ACKLESS) EPOut[wptr ++] = EP_SS_ACKLESS;
+					if(rt->ackMode == EP_ROUTE_ACKED) EPOut[wptr ++] = EP_SS_ACKED;
+					// check against write into stray memory 
+					if(ep->dataLen + wptr >= VT_SLOTSIZE){
+						ERROR(1, "write-to-endpoint exceeds slotsize");
+						return;
+					}
+					// the data, 
+					memcpy(EPOut, ep->data, ep->dataLen);
+					wptr += ep->dataLen;
+					// that's a packet? we load it into stack, we're done 
+					stackLoadSlot(ep->vt, VT_STACK_ORIGIN, EPOut, wptr);
+					// update state:
+					if(rt->ackMode == EP_ROUTE_ACKLESS) rt->state = EP_TX_IDLE;
+					if(rt->ackMode == EP_ROUTE_ACKED) rt->state = EP_TX_AWAITING_ACK;
+					// and track, so that we do *this recently serviced* thing *last* on next round 
+					ep->lastRouteServiced = r;
+				} else {
+					// no space... await... 
+				}
+			case EP_TX_AWAITING_ACK:
+				// check timeout?
+				break;
+			default:
+				break;
+		}
+	}
+}
