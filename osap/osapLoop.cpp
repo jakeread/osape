@@ -37,7 +37,7 @@ void osapHandler(vertex_t* vt) {
 
   // run vertex's own loop code (with reference to self)
   if(vt->loop != nullptr) vt->loop();
-  if(vt->ep != nullptr) endpointLoop(vt->ep);
+  if(vt->ep != nullptr) endpointLoop(vt->ep, now);
 
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){

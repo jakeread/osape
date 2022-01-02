@@ -30,8 +30,10 @@ enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITI
 struct endpoint_route_t {
   uint8_t path[64];
   uint8_t pathLen = 0;
-  uint8_t ackId = 77;    // this'll limit the # of simultaneously tx'd-to routes to 255, considering each needs unique ackid 
+  uint8_t ackId = 0;    // this'll limit the # of simultaneously tx'd-to routes to 255, considering each needs unique ackid 
   EP_ROUTE_STATES state = EP_TX_IDLE;
+  unsigned long txTime = 0;
+  unsigned long timeoutLength = 1000; // ms 
   // properties likely to be exposed to mvc 
   EP_ROUTE_MODES ackMode = EP_ROUTE_ACKLESS;
   uint16_t segSize = 256;
@@ -53,6 +55,7 @@ struct endpoint_t {
   endpoint_route_t routes[ENDPOINT_MAX_ROUTES];
   uint16_t numRoutes = 0;
   uint16_t lastRouteServiced = 0;
+  uint8_t nextAckId = 77;
 };
 
 // route adder: 
@@ -64,7 +67,7 @@ boolean addRouteToEndpoint(vertex_t* vt, uint8_t* path, uint16_t pathLen, EP_ROU
 void endpointWrite(vertex_t* vt, uint8_t* data, uint16_t len);
 
 // endpoint check-tx-state-machine 
-void endpointLoop(endpoint_t* ep);
+void endpointLoop(endpoint_t* ep, unsigned long now);
 
 // a master handler: 
 
