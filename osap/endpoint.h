@@ -69,6 +69,10 @@ void endpointWrite(vertex_t* vt, uint8_t* data, uint16_t len);
 // endpoint check-tx-state-machine 
 void endpointLoop(endpoint_t* ep, unsigned long now);
 
+// endpoint api-to-check-all-clear:
+
+boolean endpointAllClear(endpoint_t* ep);
+
 // a master handler: 
 
 EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr);

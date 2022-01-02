@@ -176,6 +176,15 @@ void endpointWrite(vertex_t* vt, uint8_t* data, uint16_t len){
   }
 }
 
+boolean endpointAllClear(endpoint_t* ep){
+  for(uint8_t r = 0; r < ep->numRoutes; r ++){
+    if(ep->routes[r].state != EP_TX_IDLE){
+      return false;
+    }
+  }
+  return true;
+}
+
 uint8_t EPOut[VT_SLOTSIZE];
 
 // check tx states, 
