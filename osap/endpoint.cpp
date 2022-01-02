@@ -134,6 +134,24 @@ boolean addRouteToEndpoint(vertex_t* vt, uint8_t* path, uint16_t pathLen, EP_ROU
 	return true; 
 }
 
+void endpointWrite(vertex_t* vt, uint8_t* data, uint16_t len){
+  // if vertex is an endpoint, get handle for it 
+	if(vt->ep == nullptr) return; 
+	endpoint_t* ep = vt->ep;
+  // copy data in,
+  if(len > VT_SLOTSIZE) return; // no lol 
+  memcpy(ep->data, data, len);
+  ep->dataLen = len;
+  // set route freshness 
+  for(uint8_t r = 0; r < ep->numRoutes; r ++){
+    if(ep->routes[r].state == EP_TX_AWAITING_ACK){
+      ep->routes[r].state = EP_TX_AWAITING_AND_FRESH;
+    } else {
+      ep->routes[r].state = EP_TX_FRESH;
+    }
+  }
+}
+
 uint8_t EPOut[VT_SLOTSIZE];
 
 // check tx states, 
@@ -142,7 +160,7 @@ void endpointLoop(endpoint_t* ep){
 	uint8_t r = ep->lastRouteServiced;
 	for(uint8_t i = 0; i < ep->numRoutes; i ++){
 		r ++;
-		if(r > ep->numRoutes) r = 0;
+		if(r >= ep->numRoutes) r = 0;
 		endpoint_route_t* rt = &(ep->routes[r]);
 		switch(rt->state){
 			case EP_TX_IDLE:
@@ -157,7 +175,7 @@ void endpointLoop(endpoint_t* ep){
 					uint16_t wptr = 0;
 					EPOut[wptr ++] = PK_PTR;
 					// the path next, 
-					memcpy(EPOut, rt->path, rt->pathLen);
+					memcpy(&(EPOut[wptr]), rt->path, rt->pathLen);
 					wptr += rt->pathLen;
 					// destination key, segment size 
 					EPOut[wptr ++] = PK_DEST;
@@ -171,11 +189,11 @@ void endpointLoop(endpoint_t* ep){
 						return;
 					}
 					// the data, 
-					memcpy(EPOut, ep->data, ep->dataLen);
+					memcpy(&(EPOut[wptr]), ep->data, ep->dataLen);
 					wptr += ep->dataLen;
 					// that's a packet? we load it into stack, we're done 
 					stackLoadSlot(ep->vt, VT_STACK_ORIGIN, EPOut, wptr);
-					// update state:
+					// transition state:
 					if(rt->ackMode == EP_ROUTE_ACKLESS) rt->state = EP_TX_IDLE;
 					if(rt->ackMode == EP_ROUTE_ACKED) rt->state = EP_TX_AWAITING_ACK;
 					// and track, so that we do *this recently serviced* thing *last* on next round 

@@ -25,7 +25,7 @@ typedef struct stackItem stackItem;
 #define ENDPOINT_MAX_ROUTES 4
 
 enum EP_ROUTE_MODES { EP_ROUTE_ACKLESS, EP_ROUTE_ACKED };
-enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK };
+enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITING_AND_FRESH };
 
 struct endpoint_route_t {
   uint8_t path[64];
@@ -59,6 +59,9 @@ struct endpoint_t {
 // vertex_t* ep is a mistake: osapBuildEndpoint is broken, and returns a vertex... 
 // we *should* have a better cpp API for this, but don't, that's next go-round 
 boolean addRouteToEndpoint(vertex_t* vt, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
+
+// endpoint writer... 
+void endpointWrite(vertex_t* vt, uint8_t* data, uint16_t len);
 
 // endpoint check-tx-state-machine 
 void endpointLoop(endpoint_t* ep);
