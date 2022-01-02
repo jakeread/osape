@@ -26,11 +26,20 @@ void osapSetup(String name);
 void osapLoop(void);
 
 boolean osapAddVertex(vertex_t* vertex);
+boolean osapAddEndpoint(endpoint_t* endpoint);
 
-vertex_t* osapBuildEndpoint(
+endpoint_t* osapBuildEndpoint(
     String name, 
     EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), 
     boolean (*beforeQuery)(void)
+);
+
+endpoint_t* osapBuildEndpoint(
+    String name
+);
+
+endpoint_t* osapBuildEndpoint(String name,
+    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len)
 );
 
 #endif 

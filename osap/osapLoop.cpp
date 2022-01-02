@@ -91,7 +91,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           break;
         case VT_TYPE_ENDPOINT: 
           {
-            EP_ONDATA_RESPONSES resp = endpointHandler(vt, od, item, ptr);
+            EP_ONDATA_RESPONSES resp = endpointHandler(vt->ep, od, item, ptr);
             switch(resp){
               case EP_ONDATA_REJECT:
               case EP_ONDATA_ACCEPT: // in either case, msg is handled / out of stack, we can clear it 

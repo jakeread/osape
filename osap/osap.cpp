@@ -46,6 +46,10 @@ boolean osapAddVertex(vertex_t* vt) {
   }
 }
 
+boolean osapAddEndpoint(endpoint_t* ep){
+  return osapAddVertex(ep->vt);
+}
+
 EP_ONDATA_RESPONSES onDataDefault(uint8_t* data, uint16_t len){
   return EP_ONDATA_ACCEPT;
 }
@@ -54,7 +58,7 @@ boolean beforeQueryDefault(void){
   return true;
 }
 
-vertex_t* osapBuildEndpoint(String name, EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), boolean (*beforeQuery)(void)){
+endpoint_t* osapBuildEndpoint(String name, EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), boolean (*beforeQuery)(void)){
   vertex_t* vt = new vertex_t; // allocates new to heap someplace, 
   vt->type = VT_TYPE_ENDPOINT;
   vt->name = name;
@@ -76,9 +80,17 @@ vertex_t* osapBuildEndpoint(String name, EP_ONDATA_RESPONSES (*onData)(uint8_t* 
     vt->loop = loopDefault;
     vt->ep = ep;
     ep->vt = vt;
-    return vt;
+    return ep;
   } else {
     delete vt;
     return nullptr;
   }
+}
+
+endpoint_t* osapBuildEndpoint(String name){
+  return osapBuildEndpoint(name, nullptr, nullptr);
+}
+
+endpoint_t* osapBuildEndpoint(String name, EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len)){
+  return osapBuildEndpoint(name, onData);
 }

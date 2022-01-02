@@ -61,10 +61,10 @@ struct endpoint_t {
 // route adder: 
 // vertex_t* ep is a mistake: osapBuildEndpoint is broken, and returns a vertex... 
 // we *should* have a better cpp API for this, but don't, that's next go-round 
-boolean addRouteToEndpoint(vertex_t* vt, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
+boolean endpointAddRoute(endpoint_t* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
 
 // endpoint writer... 
-void endpointWrite(vertex_t* vt, uint8_t* data, uint16_t len);
+void endpointWrite(endpoint_t* ep, uint8_t* data, uint16_t len);
 
 // endpoint check-tx-state-machine 
 void endpointLoop(endpoint_t* ep, unsigned long now);
@@ -74,7 +74,6 @@ void endpointLoop(endpoint_t* ep, unsigned long now);
 boolean endpointAllClear(endpoint_t* ep);
 
 // a master handler: 
-
-EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr);
+EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, uint8_t od, stackItem* item, uint16_t ptr);
 
 #endif 

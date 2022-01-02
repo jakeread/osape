@@ -22,7 +22,7 @@ uint8_t ack[VT_SLOTSIZE];
 // handle, return true to clear out. false to wait one turn 
 // item->data[ptr] == PK_DEST here 
 // item->data[ptr + 1, ptr + 2] = segsize !
-EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr){
+EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, uint8_t od, stackItem* item, uint16_t ptr){
 	ptr += 3;
 	switch(item->data[ptr]){
 		case EP_SS_ACKLESS: // ah right, these were 'single segment' msgs... yikes 
@@ -32,15 +32,15 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 				// NOTE: previous code had *ackless* using 'ptr + 1' offsets, but should be the same 
 				// as *acked* code, which uses 'ptr + 2' offset ... swapped back here 2021-07-07, ? 
 				// was rarely using ackless... so I presume this is it 
-				EP_ONDATA_RESPONSES resp = vt->ep->onData(&(item->data[ptr + 2]), item->len - ptr - 2);
+				EP_ONDATA_RESPONSES resp = ep->onData(&(item->data[ptr + 2]), item->len - ptr - 2);
 				switch(resp){
 					case EP_ONDATA_REJECT:
 						// nothing to do: msg will be deleted one level up 
 						break; 
 					case EP_ONDATA_ACCEPT:
 						// data OK, copy it in:
-						memcpy(vt->ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
-						vt->ep->dataLen = item->len - ptr - 2;
+						memcpy(ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
+						ep->dataLen = item->len - ptr - 2;
 						break;
 					case EP_ONDATA_WAIT:
 						// nothing to do, msg will be awaited one level up 
@@ -52,17 +52,17 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 		case EP_SS_ACKED:
 			{
 				// if there's not any space for an ack, we won't be able to ack, ask to wait 
-				if(!stackEmptySlot(vt, VT_STACK_ORIGIN)) return EP_ONDATA_WAIT;
+				if(!stackEmptySlot(ep->vt, VT_STACK_ORIGIN)) return EP_ONDATA_WAIT;
 				// otherwise carry on to the handler, 
-				EP_ONDATA_RESPONSES resp = vt->ep->onData(&(item->data[ptr + 2]), item->len - ptr - 2);
+				EP_ONDATA_RESPONSES resp = ep->onData(&(item->data[ptr + 2]), item->len - ptr - 2);
 				switch(resp){
 					case EP_ONDATA_WAIT:
 						// again: will mirror this reponse up, wait will happen there 
 						break;
 					case EP_ONDATA_ACCEPT:
 						// this means we copy the data in, it's the new endpoint data:
-						memcpy(vt->ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
-						vt->ep->dataLen = item->len - ptr - 2;
+						memcpy(ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
+						ep->dataLen = item->len - ptr - 2;
 						// carry on to generate the response (no break)
 					case EP_ONDATA_REJECT:
 						{
@@ -78,7 +78,7 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 							ack[wptr ++] = EP_SS_ACK;
               // the ack ID is here in prv packet 
 							ack[wptr ++] = item->data[ptr + 1];
-							stackLoadSlot(vt, VT_STACK_ORIGIN, ack, wptr);
+							stackLoadSlot(ep->vt, VT_STACK_ORIGIN, ack, wptr);
 						}
 						break; // end accept / reject 
 					default:
@@ -89,9 +89,9 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 			break;
 		case EP_QUERY:
 			// if can generate new message, 
-			if(stackEmptySlot(vt, VT_STACK_ORIGIN)){
+			if(stackEmptySlot(ep->vt, VT_STACK_ORIGIN)){
 				// run the 'beforeQuery' call, which doesn't need to return anything: 
-				vt->ep->beforeQuery();
+				ep->beforeQuery();
 				uint16_t wptr = 0;
 				// if the route can't be reversed, trouble:
 				if(!reverseRoute(item->data, ptr - 4, ack, &wptr)) {
@@ -100,9 +100,9 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 				} else {
 					ack[wptr ++] = EP_QUERY_RESP;		// reply is response 
 					ack[wptr ++] = item->data[ptr + 1];	// has ID matched to request 
-					memcpy(&(ack[wptr]), vt->ep->data, vt->ep->dataLen);
-					wptr += vt->ep->dataLen;
-					stackLoadSlot(vt, VT_STACK_ORIGIN, ack, wptr);
+					memcpy(&(ack[wptr]), ep->data, ep->dataLen);
+					wptr += ep->dataLen;
+					stackLoadSlot(ep->vt, VT_STACK_ORIGIN, ack, wptr);
 					return EP_ONDATA_ACCEPT;
 				}
 			} else {
@@ -112,7 +112,6 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 		case EP_SS_ACK:
       // upd8 tx state on associated route 
       {
-        endpoint_t* ep = vt->ep;
         for(uint8_t r = 0; r < ep->numRoutes; r ++){
           // this is where the ackId is in the packet, we match to routes on that (for speed)
           if(item->data[ptr + 1] == ep->routes[r].ackId){
@@ -142,10 +141,7 @@ EP_ONDATA_RESPONSES endpointHandler(vertex_t* vt, uint8_t od, stackItem* item, u
 }
 
 // add a route to an endpoint 
-boolean addRouteToEndpoint(vertex_t* vt, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode){
-	// if vertex is an endpoint, get handle for it 
-	if(vt->ep == nullptr) return false; 
-	endpoint_t* ep = vt->ep;
+boolean endpointAddRoute(endpoint_t* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode){
 	// guard against more-than-allowed routes 
 	if(ep->numRoutes >= ENDPOINT_MAX_ROUTES) return false;
 	// handle for the route we're going to modify (and increment # of active routes)
@@ -158,10 +154,7 @@ boolean addRouteToEndpoint(vertex_t* vt, uint8_t* path, uint16_t pathLen, EP_ROU
 	return true; 
 }
 
-void endpointWrite(vertex_t* vt, uint8_t* data, uint16_t len){
-  // if vertex is an endpoint, get handle for it 
-	if(vt->ep == nullptr) return; 
-	endpoint_t* ep = vt->ep;
+void endpointWrite(endpoint_t* ep, uint8_t* data, uint16_t len){
   // copy data in,
   if(len > VT_SLOTSIZE) return; // no lol 
   memcpy(ep->data, data, len);
