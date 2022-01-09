@@ -92,5 +92,5 @@ endpoint_t* osapBuildEndpoint(String name){
 }
 
 endpoint_t* osapBuildEndpoint(String name, EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len)){
-  return osapBuildEndpoint(name, onData);
+  return osapBuildEndpoint(name, onData, nullptr);
 }
