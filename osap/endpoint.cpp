@@ -208,13 +208,13 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
 					ts_writeUint16(rt->segSize, EPOut, &wptr);
 					// mode-key, 
 					if(rt->ackMode == EP_ROUTE_ACKLESS){
-            EPOut[wptr ++] = EP_SS_ACKLESS;
-					} else if(rt->ackMode == EP_ROUTE_ACKED){
-            EPOut[wptr ++] = EP_SS_ACKED;
-            EPOut[wptr ++] = ep->nextAckId;
-            rt->ackId = ep->nextAckId;
-            ep->nextAckId ++; // increment and wrap: only one ID per endpoint per tx, for demux 
-          }
+            		EPOut[wptr ++] = EP_SS_ACKLESS;
+						} else if(rt->ackMode == EP_ROUTE_ACKED){
+            				EPOut[wptr ++] = EP_SS_ACKED;
+            				EPOut[wptr ++] = ep->nextAckId;
+            				rt->ackId = ep->nextAckId;
+            				ep->nextAckId ++; // increment and wrap: only one ID per endpoint per tx, for demux 
+          			}
 					// check against write into stray memory 
 					if(ep->dataLen + wptr >= VT_SLOTSIZE){
 						ERROR(1, "write-to-endpoint exceeds slotsize");
@@ -224,7 +224,7 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
 					memcpy(&(EPOut[wptr]), ep->data, ep->dataLen);
 					wptr += ep->dataLen;
 					// that's a packet? we load it into stack, we're done 
-          rt->txTime = now;
+			        rt->txTime = now;
 					stackLoadSlot(ep->vt, VT_STACK_ORIGIN, EPOut, wptr);
 					// transition state:
 					if(rt->ackMode == EP_ROUTE_ACKLESS) rt->state = EP_TX_IDLE;

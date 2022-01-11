@@ -14,6 +14,14 @@ no warranty is provided, and users accept all liability.
 
 #include "ts.h"
 
+void ts_readBoolean(boolean* val, unsigned char* buf, uint16_t* ptr){
+  if(buf[(*ptr) ++]){
+    *val = true;
+  } else {
+    *val = false;
+  }
+}
+
 void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr){
   if(val){
     buf[(*ptr) ++] = 1;

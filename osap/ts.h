@@ -105,6 +105,8 @@ union chunk_uint32 {
 
 // -------------------------------------------------------- Reading and Writing
 
+void ts_readBoolean(boolean* val, unsigned char* buf, uint16_t* ptr);
+
 void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr);
 
 void ts_readUint16(uint16_t* val, uint8_t* buf, uint16_t* ptr);
