@@ -31,8 +31,9 @@ void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr){
 }
 
 void ts_writeInt16(int16_t val, unsigned char* buf, uint16_t* ptr){
-  buf[(*ptr) ++] = val & 255;
-  buf[(*ptr) ++] = (val >> 8) & 255;
+  chunk_int16 chunk = { i: val };
+  buf[(*ptr) ++] = chunk.bytes[0];
+  buf[(*ptr) ++] = chunk.bytes[1];
 }
 
 void ts_readUint16(uint16_t* val, unsigned char* buf, uint16_t* ptr){
