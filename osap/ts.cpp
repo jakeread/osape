@@ -36,6 +36,14 @@ void ts_writeInt16(int16_t val, unsigned char* buf, uint16_t* ptr){
   buf[(*ptr) ++] = chunk.bytes[1];
 }
 
+void ts_writeInt32(int32_t val, unsigned char* buf, uint16_t* ptr){
+  chunk_int32 chunk = { i: val };
+  buf[(*ptr) ++] = chunk.bytes[0];
+  buf[(*ptr) ++] = chunk.bytes[1];
+  buf[(*ptr) ++] = chunk.bytes[2];
+  buf[(*ptr) ++] = chunk.bytes[3];
+}
+
 void ts_readUint16(uint16_t* val, unsigned char* buf, uint16_t* ptr){
   *val = buf[(*ptr) + 1] << 8 | buf[(*ptr)];
   *ptr += 2;
