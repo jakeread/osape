@@ -76,7 +76,7 @@ EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, uint8_t od, stackItem* item,
 							}
 							// the ack, 
 							ack[wptr ++] = EP_SS_ACK;
-              // the ack ID is here in prv packet 
+			              	// the ack ID is here in prv packet 
 							ack[wptr ++] = item->data[ptr + 1];
 							stackLoadSlot(ep->vt, VT_STACK_ORIGIN, ack, wptr);
 						}
@@ -208,12 +208,12 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
 					ts_writeUint16(rt->segSize, EPOut, &wptr);
 					// mode-key, 
 					if(rt->ackMode == EP_ROUTE_ACKLESS){
-            		EPOut[wptr ++] = EP_SS_ACKLESS;
-						} else if(rt->ackMode == EP_ROUTE_ACKED){
-            				EPOut[wptr ++] = EP_SS_ACKED;
-            				EPOut[wptr ++] = ep->nextAckId;
-            				rt->ackId = ep->nextAckId;
-            				ep->nextAckId ++; // increment and wrap: only one ID per endpoint per tx, for demux 
+            			EPOut[wptr ++] = EP_SS_ACKLESS;
+					} else if(rt->ackMode == EP_ROUTE_ACKED){
+						EPOut[wptr ++] = EP_SS_ACKED;
+						EPOut[wptr ++] = ep->nextAckId;
+						rt->ackId = ep->nextAckId;
+						ep->nextAckId ++; // increment and wrap: only one ID per endpoint per tx, for demux 
           			}
 					// check against write into stray memory 
 					if(ep->dataLen + wptr >= VT_SLOTSIZE){

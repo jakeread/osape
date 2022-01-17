@@ -20,11 +20,12 @@ no warranty is provided, and users accept all liability.
 // -------------------------------------------------------- Vertex Type Keys
 // will likely use these in the netrunner: 
 
-#define VT_TYPE_ROOT 22
-#define VT_TYPE_MODULE 23
-#define VT_TYPE_ENDPOINT 24 
-#define VT_TYPE_VPORT 44
-#define VT_TYPE_VBUS 45 // maybe bus-drop / bus-head / bus-cohost are differentiated 
+#define VT_TYPE_ROOT 22       // top level 
+#define VT_TYPE_MODULE 23     // collection of things (?) or something, idk yet 
+#define VT_TYPE_ENDPOINT 24   // software endpoint w/ read/write semantics 
+#define VT_TYPE_CODE 25       // autonomous graph dwellers 
+#define VT_TYPE_VPORT 44      // virtual ports 
+#define VT_TYPE_VBUS 45       // maybe bus-drop / bus-head / bus-cohost are differentiated 
 
 // -------------------------------------------------------- TIMES
 

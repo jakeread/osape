@@ -43,6 +43,9 @@ typedef struct vport_t vport_t;
 typedef struct vbus_t vbus_t;
 typedef struct root_t root_t;
 
+// this could perhaps be that each of these ^ are classes, each class having its own ->handler()
+// then instances of each class can still attach unique onData() etc, the classes handler calls it 
+
 struct vertex_t {
     // a loop code, run once per turn
     void (*loop)() = nullptr;

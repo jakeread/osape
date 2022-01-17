@@ -109,7 +109,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         default:
           // vertex has a 'type' we don't recognize, 
           // best I can do is deletion 
-          sysError("unknown vertext type, when handling msg-at-destination");
+          sysError("unknown vertex type, when handling msg-at-destination");
           stackClearSlot(vt, od, item);
           break;
       } // end vt typeswitch 

@@ -70,7 +70,6 @@ void endpointWrite(endpoint_t* ep, uint8_t* data, uint16_t len);
 void endpointLoop(endpoint_t* ep, unsigned long now);
 
 // endpoint api-to-check-all-clear:
-
 boolean endpointAllClear(endpoint_t* ep);
 
 // a master handler: 
