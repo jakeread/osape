@@ -12,13 +12,13 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-#ifndef OSAP_LOOP_H_
-#define OSAP_LOOP_H_ 
+#ifndef LOOP_H_
+#define LOOP_H_ 
 
 #include "vertex.h"
 
-void osapRecursor(vertex_t* vt);
-void osapHandler(vertex_t* vt);
-void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now);
+void recursor(vertex_t* vt);
+void handler(vertex_t* vt);
+void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now);
 
 #endif 

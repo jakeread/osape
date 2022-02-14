@@ -15,12 +15,12 @@ no warranty is provided, and users accept all liability.
 #ifndef ENDPOINT_H_
 #define ENDPOINT_H_
 
-#include "vertex.h"
+#include "../core/vertex.h"
 
 typedef struct vertex_t vertex_t;
 typedef struct stackItem stackItem;
 
-// endpoints have *routes* which they tx to... 
+// ---------------------------------------------- Routes
 
 #define ENDPOINT_MAX_ROUTES 4
 
@@ -39,8 +39,9 @@ struct endpoint_route_t {
   uint16_t segSize = 256;
 };
 
-// endpoint handler responses must be one of these enum - 
+// ---------------------------------------------- Endpoints 
 
+// endpoint handler responses must be one of these enum - 
 enum EP_ONDATA_RESPONSES { EP_ONDATA_REJECT, EP_ONDATA_ACCEPT, EP_ONDATA_WAIT };
 
 struct endpoint_t {
@@ -58,21 +59,44 @@ struct endpoint_t {
   uint8_t nextAckId = 77;
 };
 
-// route adder: 
-// vertex_t* ep is a mistake: osapBuildEndpoint is broken, and returns a vertex... 
-// we *should* have a better cpp API for this, but don't, that's next go-round 
-boolean endpointAddRoute(endpoint_t* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
+// ---------------------------------------------- Endpoint Build / Add 
+
+endpoint_t* osapBuildEndpoint(
+    String name, 
+    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), 
+    boolean (*beforeQuery)(void)
+);
+
+endpoint_t* osapBuildEndpoint(
+    String name
+);
+
+endpoint_t* osapBuildEndpoint(String name,
+    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len)
+);
+
+boolean osapAddEndpoint(endpoint_t* endpoint);
+
+// ---------------------------------------------- Endpoint Route / Write API 
 
 // endpoint writer... 
 void endpointWrite(endpoint_t* ep, uint8_t* data, uint16_t len);
 
-// endpoint check-tx-state-machine 
-void endpointLoop(endpoint_t* ep, unsigned long now);
+// route adder: 
+boolean endpointAddRoute(endpoint_t* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
 
 // endpoint api-to-check-all-clear:
 boolean endpointAllClear(endpoint_t* ep);
 
+// ---------------------------------------------- Runtimes 
+
+// loop over all endpoints, 
+void endpointMainLoop(void);
+
+// loop per-endpoint, 
+void endpointLoop(endpoint_t* ep, unsigned long now);
+
 // a master handler: 
-EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, uint8_t od, stackItem* item, uint16_t ptr);
+EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, stackItem* item, uint16_t ptr);
 
 #endif 

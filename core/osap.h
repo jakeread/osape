@@ -16,30 +16,14 @@ is; no warranty is provided, and users accept all liability.
 #define OSAP_H_
 
 #include "vertex.h"
-#include "endpoint.h"
 
 // vertex factory & root vertex 
 
 extern vertex_t* osap;
 
 void osapSetup(String name);
-void osapLoop(void);
+void osapMainLoop(void);
 
 boolean osapAddVertex(vertex_t* vertex);
-boolean osapAddEndpoint(endpoint_t* endpoint);
-
-endpoint_t* osapBuildEndpoint(
-    String name, 
-    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), 
-    boolean (*beforeQuery)(void)
-);
-
-endpoint_t* osapBuildEndpoint(
-    String name
-);
-
-endpoint_t* osapBuildEndpoint(String name,
-    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len)
-);
 
 #endif 

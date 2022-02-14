@@ -1,5 +1,5 @@
 /*
-osap/ts.h
+core/ts.h
 
 typeset / keys / writing / reading
 

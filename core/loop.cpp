@@ -12,8 +12,8 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-#include "osapLoop.h"
-#include "osapUtils.h"
+#include "loop.h"
+#include "packets.h"
 #include "../../../indicators.h"
 #include "../../../syserror.h"
 
@@ -21,59 +21,47 @@ no warranty is provided, and users accept all liability.
 
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
-void osapRecursor(vertex_t* vt){
-  osapHandler(vt);
+void recursor(vertex_t* vt){
+  handler(vt);
   for(uint8_t child = 0; child < vt->numChildren; child ++){
-    osapRecursor(vt->children[child]);
+    recursor(vt->children[child]);
   };
 }
 
-void osapHandler(vertex_t* vt) {
-  //sysError("handler " + vt->name);
+void handler(vertex_t* vt) {
   // time is now
   unsigned long now = millis();
-  //unsigned long at0;
-  //unsigned long at1;
-
-  // run vertex's own loop code (with reference to self)
-  if(vt->loop != nullptr) vt->loop();
-  if(vt->ep != nullptr) endpointLoop(vt->ep, now);
-
+  // run vertex's own loop code
+  vt->loop();
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){
     // try one handle per stack item, per loop:
     stackItem* items[vt->stackSize];
     uint8_t count = stackGetItems(vt, od, items, vt->stackSize);
-    // want to track out-of-order issues to the loop. 
-    // if(count) at0 = items[0]->arrivalTime; // pretty sure we can delete this as of 2021-12-31
     for(uint8_t i = 0; i < count; i ++){
       // the item, and ptr
       stackItem* item = items[i];
       uint16_t ptr = 0;
       // check timeouts, 
       if(item->arrivalTime + TIMES_STALE_MSG < now){
-        sysError("T/O indice " + String(vt->indice) + " " + String(item->data[ptr + 1]) + " " + String(item->arrivalTime));
+        sysError("core loop T/O indice " + String(vt->indice) + " " + vt->name + " " + String(item->arrivalTime));
         stackClearSlot(vt, od, item);
         continue;
       }
       // check for decent ptr walk, 
       if(!ptrLoop(item->data, &ptr)){
-        sysError("main loop bad ptr walk, from vt->indice: " + String(vt->indice) + " o/d: " + String(od) + " len: " + String(item->len));
+        sysError("main loop bad ptr walk, from vt->indice: " + String(vt->indice) + vt->name + " o/d: " + String(od) + " len: " + String(item->len));
         logPacket(item->data, item->len);
         stackClearSlot(vt, od, item); // clears the msg 
         continue; 
       }
-      // check FIFO order, 
-      // at1 = item->arrivalTime; // pretty sure we can delete this as of 2021-12-31
-      // if(at1 - at0 < 0) sysError("out of order " + String(at1) + " " + String(at0));
-      // at1 = at0;
       // handle it, 
-      osapSwitch(vt, od, item, ptr, now);
+      packetSwitch(vt, od, item, ptr, now);
     }
   } // end lp over origin / destination stacks 
 }
 
-void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
+void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
   // switch at pck[ptr + 1]
   ptr ++;
   uint8_t* pck = item->data;
@@ -81,38 +69,7 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
   // do things, 
   switch(pck[ptr]){
     case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
-      switch(vt->type){
-        case VT_TYPE_ROOT:
-        case VT_TYPE_MODULE:
-        case VT_TYPE_VPORT:
-        case VT_TYPE_VBUS:
-          // all four: we are ignoring dms, wipe it:
-          stackClearSlot(vt, od, item);
-          break;
-        case VT_TYPE_ENDPOINT: 
-          {
-            EP_ONDATA_RESPONSES resp = endpointHandler(vt->ep, od, item, ptr);
-            switch(resp){
-              case EP_ONDATA_REJECT:
-              case EP_ONDATA_ACCEPT: // in either case, msg is handled / out of stack, we can clear it 
-                stackClearSlot(vt, od, item);
-                break;
-              case EP_ONDATA_WAIT: // not handled: want to wait in the stack, so update time & come back next 
-                item->arrivalTime = now;
-                break;
-              default:
-                sysError("on endpoint dest. handle, unknown ondata response");
-                stackClearSlot(vt, od, item);
-            } // end response switch 
-          }
-          break;
-        default:
-          // vertex has a 'type' we don't recognize, 
-          // best I can do is deletion 
-          sysError("unknown vertex type, when handling msg-at-destination");
-          stackClearSlot(vt, od, item);
-          break;
-      } // end vt typeswitch 
+      #warning could speedup w/ stackItem cache as "atDest" 
       break; // end PK_DEST case 
     case PK_SIB_KEY: {  // instruction to pass to this sibling, 
       // need the indice, 
@@ -271,22 +228,6 @@ void osapSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         ts_writeUint16(vt->numChildren, item->data, &wptr);
         // and our name... 
         ts_writeString(vt->name, item->data, &wptr);
-        /*
-        switch(vt->type){
-          case VT_TYPE_ENDPOINT:
-            ts_writeString("embedded-endpoint", item->data, &wptr);
-            break;
-          case VT_TYPE_ROOT:
-            ts_writeString("embedded-root", item->data, &wptr);
-            break;
-          case VT_TYPE_VPORT:
-            ts_writeString("embedded-vport", item->data, &wptr);
-            break;
-          default:
-            ts_writeString("embedded-vertex", item->data, &wptr);
-            break;
-        }
-        */
         // ok then, we can reset this item, basically:
         item->len = wptr;
         item->arrivalTime = now;

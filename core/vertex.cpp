@@ -15,6 +15,8 @@ no warranty is provided, and users accept all liability.
 #include "vertex.h"
 #include "../../../syserror.h"
 
+void vtLoopDefault(void){}
+
 void stackReset(vertex_t* vt){
   // clear all elements & write next ptrs in linear order 
   for(uint8_t od = 0; od < 2; od ++){
@@ -101,19 +103,15 @@ void stackClearSlot(vertex_t* vt, uint8_t od, stackItem* item){
     // these ops are *always two up*
     item->previous->next = item->next;
     item->next->previous = item->previous;
-
     // now, insert this where old firstFree was 
     vt->firstFree[od]->previous->next = item;
-    item->previous = vt->firstFree[od]->previous;
-    
+    item->previous = vt->firstFree[od]->previous;    
     item->next = vt->firstFree[od];
     vt->firstFree[od]->previous = item;
     // and the item is the new firstFree element, 
     vt->firstFree[od] = item;
-    // and we can call, 
   }
-
-  // clear flowcontrol conditions 
+  // now we callback to the vertex; these fns are often used to clear flowcontrol condns 
   switch(od){
     case VT_STACK_ORIGIN:
       if(vt->onOriginStackClear != nullptr) vt->onOriginStackClear(indice);
