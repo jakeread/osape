@@ -14,6 +14,7 @@ is; no warranty is provided, and users accept all liability.
 
 #include "osap.h"
 #include "loop.h"
+#include "../../../indicators.h"
 
 vertex_t _root;
 vertex_t* osap = &_root;

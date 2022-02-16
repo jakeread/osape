@@ -1,5 +1,5 @@
 /*
-osap/endpoint.h
+osap/vertices/endpoint.h
 
 network : software interface
 
@@ -16,9 +16,6 @@ no warranty is provided, and users accept all liability.
 #define ENDPOINT_H_
 
 #include "../core/vertex.h"
-
-typedef struct vertex_t vertex_t;
-typedef struct stackItem stackItem;
 
 // ---------------------------------------------- Routes
 
@@ -44,8 +41,13 @@ struct endpoint_route_t {
 // endpoint handler responses must be one of these enum - 
 enum EP_ONDATA_RESPONSES { EP_ONDATA_REJECT, EP_ONDATA_ACCEPT, EP_ONDATA_WAIT };
 
+// default handlers, 
+EP_ONDATA_RESPONSES onDataDefault(uint8_t* data, uint16_t len);
+boolean beforeQueryDefault(void);
+
 struct endpoint_t {
-  vertex_t* vt;
+  vertex_t vt;
+  String name = "uknwnEndpoint";
   // local data store & length, 
   uint8_t data[VT_SLOTSIZE];
   uint16_t dataLen = 0; 
@@ -57,10 +59,29 @@ struct endpoint_t {
   uint16_t numRoutes = 0;
   uint16_t lastRouteServiced = 0;
   uint8_t nextAckId = 77;
+  // base constructor, 
+  endpoint_t( String _name, 
+              EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
+              boolean (*_beforeQuery)(void)
+            );
+  // these are called "delegating constructors" ... best reference is 
+  // here: https://en.cppreference.com/w/cpp/language/constructor 
+  // onData only, 
+  endpoint_t( String _name,
+              EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len)
+            ) : endpoint_t(_name, _onData, nullptr) {};
+  // beforeQuery only, 
+  endpoint_t( String _name, 
+              boolean (*_beforeQuery)(void)
+            ) : endpoint_t(_name, nullptr, _beforeQuery) {};
+  // name only, 
+  endpoint_t( String _name
+            ) : endpoint_t(_name, nullptr, nullptr) {};
 };
 
 // ---------------------------------------------- Endpoint Build / Add 
 
+/*
 endpoint_t* osapBuildEndpoint(
     String name, 
     EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), 
@@ -76,7 +97,7 @@ endpoint_t* osapBuildEndpoint(String name,
 );
 
 boolean osapAddEndpoint(endpoint_t* endpoint);
-
+*/
 // ---------------------------------------------- Endpoint Route / Write API 
 
 // endpoint writer... 

@@ -22,6 +22,10 @@ no warranty is provided, and users accept all liability.
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
 void recursor(vertex_t* vt){
+  /*
+  sysError("handling " + vt->name + " ind: " + String(vt->indice));
+  delay(250);
+  */
   handler(vt);
   for(uint8_t child = 0; child < vt->numChildren; child ++){
     recursor(vt->children[child]);
