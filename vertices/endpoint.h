@@ -60,23 +60,23 @@ struct endpoint_t {
   uint16_t lastRouteServiced = 0;
   uint8_t nextAckId = 77;
   // base constructor, 
-  endpoint_t( String _name, 
+  endpoint_t( vertex_t* _parent, String _name, 
               EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
               boolean (*_beforeQuery)(void)
             );
   // these are called "delegating constructors" ... best reference is 
   // here: https://en.cppreference.com/w/cpp/language/constructor 
   // onData only, 
-  endpoint_t( String _name,
+  endpoint_t( vertex_t* _parent, String _name,
               EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len)
-            ) : endpoint_t(_name, _onData, nullptr) {};
+            ) : endpoint_t(_parent, _name, _onData, nullptr){};
   // beforeQuery only, 
-  endpoint_t( String _name, 
+  endpoint_t( vertex_t* _parent, String _name, 
               boolean (*_beforeQuery)(void)
-            ) : endpoint_t(_name, nullptr, _beforeQuery) {};
+            ) : endpoint_t(_parent, _name, nullptr, _beforeQuery){};
   // name only, 
-  endpoint_t( String _name
-            ) : endpoint_t(_name, nullptr, nullptr) {};
+  endpoint_t( vertex_t* _parent, String _name
+            ) : endpoint_t(_parent, _name, nullptr, nullptr){};
 };
 
 // ---------------------------------------------- Endpoint Build / Add 

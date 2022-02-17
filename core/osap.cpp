@@ -16,28 +16,18 @@ is; no warranty is provided, and users accept all liability.
 #include "loop.h"
 #include "../../../indicators.h"
 
-vertex_t _root;
-vertex_t* osap = &_root;
-
-void osapSetup(String name){
-  _root.type = VT_TYPE_ROOT;
-  _root.name = name;
-  _root.indice = 0;
-  stackReset(&_root);
+void osapMainLoop(vertex_t* root){
+  recursor(root);
 }
 
-void osapMainLoop(void){
-  recursor(&_root);
-}
-
-boolean osapAddVertex(vertex_t* vt) {
-  if (_root.numChildren >= VT_MAXCHILDREN) {
+// user musn't fk tree 
+boolean osapAddVertex(vertex_t* parent, vertex_t* child) {
+  if (parent->numChildren >= VT_MAXCHILDREN) {
     return false;
   } else {
-    stackReset(vt);
-    vt->indice = _root.numChildren;
-    vt->parent = &_root;
-    _root.children[_root.numChildren++] = vt;
+    child->indice = parent->numChildren;
+    child->parent = parent;
+    parent->children[parent->numChildren ++] = child;
     return true;
   }
 }

@@ -22,10 +22,8 @@ no warranty is provided, and users accept all liability.
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
 void recursor(vertex_t* vt){
-  /*
-  sysError("handling " + vt->name + " ind: " + String(vt->indice));
-  delay(250);
-  */
+  //sysError("handling " + vt->name + " ind: " + String(vt->indice));
+  //delay(250);
   handler(vt);
   for(uint8_t child = 0; child < vt->numChildren; child ++){
     recursor(vt->children[child]);
@@ -36,7 +34,7 @@ void handler(vertex_t* vt) {
   // time is now
   unsigned long now = millis();
   // run vertex's own loop code
-  vt->loop();
+  vt->loop(vt);
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){
     // try one handle per stack item, per loop:
@@ -152,14 +150,14 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
       }
       break;
     case PK_PFWD_KEY:
-      if(vt->type != VT_TYPE_VPORT || vt->cts == nullptr || vt->send == nullptr){
+      if(vt->vport == nullptr){
         sysError("pfwd to non-vport vertex");
         stackClearSlot(vt, od, item);
       } else {
-        if(vt->cts(0)){ // walk ptr fwds, transmit, and clear the msg 
+        if(vt->vport->cts(vt->vport)){ // walk ptr fwds, transmit, and clear the msg 
           pck[ptr - 1] = PK_PFWD_KEY;
           pck[ptr] = PK_PTR;
-          vt->send(pck, len, 0);
+          vt->vport->send(vt->vport, pck, len);
           stackClearSlot(vt, od, item);
         } else {
           // failed to pfwd this turn, code will return here next go-round 
@@ -167,7 +165,7 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
       }
       break;
     case PK_BFWD_KEY:
-      if(vt->type != VT_TYPE_VBUS || vt->cts == nullptr || vt->send == nullptr){
+      if(vt->vbus == nullptr){
         sysError("bfwd to non-vbus vertex");
         logPacket(item->data, item->len);
         stackClearSlot(vt, od, item);
@@ -176,17 +174,17 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
         uint16_t rxAddr;
         ptr ++;      
         ts_readUint16(&rxAddr, pck, &ptr);
-        if(vt->cts(rxAddr)){  // walk ptr fwds, transmit, and clear the msg 
+        if(vt->vbus->cts(vt->vbus, rxAddr)){  // walk ptr fwds, transmit, and clear the msg 
           #ifdef LOOP_DEBUG 
           sysError("busf " + String(rxAddr));
           #endif
           //sysError("be " + String(item->arrivalTime));
           ptr -= 4;
           pck[ptr ++] = PK_BFWD_KEY;
-          ts_writeUint16(vt->ownRxAddr, pck, &ptr);
+          ts_writeUint16(vt->vbus->ownRxAddr, pck, &ptr);
           pck[ptr] = PK_PTR;
           //logPacket(pck, len);
-          vt->send(pck, len, rxAddr);
+          vt->vbus->send(vt->vbus, pck, len, rxAddr);
           stackClearSlot(vt, od, item);
         } else {
           // failed to bfwd this turn, code will return here next go-round 

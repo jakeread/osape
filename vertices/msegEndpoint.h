@@ -12,6 +12,8 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
+#if 0
+
 #ifndef MSEGENDPOINT_H_
 #define MSEGENDPOINT_H_
 
@@ -36,5 +38,7 @@ void msegEndpointLoop(msegEndpoint_t* msep, unsigned long now);
 
 // ... handler breakout 
 void msegHandler(msegEndpoint_t* msep, stackItem* item, uint16_t ptr);
+
+#endif 
 
 #endif 

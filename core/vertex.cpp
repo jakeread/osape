@@ -13,9 +13,77 @@ no warranty is provided, and users accept all liability.
 */
 
 #include "vertex.h"
+#include "osap.h"
 #include "../../../syserror.h"
 
-void vtLoopDefault(void){}
+// ---------------------------------------------- Vertex Constructor and Defaults 
+
+void vtLoopDefault(vertex_t* vt){}
+void vtOnOriginStackClearDefault(vertex_t* vt, uint8_t slot){}
+void vtOnDestinationStackClearDefault(vertex_t* vt, uint8_t slot){} 
+
+vertex_t::vertex_t(vertex_t* _parent, String _name){
+  if(_parent == nullptr){
+    type = VT_TYPE_ROOT;
+    indice = 0;
+  } 
+  name = _name;
+  stackReset(this);
+}
+
+// ---------------------------------------------- VPort Constructor and Defaults 
+
+void vpSendDefault(vport_t* vp, uint8_t* data, uint16_t len){}
+boolean vpCtsDefault(vport_t* vp){ return true; }
+
+vport_t::vport_t(
+  vertex_t* parent, String _name,
+  void (*_loop)(vertex_t* vt),
+  void (*_send)(vport_t* vp, uint8_t* data, uint16_t len),
+  boolean (*_cts)(vport_t* vp),
+  void (*_onOriginStackClear)(vertex_t* vt, uint8_t slot),
+  void (*_onDestinationStackClear)(vertex_t* vt, uint8_t slot)
+){
+  vt.name = "vp_" + _name;
+  vt.type = VT_TYPE_VPORT;
+  vt.vport = this;
+  // add to sys, 
+  osapAddVertex(parent, &vt);
+  // set callbacks, 
+  vt.loop = _loop;
+  send = _send;
+  cts = _cts;
+  if(_onOriginStackClear != nullptr) vt.onOriginStackClear = _onOriginStackClear;
+  if(_onDestinationStackClear != nullptr) vt.onDestinationStackClear = _onDestinationStackClear;
+}
+
+// ---------------------------------------------- VBus Constructor and Defaults 
+
+void vbSendDefault(vbus_t* vb, uint8_t* data, uint16_t len, uint8_t rxAddr){}
+boolean vbCtsDefault(vbus_t* vb, uint8_t rxAddr){ return true; }
+
+vbus_t::vbus_t(
+  vertex_t* parent, String _name,
+  void (*_loop)(vertex_t* vt),
+  void (*_send)(vbus_t* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
+  boolean (*_cts)(vbus_t* vb, uint8_t rxAddr),
+  void (*_onOriginStackClear)(vertex_t* vt, uint8_t slot),
+  void (*_onDestinationStackClear)(vertex_t* vt, uint8_t slot)
+){
+  vt.name = "vb_" + _name;
+  vt.type = VT_TYPE_VBUS;
+  vt.vbus = this;
+  // add to sys, 
+  osapAddVertex(parent, &vt);
+  // set callbacks, 
+  vt.loop = _loop;
+  send = _send;
+  cts = _cts;
+  if(_onOriginStackClear != nullptr) vt.onOriginStackClear = _onOriginStackClear;
+  if(_onDestinationStackClear != nullptr) vt.onDestinationStackClear = _onDestinationStackClear;
+}
+
+// ---------------------------------------------- Stack Tools 
 
 void stackReset(vertex_t* vt){
   // clear all elements & write next ptrs in linear order 
@@ -114,10 +182,10 @@ void stackClearSlot(vertex_t* vt, uint8_t od, stackItem* item){
   // now we callback to the vertex; these fns are often used to clear flowcontrol condns 
   switch(od){
     case VT_STACK_ORIGIN:
-      if(vt->onOriginStackClear != nullptr) vt->onOriginStackClear(indice);
+      vt->onOriginStackClear(vt, indice);
       break;
     case VT_STACK_DESTINATION:
-      if(vt->onDestinationStackClear != nullptr) vt->onDestinationStackClear(indice);
+      vt->onDestinationStackClear(vt, indice);
       break;
     default:  // pretty unlikely 
       sysError("stack clear slot, od > 1, que?");

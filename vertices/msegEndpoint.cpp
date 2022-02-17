@@ -12,6 +12,8 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
+#if 0 
+
 #include "msegEndpoint.h"
 #include "../core/osap.h"
 #include "../core/packets.h"
@@ -70,3 +72,5 @@ void msegEndpointLoop(msegEndpoint_t* msep, unsigned long now){
 void msegHandler(msegEndpoint_t* msep, stackItem* item, uint16_t ptr){
 
 }
+
+#endif 

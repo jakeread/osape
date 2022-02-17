@@ -34,21 +34,24 @@ struct stackItem {
   stackItem* previous = nullptr;      // linked ringbuffer previous 
 };
 
-// default loop code 
-void vtLoopDefault(void);
-
 // we have the vertex type, 
 // since it contains ptrs to others of its type, we fwd declare the type...
 typedef struct vertex_t vertex_t;
+typedef struct vport_t vport_t;
+typedef struct vbus_t vbus_t;
+
+// default vt fns 
+void vtLoopDefault(vertex_t* vt);
+void vtOnOriginStackClearDefault(vertex_t* vt, uint8_t slot);
+void vtOnDestinationStackClearDefault(vertex_t* vt, uint8_t slot);
 
 struct vertex_t {
   // a type, a position, a name 
-  #warning type should be an enum, beclean 
-  uint8_t type = 0;
+  uint8_t type = VT_TYPE_CODE;
   uint16_t indice = 0;
   String name; 
-  // a loop code, run once per turn. handles packets at destination (?) 
-  void (*loop)() = &vtLoopDefault;
+  // a loop code, run once per turn. depends on the vertex
+  void (*loop)(vertex_t* vt) = &vtLoopDefault;
   // a time tag, for when we were last scoped (need for graph traversals, final implementation tbd)
   uint32_t scopeTimeTag = 0;
   // stacks; 
@@ -63,14 +66,105 @@ struct vertex_t {
   vertex_t* parent = nullptr;
   vertex_t* children[VT_MAXCHILDREN]; // I think this is OK on storage: just pointers 
   uint16_t numChildren = 0;
-  // vertex-as-vport-interface 
-  boolean (*cts)(uint8_t drop) = nullptr;
-  void (*send)(uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
-  uint16_t ownRxAddr = 0;
+  // sometimes a vertex is a vport, sometimes it is a vbus, 
+  vport_t* vport;
+  vbus_t* vbus;
   // to notify for clear-out callbacks / flowcontrol etc 
-  void (*onOriginStackClear)(uint8_t slot) = nullptr;
-  void (*onDestinationStackClear)(uint8_t slot) = nullptr;
+  void (*onOriginStackClear)(vertex_t* vt, uint8_t slot) = &vtOnOriginStackClearDefault;
+  void (*onDestinationStackClear)(vertex_t* vt, uint8_t slot) = &vtOnDestinationStackClearDefault;
+  // base constructor, 
+  vertex_t(vertex_t* _parent, String _name);
+  vertex_t(String _name) : vertex_t(nullptr, _name){};
+  vertex_t() : vertex_t(nullptr, "vt_unknown"){};
 };
+
+// ---------------------------------------------- VPort 
+
+void vpSendDefault(vport_t* vp, uint8_t* data, uint16_t len);
+boolean vpCtsDefault(vport_t* vp);
+
+struct vport_t {
+  // a vport should contain ahn vertex, these are crosslinked 
+  vertex_t vt;
+  // to tx, and to check about tx'ing 
+  void (*send)(vport_t* vp, uint8_t* data, uint16_t len) = &vpSendDefault;
+  boolean (*cts)(vport_t* vp) = &vpCtsDefault;
+  // base constructor, 
+  vport_t( 
+    vertex_t* parent, String _name,
+    void (*_loop)(vertex_t* vt),
+    void (*_send)(vport_t* vp, uint8_t* data, uint16_t len),
+    boolean (*_cts)(vport_t* vp),
+    void (*_onOriginStackClear)(vertex_t* vt, uint8_t slot),
+    void (*_onDestinationStackClear)(vertex_t* vt, uint8_t slot)
+  );
+  // and the delegates,
+  // one w/ just origin stack, 
+  vport_t(
+    vertex_t* parent, String _name,
+    void (*_loop)(vertex_t* vt),
+    void (*_send)(vport_t* vp, uint8_t* data, uint16_t len),
+    boolean (*_cts)(vport_t* vp),
+    void (*_onOriginStackClear)(vertex_t* vt, uint8_t slot)
+  ) : vport_t (
+    parent, _name, _loop, _send, _cts, _onOriginStackClear, nullptr
+  ){};
+  // one w/ no stack callbacks, 
+  vport_t(
+    vertex_t* parent, String _name,
+    void (*_loop)(vertex_t* vt),
+    void (*_send)(vport_t* vp, uint8_t* data, uint16_t len),
+    boolean (*_cts)(vport_t* vp)
+  ) : vport_t (
+    parent, _name, _loop, _send, _cts, nullptr, nullptr
+  ){};
+};
+
+// ---------------------------------------------- VBus 
+
+void vbSendDefault(vbus_t* vb, uint8_t* data, uint16_t len, uint8_t rxAddr);
+boolean vbCtsDefault(vbus_t* vb, uint8_t rxAddr);
+
+struct vbus_t {
+  // crosslinked etc 
+  vertex_t vt;
+  // tx, and check abt it 
+  void (*send)(vbus_t* vb, uint8_t* data, uint16_t len, uint8_t rxAddr) = &vbSendDefault;
+  boolean (*cts)(vbus_t* vb, uint8_t rxAddr) = &vbCtsDefault;
+  // has an rx addr, 
+  uint16_t ownRxAddr = 0;
+  // base constructor, 
+  vbus_t( 
+    vertex_t* parent, String _name,
+    void (*_loop)(vertex_t* vt),
+    void (*_send)(vbus_t* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
+    boolean (*_cts)(vbus_t* vb, uint8_t rxAddr),
+    void (*_onOriginStackClear)(vertex_t* vt, uint8_t slot),
+    void (*_onDestinationStackClear)(vertex_t* vt, uint8_t slot)
+  );
+  // and the delegates,
+  // one w/ just origin stack, 
+  vbus_t(
+    vertex_t* parent, String _name,
+    void (*_loop)(vertex_t* vt),
+    void (*_send)(vbus_t* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
+    boolean (*_cts)(vbus_t* vb, uint8_t rxAddr),
+    void (*_onOriginStackClear)(vertex_t* vt, uint8_t slot)
+  ) : vbus_t (
+    parent, _name, _loop, _send, _cts, _onOriginStackClear, nullptr
+  ){};
+  // one w/ no stack callbacks, 
+  vbus_t(
+    vertex_t* parent, String _name,
+    void (*_loop)(vertex_t* vt),
+    void (*_send)(vbus_t* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
+    boolean (*_cts)(vbus_t* vb, uint8_t rxAddr)
+  ) : vbus_t (
+    parent, _name, _loop, _send, _cts, nullptr, nullptr
+  ){};
+};
+
+// ---------------------------------------------- Stack Tools 
 
 // stack setup / reset 
 void stackReset(vertex_t* vt);

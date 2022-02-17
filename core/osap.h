@@ -21,9 +21,8 @@ is; no warranty is provided, and users accept all liability.
 
 extern vertex_t* osap;
 
-void osapSetup(String name);
-void osapMainLoop(void);
+void osapMainLoop(vertex_t* root);
 
-boolean osapAddVertex(vertex_t* vertex);
+boolean osapAddVertex(vertex_t* parent, vertex_t* child);
 
 #endif 

@@ -29,15 +29,16 @@ uint8_t _numEndpoints = 0;
 // -------------------------------------------------------- Constructors 
 
 // base constructor, 
-endpoint_t::endpoint_t( String _name, 
-            EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
-            boolean (*_beforeQuery)(void)){
+endpoint_t::endpoint_t( 
+  vertex_t* _parent, String _name, 
+  EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
+  boolean (*_beforeQuery)(void)){
   // set name, type, 
   name = _name;
   vt.name = "ep_" + _name;
   vt.type = VT_TYPE_ENDPOINT;
   // and can we add it to osap ? this also inits the vt 
-  //osapAddVertex(&vt);
+  osapAddVertex(_parent, &vt);
   // set callbacks,
   (_onData == nullptr) ? onData = onDataDefault : onData = _onData;
   (_beforeQuery == nullptr) ? beforeQuery = beforeQueryDefault : beforeQuery = _beforeQuery;
