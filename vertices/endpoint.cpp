@@ -15,12 +15,10 @@ no warranty is provided, and users accept all liability.
 #include "endpoint.h"
 #include "../core/osap.h"
 #include "../core/packets.h"
-#include "../../../indicators.h" 	// indicators are circuit specific, should live 3 levels up 
-#include "../../../syserror.h" 		// syserror is also circuit specific, ibid 
-
+#ifdef OSAP_DEBUG 
+#include "./osap_debug.h"
+#endif 
 // -------------------------------------------------------- Endpoint State
-
-#define MAX_CONTEXT_ENDPOINTS 64
 
 // list of endpoints, and count:
 endpoint_t* _endpoints[MAX_CONTEXT_ENDPOINTS];
@@ -123,8 +121,10 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
 		uint16_t ptr = 0;
     // find the ptr, 
     if(!ptrLoop(item->data, &ptr)){
-      sysError("endpoint loop bad ptr walk");
+      #ifdef OSAP_DEBUG
+      ERROR(1, "endpoint loop bad ptr walk");
       logPacket(item->data, item->len);
+      #endif 
       stackClearSlot(&(ep->vt), VT_STACK_DESTINATION, item);
       continue;
     }
@@ -145,7 +145,9 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
         break;
       default:
         // badness from the handler, doesn't make much sense but 
-        sysError("on endpoint dest. handle, unknown ondata response");
+        #ifdef OSAP_DEBUG 
+        ERROR(1, "on endpoint dest. handle, unknown ondata response");
+        #endif 
         stackClearSlot(&(ep->vt), VT_STACK_DESTINATION, item);
         break;
     } // end dest switch 
@@ -187,7 +189,9 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
           }
 					// check against write into stray memory 
 					if(ep->dataLen + wptr >= VT_SLOTSIZE){
+            #ifdef OSAP_DEBUG 
 						ERROR(1, "write-to-endpoint exceeds slotsize");
+            #endif 
 						return;
 					}
 					// the data, 
@@ -291,7 +295,9 @@ EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, stackItem* item, uint16_t pt
 				uint16_t wptr = 0;
 				// if the route can't be reversed, trouble:
 				if(!reverseRoute(item->data, ptr - 4, ack, &wptr)) {
-					sysError("on a query, can't reverse a route, rming msg");
+          #ifdef OSAP_DEBUG 
+					ERROR(1, "on a query, can't reverse a route, rming msg");
+          #endif 
 					return EP_ONDATA_REJECT;
 				} else {
 					ack[wptr ++] = EP_QUERY_RESP;		// reply is response 

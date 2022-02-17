@@ -14,12 +14,13 @@ no warranty is provided, and users accept all liability.
 
 #include "packets.h"
 #include "ts.h"
-#include "../../../syserror.h"
+#ifdef OSAP_DEBUG
+#include "./osap_debug.h"
+#endif 
 
 boolean ptrLoop(uint8_t* pck, uint16_t* pt){
   uint16_t ptr = *pt;
   for(uint8_t i = 0; i < 16; i ++){
-    //sysError(String(ptr));
     switch(pck[ptr]){
       case PK_PTR: // var is here 
         *pt = ptr;
@@ -52,7 +53,9 @@ boolean ptrLoop(uint8_t* pck, uint16_t* pt){
 boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* replyPtr){
   // so we should have here that 
   if(pck[rptr] != PK_PTR){
-    sysError("rr: pck[ptr] != pk_ptr");
+    #ifdef OSAP_DEBUG
+    ERROR(1, "rr: pck[ptr] != pk_ptr");
+    #endif 
     return false;
   }
   // the tail is identical: dest & segsize following 
@@ -69,7 +72,9 @@ boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* reply
     // end case: 
     if(rptr >= end){
       if(rptr != end){
-        sysError("rr: rptr overruns end");
+        #ifdef OSAP_DEBUG
+        ERROR(1, "rr: rptr overruns end");
+        #endif 
         return false;
       }
       // start is pointer, 
@@ -82,7 +87,9 @@ boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* reply
     // switch each, 
     switch(pck[rptr]){
       case PK_PTR: // var is here 
-        sysError("rr: find pck_ptr during walk");
+        #ifdef OSAP_DEBUG
+        ERROR(1, "rr: find pck_ptr during walk");
+        #endif 
         return false;
       case PK_SIB_KEY:
         wptr -= PK_SIB_INC;
@@ -115,7 +122,9 @@ boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* reply
         }
         break;
       default:
-        sysError("rr: default switch");
+        #ifdef OSAP_DEBUG
+        ERROR(1, "rr: default switch");
+        #endif 
         return false;
     }
   }

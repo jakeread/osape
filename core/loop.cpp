@@ -14,16 +14,15 @@ no warranty is provided, and users accept all liability.
 
 #include "loop.h"
 #include "packets.h"
-#include "../../../indicators.h"
-#include "../../../syserror.h"
+#ifdef OSAP_DEBUG 
+#include "./osap_debug.h"
+#endif 
 
 //#define LOOP_DEBUG
 
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
 void recursor(vertex_t* vt){
-  //sysError("handling " + vt->name + " ind: " + String(vt->indice));
-  //delay(250);
   handler(vt);
   for(uint8_t child = 0; child < vt->numChildren; child ++){
     recursor(vt->children[child]);
@@ -46,14 +45,18 @@ void handler(vertex_t* vt) {
       uint16_t ptr = 0;
       // check timeouts, 
       if(item->arrivalTime + TIMES_STALE_MSG < now){
-        sysError("core loop T/O indice " + String(vt->indice) + " " + vt->name + " " + String(item->arrivalTime));
+        #ifdef OSAP_DEBUG
+        ERROR(3, "core loop T/O indice " + String(vt->indice) + " " + vt->name + " " + String(item->arrivalTime));
+        #endif 
         stackClearSlot(vt, od, item);
         continue;
       }
       // check for decent ptr walk, 
       if(!ptrLoop(item->data, &ptr)){
-        sysError("main loop bad ptr walk, from vt->indice: " + String(vt->indice) + vt->name + " o/d: " + String(od) + " len: " + String(item->len));
+        #ifdef OSAP_DEBUG
+        ERROR(2, "main loop bad ptr walk, from vt->indice: " + String(vt->indice) + vt->name + " o/d: " + String(od) + " len: " + String(item->len));
         logPacket(item->data, item->len);
+        #endif 
         stackClearSlot(vt, od, item); // clears the msg 
         continue; 
       }
@@ -80,20 +83,26 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
       ts_readUint16(&si, pck, &ptr);
       // can't do this if no parent, 
       if(vt->parent == nullptr){
-        sysError("no parent for sib traverse");
+        #ifdef OSAP_DEBUG
+        ERROR(1, "no parent for sib traverse");
+        #endif 
         stackClearSlot(vt, od, item);
         break;
       }
       // nor if no target, 
       if(si >= vt->parent->numChildren){
-        sysError("sib traverse oob");
+        #ifdef OSAP_DEBUG
+        ERROR(1, "sib traverse oob");
+        #endif 
         stackClearSlot(vt, od, item);
         break;
       }
       // now we can copy it in, only if there's space ahead to move it into 
       if(stackEmptySlot(vt->parent->children[si], VT_STACK_DESTINATION)){
+        #ifdef OSAP_DEBUG
         #ifdef LOOP_DEBUG
-        sysError("sib copy");
+        DEBUG("sib copy");
+        #endif 
         #endif 
         ptr -= 4; // write in reversed instruction (reverse ptr to PK_PTR here)
         pck[ptr ++] = PK_SIB_KEY; // overwrite with instruction that would return to us, 
@@ -112,11 +121,15 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
     break; // end sib-fwd case, 
     case PK_PARENT_KEY:
       if(vt->parent == nullptr){
+        #ifdef OSAP_DEBUG
         ERROR(1, "requests traverse to parent from top level");
+        #endif 
         stackClearSlot(vt, od, item);
       } else if(stackEmptySlot(vt->parent, VT_STACK_DESTINATION)){
+        #ifdef OSAP_DEBUG 
         #ifdef LOOP_DEBUG
-        sysError("copy to parent");
+        DEBUG("copy to parent");
+        #endif 
         #endif 
         ptr -= 1; // write in reversed instruction 
         pck[ptr ++] = PK_CHILD_KEY;
@@ -134,11 +147,15 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
       ts_readUint16(&ci, pck, &ptr);
       // can't do it w/o the child, 
       if(vt->numChildren <= ci){
+        #ifdef OSAP_DEBUG
         ERROR(1, "no child at this indice " + String(ci));
+        #endif 
         stackClearSlot(vt, od, item);
       } else if (stackEmptySlot(vt->children[ci], VT_STACK_DESTINATION)){
+        #ifdef OSAP_DEBUG
         #ifdef LOOP_DEBUG
-        sysError("copy to child");
+        DEBUG("copy to child");
+        #endif 
         #endif 
         ptr -= 4;
         pck[ptr ++] = PK_PARENT_KEY;
@@ -151,7 +168,9 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
       break;
     case PK_PFWD_KEY:
       if(vt->vport == nullptr){
-        sysError("pfwd to non-vport vertex");
+        #ifdef OSAP_DEBUG
+        ERROR(1, "pfwd to non-vport vertex");
+        #endif 
         stackClearSlot(vt, od, item);
       } else {
         if(vt->vport->cts(vt->vport)){ // walk ptr fwds, transmit, and clear the msg 
@@ -166,8 +185,10 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
       break;
     case PK_BFWD_KEY:
       if(vt->vbus == nullptr){
-        sysError("bfwd to non-vbus vertex");
+        #ifdef OSAP_DEBUG
+        ERROR(1, "bfwd to non-vbus vertex");
         logPacket(item->data, item->len);
+        #endif 
         stackClearSlot(vt, od, item);
       } else {
         // need tx rxaddr, for which drop on bus to tx to, 
@@ -175,10 +196,11 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
         ptr ++;      
         ts_readUint16(&rxAddr, pck, &ptr);
         if(vt->vbus->cts(vt->vbus, rxAddr)){  // walk ptr fwds, transmit, and clear the msg 
+          #ifdef OSAP_DEBUG
           #ifdef LOOP_DEBUG 
-          sysError("busf " + String(rxAddr));
+          DEBUG("busf " + String(rxAddr));
           #endif
-          //sysError("be " + String(item->arrivalTime));
+          #endif 
           ptr -= 4;
           pck[ptr ++] = PK_BFWD_KEY;
           ts_writeUint16(vt->vbus->ownRxAddr, pck, &ptr);
@@ -198,7 +220,9 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
         uint8_t route[VT_SLOTSIZE];
         uint16_t wptr = 0;
         if(!reverseRoute(item->data, ptr - 1, route, &wptr)){
+          #ifdef OSAP_DEBUG
           ERROR(1, "reverse route badness at scope request");
+          #endif 
           stackClearSlot(vt, od, item);
         }
         // because reverse route assumes dest, segsize / checksum, we actually want...
@@ -239,8 +263,10 @@ void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsig
     case PK_SCOPE_RES_KEY:
     case PK_LLESCAPE_KEY:
     default:
-      sysError("unrecognized ptr here at " + String(ptr) + ": " + String(pck[ptr]));
+      #ifdef OSAP_DEBUG
+      ERROR(1, "unrecognized ptr here at " + String(ptr) + ": " + String(pck[ptr]));
       logPacket(pck, len);
+      #endif 
       stackClearSlot(vt, od, item);
       break;
   } // end main switch 

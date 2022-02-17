@@ -19,8 +19,6 @@ no warranty is provided, and users accept all liability.
 
 // ---------------------------------------------- Routes
 
-#define ENDPOINT_MAX_ROUTES 4
-
 enum EP_ROUTE_MODES { EP_ROUTE_ACKLESS, EP_ROUTE_ACKED };
 enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITING_AND_FRESH };
 

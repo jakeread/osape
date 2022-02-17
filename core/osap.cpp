@@ -14,7 +14,9 @@ is; no warranty is provided, and users accept all liability.
 
 #include "osap.h"
 #include "loop.h"
-#include "../../../indicators.h"
+#ifdef OSAP_DEBUG
+#include "./osap_debug.h"
+#endif 
 
 void osapMainLoop(vertex_t* root){
   recursor(root);

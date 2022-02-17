@@ -14,7 +14,9 @@ no warranty is provided, and users accept all liability.
 
 #include "vertex.h"
 #include "osap.h"
-#include "../../../syserror.h"
+#ifdef OSAP_DEBUG
+#include "./osap_debug.h"
+#endif 
 
 // ---------------------------------------------- Vertex Constructor and Defaults 
 
@@ -130,7 +132,7 @@ void stackLoadSlot(vertex_t* vt, uint8_t od, uint8_t* data, uint16_t len){
   memcpy(vt->firstFree[od]->data, data, len);
   vt->firstFree[od]->len = len;
   vt->firstFree[od]->arrivalTime = millis();
-  //sysError("load " + String(vt->firstFree[od]->indice) + " " + String(vt->firstFree[od]->arrivalTime));
+  //DEBUG("load " + String(vt->firstFree[od]->indice) + " " + String(vt->firstFree[od]->arrivalTime));
   // now firstFree is next, 
   vt->firstFree[od] = vt->firstFree[od]->next;
 }
@@ -158,6 +160,13 @@ uint8_t stackGetItems(vertex_t* vt, uint8_t od, stackItem** items, uint8_t maxIt
 
 // clear the item, 
 void stackClearSlot(vertex_t* vt, uint8_t od, stackItem* item){
+  // this would be deadly, so:
+  if(od > 1) {
+    #ifdef OSAP_DEBUG
+    ERROR(1, "stackClearSlot, od > 1, badness");
+    #endif 
+    return;
+  }
   // item is 0-len, etc 
   item->len = 0;
   // is this
@@ -187,8 +196,7 @@ void stackClearSlot(vertex_t* vt, uint8_t od, stackItem* item){
     case VT_STACK_DESTINATION:
       vt->onDestinationStackClear(vt, indice);
       break;
-    default:  // pretty unlikely 
-      sysError("stack clear slot, od > 1, que?");
+    default:  // guarded against this above... 
       break;
   }
 }
