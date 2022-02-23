@@ -54,7 +54,7 @@ vport_t::vport_t(
   // set callbacks, 
   vt.loop = _loop;
   send = _send;
-  cts = _cts;
+  if(_cts != nullptr) cts = _cts;
   if(_onOriginStackClear != nullptr) vt.onOriginStackClear = _onOriginStackClear;
   if(_onDestinationStackClear != nullptr) vt.onDestinationStackClear = _onDestinationStackClear;
 }

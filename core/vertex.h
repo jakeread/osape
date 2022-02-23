@@ -118,6 +118,14 @@ struct vport_t {
   ) : vport_t (
     parent, _name, _loop, _send, _cts, nullptr, nullptr
   ){};
+  // w/ no CTS, always assumed true 
+  vport_t(
+    vertex_t* parent, String _name,
+    void (*_loop)(vertex_t* vt),
+    void (*_send)(vport_t* vp, uint8_t* data, uint16_t len)
+  ) : vport_t (
+    parent, _name, _loop, _send, nullptr, nullptr, nullptr
+  ){};
 };
 
 // ---------------------------------------------- VBus 
