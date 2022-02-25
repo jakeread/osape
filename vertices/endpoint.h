@@ -77,25 +77,6 @@ struct endpoint_t {
             ) : endpoint_t(_parent, _name, nullptr, nullptr){};
 };
 
-// ---------------------------------------------- Endpoint Build / Add 
-
-/*
-endpoint_t* osapBuildEndpoint(
-    String name, 
-    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len), 
-    boolean (*beforeQuery)(void)
-);
-
-endpoint_t* osapBuildEndpoint(
-    String name
-);
-
-endpoint_t* osapBuildEndpoint(String name,
-    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len)
-);
-
-boolean osapAddEndpoint(endpoint_t* endpoint);
-*/
 // ---------------------------------------------- Endpoint Route / Write API 
 
 // endpoint writer... 
