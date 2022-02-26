@@ -21,25 +21,41 @@ no warranty is provided, and users accept all liability.
 
 // ---------------------------------------------- Vertex Constructor and Defaults 
 
-void vtLoopDefault(Vertex* vt){}
-void vtOnOriginStackClearDefault(Vertex* vt, uint8_t slot){}
-void vtOnDestinationStackClearDefault(Vertex* vt, uint8_t slot){} 
-
-Vertex::Vertex(Vertex* _parent, String _name){
+Vertex::Vertex( 
+  Vertex* _parent, String _name, 
+  void (*_loop)(Vertex* vt),
+  void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
+  void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
+){
+  // name self, reset stack... 
+  name = _name;
+  stackReset(this);
+  // callback assignments... 
+  loop_cb = _loop;
+  onOriginStackClear_cb = _onOriginStackClear;
+  onDestinationStackClear_cb = _onDestinationStackClear;
+  // insert self to osap net,
   if(_parent == nullptr){
     type = VT_TYPE_ROOT;
     indice = 0;
   } else {
     osapAddVertex(_parent, this);
   }
-  name = _name;
-  stackReset(this);
+}
+
+void Vertex::loop(void){
+  if(loop_cb != nullptr) return loop_cb(this);
+}
+
+void Vertex::onOriginStackClear(uint8_t slot){
+  if(onOriginStackClear_cb != nullptr) return onOriginStackClear_cb(this, slot);
+}
+
+void Vertex::onDestinationStackClear(uint8_t slot){
+  if(onDestinationStackClear_cb != nullptr) return onDestinationStackClear_cb(this, slot);
 }
 
 // ---------------------------------------------- VPort Constructor and Defaults 
-
-void vpSendDefault(VPort* vp, uint8_t* data, uint16_t len){}
-boolean vpCtsDefault(VPort* vp){ return true; }
 
 VPort::VPort(
   Vertex* _parent, String _name,
@@ -48,22 +64,25 @@ VPort::VPort(
   boolean (*_cts)(VPort* vp),
   void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
   void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
-) : Vertex(_parent, "vp_" + _name) {
-  // lol, so here we are setting it such that we can later do vt->vp... idk 
+) : Vertex(_parent, "vp_" + _name, _loop, _onOriginStackClear, _onDestinationStackClear) {
+  // set type, reacharound, & callbacks 
   type = VT_TYPE_VPORT;
   vport = this; 
-  loop = _loop;
   // set callbacks, 
-  send = _send;
-  if(_cts != nullptr) cts = _cts;
-  if(_onOriginStackClear != nullptr) onOriginStackClear = _onOriginStackClear;
-  if(_onDestinationStackClear != nullptr) onDestinationStackClear = _onDestinationStackClear;
+  send_cb = _send;
+  cts_cb = _cts;
+}
+
+void VPort::send(uint8_t* data, uint16_t len){
+  if(send_cb) return send_cb(this, data, len);
+}
+
+boolean VPort::cts(void){
+  if(cts_cb) return cts_cb(this);
+  return true;
 }
 
 // ---------------------------------------------- VBus Constructor and Defaults 
-
-void vbSendDefault(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr){}
-boolean vbCtsDefault(VBus* vb, uint8_t rxAddr){ return true; }
 
 VBus::VBus(
   Vertex* _parent, String _name,
@@ -72,12 +91,19 @@ VBus::VBus(
   boolean (*_cts)(VBus* vb, uint8_t rxAddr),
   void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
   void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
-) : Vertex(_parent, "vb_" + _name) {
+) : Vertex(_parent, "vb_" + _name, _loop, _onOriginStackClear, _onDestinationStackClear) {
+  // set type, reacharound, & callbacks 
   type = VT_TYPE_VBUS;
   vbus = this;
-  loop = _loop;
-  send = _send;
-  cts = _cts;
-  if(_onOriginStackClear != nullptr) onOriginStackClear = _onOriginStackClear;
-  if(_onDestinationStackClear != nullptr) onDestinationStackClear = _onDestinationStackClear;
+  send_cb = _send;
+  cts_cb = _cts;
+}
+
+void VBus::send(uint8_t* data, uint16_t len, uint8_t rxAddr){
+  if(send_cb) return send_cb(this, data, len, rxAddr);
+}
+
+boolean VBus::cts(uint8_t rxAddr){
+  if(cts_cb) return cts_cb(this, rxAddr);
+  return true;
 }

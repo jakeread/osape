@@ -124,10 +124,10 @@ void stackClearSlot(Vertex* vt, uint8_t od, stackItem* item){
   // now we callback to the vertex; these fns are often used to clear flowcontrol condns 
   switch(od){
     case VT_STACK_ORIGIN:
-      vt->onOriginStackClear(vt, indice);
+      vt->onOriginStackClear(indice);
       break;
     case VT_STACK_DESTINATION:
-      vt->onDestinationStackClear(vt, indice);
+      vt->onDestinationStackClear(indice);
       break;
     default:  // guarded against this above... 
       break;

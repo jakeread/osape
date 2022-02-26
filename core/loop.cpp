@@ -33,7 +33,7 @@ void handler(Vertex* vt) {
   // time is now
   unsigned long now = millis();
   // run vertex's own loop code
-  vt->loop(vt);
+  vt->loop();
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){
     // try one handle per stack item, per loop:
@@ -173,10 +173,10 @@ void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         #endif 
         stackClearSlot(vt, od, item);
       } else {
-        if(vt->vport->cts(vt->vport)){ // walk ptr fwds, transmit, and clear the msg 
+        if(vt->vport->cts()){ // walk ptr fwds, transmit, and clear the msg 
           pck[ptr - 1] = PK_PFWD_KEY;
           pck[ptr] = PK_PTR;
-          vt->vport->send(vt->vport, pck, len);
+          vt->vport->send(pck, len);
           stackClearSlot(vt, od, item);
         } else {
           // failed to pfwd this turn, code will return here next go-round 
@@ -195,7 +195,7 @@ void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         uint16_t rxAddr;
         ptr ++;      
         ts_readUint16(&rxAddr, pck, &ptr);
-        if(vt->vbus->cts(vt->vbus, rxAddr)){  // walk ptr fwds, transmit, and clear the msg 
+        if(vt->vbus->cts(rxAddr)){  // walk ptr fwds, transmit, and clear the msg 
           #ifdef OSAP_DEBUG
           #ifdef LOOP_DEBUG 
           DEBUG("busf " + String(rxAddr));
@@ -206,7 +206,7 @@ void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
           ts_writeUint16(vt->vbus->ownRxAddr, pck, &ptr);
           pck[ptr] = PK_PTR;
           //logPacket(pck, len);
-          vt->vbus->send(vt->vbus, pck, len, rxAddr);
+          vt->vbus->send(pck, len, rxAddr);
           stackClearSlot(vt, od, item);
         } else {
           // failed to bfwd this turn, code will return here next go-round 

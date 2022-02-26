@@ -37,6 +37,16 @@ void vtOnDestinationStackClearDefault(Vertex* vt, uint8_t slot);
 // some kinda primal class, 
 class Vertex {
   public:
+    // -------------------------------- FN PTRS 
+    // these are *genuine function ptrs* not member functions, my dudes 
+    void (*loop_cb)(Vertex* vt) = nullptr;
+    // to notify for clear-out callbacks / flowcontrol etc 
+    void (*onOriginStackClear_cb)(Vertex* vt, uint8_t slot) = nullptr;
+    void (*onDestinationStackClear_cb)(Vertex* vt, uint8_t slot) = nullptr;
+    // -------------------------------- Methods
+    virtual void loop(void);
+    virtual void onOriginStackClear(uint8_t slot);
+    virtual void onDestinationStackClear(uint8_t slot);
     // -------------------------------- DATA
     // a type, a position, a name 
     uint8_t type = VT_TYPE_CODE;
@@ -59,27 +69,28 @@ class Vertex {
     // sometimes a vertex is a vport, sometimes it is a vbus, 
     VPort* vport;
     VBus* vbus;
-    // -------------------------------- FN PTRS 
-    // these are *genuine function ptrs* not member functions, my dudes 
-    void (*loop)(Vertex* vt) = vtLoopDefault;
-    // to notify for clear-out callbacks / flowcontrol etc 
-    void (*onOriginStackClear)(Vertex* vt, uint8_t slot) = vtOnOriginStackClearDefault;
-    void (*onDestinationStackClear)(Vertex* vt, uint8_t slot) = vtOnDestinationStackClearDefault;
     // -------------------------------- CONSTRUCTORS 
-    Vertex(Vertex* _parent, String _name);
-    Vertex(String _name) : Vertex(nullptr, _name){};
+    Vertex( 
+      Vertex* _parent, 
+      String _name, 
+      void (*_loop)(Vertex* vt),
+      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
+      void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
+    );
+    Vertex(Vertex* _parent, String _name) : Vertex(_parent, _name, nullptr, nullptr, nullptr){};
+    Vertex(String _name) : Vertex(nullptr, _name, nullptr, nullptr, nullptr){};
 };
 
 // ---------------------------------------------- VPort 
 
-void vpSendDefault(VPort* vp, uint8_t* data, uint16_t len);
-boolean vpCtsDefault(VPort* vp);
-
 class VPort : public Vertex {
   public:
-    // ---------------------------------- FN *PTRS* ... not methods 
-    void (*send)(VPort* vp, uint8_t* data, uint16_t len) = vpSendDefault;
-    boolean (*cts)(VPort* vp) = vpCtsDefault;
+    // -------------------------------- FN *PTRS* ... not methods 
+    void (*send_cb)(VPort* vp, uint8_t* data, uint16_t len) = nullptr;
+    boolean (*cts_cb)(VPort* vp) = nullptr;
+    // -------------------------------- OK these bbs are methods, 
+    virtual void send(uint8_t* data, uint16_t len);
+    virtual boolean cts(void);
     // base constructor, 
     VPort( 
       Vertex* _parent, String _name,
@@ -109,7 +120,7 @@ class VPort : public Vertex {
     ) : VPort (
       _parent, _name, _loop, _send, _cts, nullptr, nullptr
     ){};
-    // w/ no CTS, always assumed true 
+    // w/ no CTS
     VPort(
       Vertex* _parent, String _name,
       void (*_loop)(Vertex* vt),
@@ -117,18 +128,24 @@ class VPort : public Vertex {
     ) : VPort (
       _parent, _name, _loop, _send, nullptr, nullptr, nullptr
     ){};
+    // w/ just parent & name... 
+    VPort(
+      Vertex* _parent, String _name
+    ) : VPort (
+      _parent, _name, nullptr, nullptr, nullptr, nullptr, nullptr
+    ){};
 };
 
 // ---------------------------------------------- VBus 
 
-void vbSendDefault(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr);
-boolean vbCtsDefault(VBus* vb, uint8_t rxAddr);
-
 struct VBus : public Vertex{
   public:
-    // ---------------------------------- FN *PTRS* ... not methods 
-    void (*send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr) = vbSendDefault;
-    boolean (*cts)(VBus* vb, uint8_t rxAddr) = vbCtsDefault;
+    // -------------------------------- FN *PTRS* ... not methods 
+    void (*send_cb)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
+    boolean (*cts_cb)(VBus* vb, uint8_t rxAddr) = nullptr;
+    // -------------------------------- Methods 
+    virtual void send(uint8_t* data, uint16_t len, uint8_t rxAddr);
+    virtual boolean cts(uint8_t rxAddr);
     // has an rx addr, 
     uint16_t ownRxAddr = 0;
     // base constructor, 
