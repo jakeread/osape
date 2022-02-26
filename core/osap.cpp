@@ -18,12 +18,12 @@ is; no warranty is provided, and users accept all liability.
 #include "./osap_debug.h"
 #endif 
 
-void osapMainLoop(vertex_t* root){
+void osapMainLoop(Vertex* root){
   recursor(root);
 }
 
 // user musn't fk tree 
-boolean osapAddVertex(vertex_t* parent, vertex_t* child) {
+boolean osapAddVertex(Vertex* parent, Vertex* child) {
   if (parent->numChildren >= VT_MAXCHILDREN) {
     return false;
   } else {

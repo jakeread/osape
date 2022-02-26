@@ -22,14 +22,14 @@ no warranty is provided, and users accept all liability.
 
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
-void recursor(vertex_t* vt){
+void recursor(Vertex* vt){
   handler(vt);
   for(uint8_t child = 0; child < vt->numChildren; child ++){
     recursor(vt->children[child]);
   };
 }
 
-void handler(vertex_t* vt) {
+void handler(Vertex* vt) {
   // time is now
   unsigned long now = millis();
   // run vertex's own loop code
@@ -66,7 +66,7 @@ void handler(vertex_t* vt) {
   } // end lp over origin / destination stacks 
 }
 
-void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
+void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
   // switch at pck[ptr + 1]
   ptr ++;
   uint8_t* pck = item->data;

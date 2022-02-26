@@ -19,10 +19,10 @@ is; no warranty is provided, and users accept all liability.
 
 // vertex factory & root vertex 
 
-extern vertex_t* osap;
+extern Vertex* osap;
 
-void osapMainLoop(vertex_t* root);
+void osapMainLoop(Vertex* root);
 
-boolean osapAddVertex(vertex_t* parent, vertex_t* child);
+boolean osapAddVertex(Vertex* parent, Vertex* child);
 
 #endif 

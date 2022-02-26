@@ -43,50 +43,49 @@ enum EP_ONDATA_RESPONSES { EP_ONDATA_REJECT, EP_ONDATA_ACCEPT, EP_ONDATA_WAIT };
 EP_ONDATA_RESPONSES onDataDefault(uint8_t* data, uint16_t len);
 boolean beforeQueryDefault(void);
 
-struct endpoint_t {
-  vertex_t vt;
-  String name = "uknwnEndpoint";
-  // local data store & length, 
-  uint8_t data[VT_SLOTSIZE];
-  uint16_t dataLen = 0; 
-  // callbacks: on new data & before a query is written out 
-  EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len) = nullptr;
-  boolean (*beforeQuery)(void) = nullptr;
-  // routes, for tx-ing to:
-  endpoint_route_t routes[ENDPOINT_MAX_ROUTES];
-  uint16_t numRoutes = 0;
-  uint16_t lastRouteServiced = 0;
-  uint8_t nextAckId = 77;
-  // base constructor, 
-  endpoint_t( vertex_t* _parent, String _name, 
-              EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
-              boolean (*_beforeQuery)(void)
-            );
-  // these are called "delegating constructors" ... best reference is 
-  // here: https://en.cppreference.com/w/cpp/language/constructor 
-  // onData only, 
-  endpoint_t( vertex_t* _parent, String _name,
-              EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len)
-            ) : endpoint_t(_parent, _name, _onData, nullptr){};
-  // beforeQuery only, 
-  endpoint_t( vertex_t* _parent, String _name, 
-              boolean (*_beforeQuery)(void)
-            ) : endpoint_t(_parent, _name, nullptr, _beforeQuery){};
-  // name only, 
-  endpoint_t( vertex_t* _parent, String _name
-            ) : endpoint_t(_parent, _name, nullptr, nullptr){};
+class Endpoint : public Vertex {
+  public:
+    // local data store & length, 
+    uint8_t data[VT_SLOTSIZE];
+    uint16_t dataLen = 0; 
+    // callbacks: on new data & before a query is written out 
+    EP_ONDATA_RESPONSES (*onData)(uint8_t* data, uint16_t len) = nullptr;
+    boolean (*beforeQuery)(void) = nullptr;
+    // routes, for tx-ing to:
+    endpoint_route_t routes[ENDPOINT_MAX_ROUTES];
+    uint16_t numRoutes = 0;
+    uint16_t lastRouteServiced = 0;
+    uint8_t nextAckId = 77;
+    // base constructor, 
+    Endpoint(   Vertex* _parent, String _name, 
+                EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
+                boolean (*_beforeQuery)(void)
+              );
+    // these are called "delegating constructors" ... best reference is 
+    // here: https://en.cppreference.com/w/cpp/language/constructor 
+    // onData only, 
+    Endpoint(   Vertex* _parent, String _name,
+                EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len)
+              ) : Endpoint(_parent, _name, _onData, nullptr){};
+    // beforeQuery only, 
+    Endpoint(   Vertex* _parent, String _name, 
+                boolean (*_beforeQuery)(void)
+              ) : Endpoint(_parent, _name, nullptr, _beforeQuery){};
+    // name only, 
+    Endpoint(   Vertex* _parent, String _name
+              ) : Endpoint(_parent, _name, nullptr, nullptr){};
 };
 
 // ---------------------------------------------- Endpoint Route / Write API 
 
 // endpoint writer... 
-void endpointWrite(endpoint_t* ep, uint8_t* data, uint16_t len);
+void endpointWrite(Endpoint* ep, uint8_t* data, uint16_t len);
 
 // route adder: 
-boolean endpointAddRoute(endpoint_t* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
+boolean endpointAddRoute(Endpoint* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
 
 // endpoint api-to-check-all-clear:
-boolean endpointAllClear(endpoint_t* ep);
+boolean endpointAllClear(Endpoint* ep);
 
 // ---------------------------------------------- Runtimes 
 
@@ -94,9 +93,9 @@ boolean endpointAllClear(endpoint_t* ep);
 void endpointMainLoop(void);
 
 // loop per-endpoint, 
-void endpointLoop(endpoint_t* ep, unsigned long now);
+void endpointLoop(Endpoint* ep, unsigned long now);
 
 // a master handler: 
-EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, stackItem* item, uint16_t ptr);
+EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr);
 
 #endif 

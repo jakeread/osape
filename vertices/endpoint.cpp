@@ -21,22 +21,18 @@ no warranty is provided, and users accept all liability.
 // -------------------------------------------------------- Endpoint State
 
 // list of endpoints, and count:
-endpoint_t* _endpoints[MAX_CONTEXT_ENDPOINTS];
+Endpoint* _endpoints[MAX_CONTEXT_ENDPOINTS];
 uint8_t _numEndpoints = 0;
 
 // -------------------------------------------------------- Constructors 
 
 // base constructor, 
-endpoint_t::endpoint_t( 
-  vertex_t* _parent, String _name, 
+Endpoint::Endpoint( 
+  Vertex* _parent, String _name, 
   EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
-  boolean (*_beforeQuery)(void)){
-  // set name, type, 
-  name = _name;
-  vt.name = "ep_" + _name;
-  vt.type = VT_TYPE_ENDPOINT;
-  // and can we add it to osap ? this also inits the vt 
-  osapAddVertex(_parent, &vt);
+  boolean (*_beforeQuery)(void)
+) : Vertex(_parent, "ep_" + _name) {
+	type = VT_TYPE_ENDPOINT;
   // set callbacks,
   (_onData == nullptr) ? onData = onDataDefault : onData = _onData;
   (_beforeQuery == nullptr) ? beforeQuery = beforeQueryDefault : beforeQuery = _beforeQuery;
@@ -56,7 +52,7 @@ boolean beforeQueryDefault(void){
 
 // -------------------------------------------------------- Endpoint Route / Write API 
 
-void endpointWrite(endpoint_t* ep, uint8_t* data, uint16_t len){
+void endpointWrite(Endpoint* ep, uint8_t* data, uint16_t len){
   // copy data in,
   if(len > VT_SLOTSIZE) return; // no lol 
   memcpy(ep->data, data, len);
@@ -72,7 +68,7 @@ void endpointWrite(endpoint_t* ep, uint8_t* data, uint16_t len){
 }
 
 // add a route to an endpoint 
-boolean endpointAddRoute(endpoint_t* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode){
+boolean endpointAddRoute(Endpoint* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode){
 	// guard against more-than-allowed routes 
 	if(ep->numRoutes >= ENDPOINT_MAX_ROUTES) return false;
 	// handle for the route we're going to modify (and increment # of active routes)
@@ -85,7 +81,7 @@ boolean endpointAddRoute(endpoint_t* ep, uint8_t* path, uint16_t pathLen, EP_ROU
 	return true; 
 }
 
-boolean endpointAllClear(endpoint_t* ep){
+boolean endpointAllClear(Endpoint* ep){
   for(uint8_t r = 0; r < ep->numRoutes; r ++){
     if(ep->routes[r].state != EP_TX_IDLE){
       return false;
@@ -108,13 +104,13 @@ uint8_t ack[VT_SLOTSIZE];
 uint8_t EPOut[VT_SLOTSIZE];
 
 // main endpoint loop, 
-void endpointLoop(endpoint_t* ep, unsigned long now){
+void endpointLoop(Endpoint* ep, unsigned long now){
 	// ------------------------------------------ RX Check
 	// we run a similar loop as the main switch... 
 	// though we are only concerned with handling items in the destination stack 
 	// so, start by collecting items,
-	stackItem* items[ep->vt.stackSize];
-	uint8_t count = stackGetItems(&(ep->vt), VT_STACK_DESTINATION, items, ep->vt.stackSize);
+	stackItem* items[ep->stackSize];
+	uint8_t count = stackGetItems(ep, VT_STACK_DESTINATION, items, ep->stackSize);
 	// now we check through 'em and try to handle 
 	for(uint8_t i = 0; i < count; i ++){
 		stackItem* item = items[i];
@@ -125,7 +121,7 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
       ERROR(1, "endpoint loop bad ptr walk");
       logPacket(item->data, item->len);
       #endif 
-      stackClearSlot(&(ep->vt), VT_STACK_DESTINATION, item);
+      stackClearSlot(ep, VT_STACK_DESTINATION, item);
       continue;
     }
     // only continue if pckt is for us
@@ -137,7 +133,7 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
       case EP_ONDATA_REJECT:
       case EP_ONDATA_ACCEPT:
         // in either case, we are done and can clear it 
-        stackClearSlot(&(ep->vt), VT_STACK_DESTINATION, item);
+        stackClearSlot(ep, VT_STACK_DESTINATION, item);
         break;
       case EP_ONDATA_WAIT:
         // it wants to hang in the stack, so we update the stale time 
@@ -148,7 +144,7 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
         #ifdef OSAP_DEBUG 
         ERROR(1, "on endpoint dest. handle, unknown ondata response");
         #endif 
-        stackClearSlot(&(ep->vt), VT_STACK_DESTINATION, item);
+        stackClearSlot(ep, VT_STACK_DESTINATION, item);
         break;
     } // end dest switch 
 	}
@@ -166,7 +162,7 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
 				break;
 			case EP_TX_FRESH:
 				// foruml8 pck & tx it 
-				if(stackEmptySlot(&(ep->vt), VT_STACK_ORIGIN)){
+				if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
 					// load it w/ data, 
 					#warning slow-load code, should write str8 to stack 
 					// write ptr in the head, 
@@ -199,7 +195,7 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
 					wptr += ep->dataLen;
 					// that's a packet? we load it into stack, we're done 
           rt->txTime = now;
-					stackLoadSlot(&(ep->vt), VT_STACK_ORIGIN, EPOut, wptr);
+					stackLoadSlot(ep, VT_STACK_ORIGIN, EPOut, wptr);
 					// transition state:
 					if(rt->ackMode == EP_ROUTE_ACKLESS) rt->state = EP_TX_IDLE;
 					if(rt->ackMode == EP_ROUTE_ACKED) rt->state = EP_TX_AWAITING_ACK;
@@ -228,7 +224,7 @@ void endpointLoop(endpoint_t* ep, unsigned long now){
 
 // item->data[ptr] == PK_DEST here 
 // item->data[ptr + 1, ptr + 2] = segsize !
-EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, stackItem* item, uint16_t ptr){
+EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr){
 	ptr += 3;
 	switch(item->data[ptr]){
 		case EP_SS_ACKLESS: // ah right, these were 'single segment' msgs... yikes 
@@ -253,7 +249,7 @@ EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, stackItem* item, uint16_t pt
 			break;
 		case EP_SS_ACKED:
 			{ // if there's not any space for an ack, we won't be able to ack, ask to wait 
-				if(!stackEmptySlot(&(ep->vt), VT_STACK_ORIGIN)) return EP_ONDATA_WAIT;
+				if(!stackEmptySlot(ep, VT_STACK_ORIGIN)) return EP_ONDATA_WAIT;
 				// otherwise carry on to the handler, 
 				EP_ONDATA_RESPONSES resp = ep->onData(&(item->data[ptr + 2]), item->len - ptr - 2);
 				switch(resp){
@@ -276,7 +272,7 @@ EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, stackItem* item, uint16_t pt
               #warning acks can write in place, my dude 
 							ack[wptr ++] = EP_SS_ACK; // the ack ID is here in prv packet 
 							ack[wptr ++] = item->data[ptr + 1];
-							stackLoadSlot(&(ep->vt), VT_STACK_ORIGIN, ack, wptr);
+							stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
 						}
 						break; // end accept / reject 
 					case EP_ONDATA_WAIT: // again: will mirror this reponse up, wait will happen there 
@@ -289,7 +285,7 @@ EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, stackItem* item, uint16_t pt
 			break;
 		case EP_QUERY:
 			// if can generate new message, 
-			if(stackEmptySlot(&(ep->vt), VT_STACK_ORIGIN)){
+			if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
 				// run the 'beforeQuery' call, which doesn't need to return anything: 
 				ep->beforeQuery();
 				uint16_t wptr = 0;
@@ -304,7 +300,7 @@ EP_ONDATA_RESPONSES endpointHandler(endpoint_t* ep, stackItem* item, uint16_t pt
 					ack[wptr ++] = item->data[ptr + 1];	// has ID matched to request 
 					memcpy(&(ack[wptr]), ep->data, ep->dataLen);
 					wptr += ep->dataLen;
-					stackLoadSlot(&(ep->vt), VT_STACK_ORIGIN, ack, wptr);
+					stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
 					return EP_ONDATA_ACCEPT;
 				}
 			} else {

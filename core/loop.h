@@ -17,8 +17,8 @@ no warranty is provided, and users accept all liability.
 
 #include "vertex.h"
 
-void recursor(vertex_t* vt);
-void handler(vertex_t* vt);
-void packetSwitch(vertex_t* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now);
+void recursor(Vertex* vt);
+void handler(Vertex* vt);
+void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now);
 
 #endif 
