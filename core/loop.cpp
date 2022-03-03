@@ -23,25 +23,27 @@ no warranty is provided, and users accept all liability.
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
 void loopRecursor(Vertex* vt){
+  // reset loop state, 
+  vt->incomingItemCount = 0;
+  // vertex loop code, 
   vt->loop();
+  // now recurse, 
   for(uint8_t child = 0; child < vt->numChildren; child ++){
     loopRecursor(vt->children[child]);
   };
 }
 
 // recurse again, this time calling handler, 
-void handleRecursor(Vertex* vt){
-  handler(vt);
+void setupRecursor(Vertex* vt){
+  setupHandler(vt);
   for(uint8_t child = 0; child < vt->numChildren; child ++){
-    handleRecursor(vt->children[child]);
+    setupRecursor(vt->children[child]);
   };
 }
 
-void handler(Vertex* vt) {
+void setupHandler(Vertex* vt) {
   // time is now
   unsigned long now = millis();
-  // run vertex's own loop code
-  vt->loop();
   // handle origin stack, destination stack, in same manner 
   for(uint8_t od = 0; od < 2; od ++){
     // try one handle per stack item, per loop:
@@ -54,7 +56,7 @@ void handler(Vertex* vt) {
       // check timeouts, 
       if(item->arrivalTime + TIMES_STALE_MSG < now){
         #ifdef OSAP_DEBUG
-        ERROR(3, "core loop T/O indice " + String(vt->indice) + " " + vt->name + " " + String(item->arrivalTime));
+        ERROR(3, "setup loop T/O indice " + String(vt->indice) + " " + vt->name + " " + String(item->arrivalTime));
         #endif 
         stackClearSlot(vt, od, item);
         continue;
@@ -68,17 +70,19 @@ void handler(Vertex* vt) {
         stackClearSlot(vt, od, item); // clears the msg 
         continue; 
       }
-      // handle it, 
-      packetSwitch(vt, od, item, ptr, now);
+      // count transmitters, 
+      setupSwitch(vt, od, item, ptr, now);
     }
   } // end lp over origin / destination stacks 
 }
 
-void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
+// this'll be the bigger switch: punts bad messages, etc. 
+void setupSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
   // switch at pck[ptr + 1]
   ptr ++;
   uint8_t* pck = item->data;
   uint16_t len = item->len;
+  item->ptr = ptr; // for the transfer switch, 
   // do things, 
   switch(pck[ptr]){
     case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
@@ -105,49 +109,20 @@ void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         stackClearSlot(vt, od, item);
         break;
       }
-      // now we can copy it in, only if there's space ahead to move it into 
-      if(stackEmptySlot(vt->parent->children[si], VT_STACK_DESTINATION)){
-        #ifdef OSAP_DEBUG
-        #ifdef LOOP_DEBUG
-        DEBUG("sib copy");
-        #endif 
-        #endif 
-        ptr -= 4; // write in reversed instruction (reverse ptr to PK_PTR here)
-        pck[ptr ++] = PK_SIB_KEY; // overwrite with instruction that would return to us, 
-        ts_writeUint16(vt->indice, pck, &ptr);
-        pck[ptr] = PK_PTR;
-        // copy-in, set fullness, update time 
-        stackLoadSlot(vt->parent->children[si], VT_STACK_DESTINATION, pck, len);
-        // now og is clear 
-        stackClearSlot(vt, od, item);
-        // and we can finish here 
-        break;
-      } else {
-        // destination stack at target is full, msg stays in place, next loop checks 
-      }
-    } 
-    break; // end sib-fwd case, 
+      // passes tests, track us at target source, 
+      vt->parent->children[si]->incomingItems[vt->parent->children[si]->incomingItemCount ++] = item;
+      break;
+    } // end sib-fwd case 
     case PK_PARENT_KEY:
       if(vt->parent == nullptr){
         #ifdef OSAP_DEBUG
         ERROR(1, "requests traverse to parent from top level");
         #endif 
         stackClearSlot(vt, od, item);
-      } else if(stackEmptySlot(vt->parent, VT_STACK_DESTINATION)){
-        #ifdef OSAP_DEBUG 
-        #ifdef LOOP_DEBUG
-        DEBUG("copy to parent");
-        #endif 
-        #endif 
-        ptr -= 1; // write in reversed instruction 
-        pck[ptr ++] = PK_CHILD_KEY;
-        ts_writeUint16(vt->indice, pck, &ptr);
-        pck[ptr ++] = PK_PTR;
-        // copy-in, set fullness and update time 
-        stackLoadSlot(vt->parent, VT_STACK_DESTINATION, pck, len);
-        stackClearSlot(vt, od, item);
-      }
-      break;
+        break;
+      } 
+      vt->parent->incomingItems[vt->parent->incomingItemCount ++] = item;
+      break; // end parent-fwd case 
     case PK_CHILD_KEY:
       // find child 
       uint16_t ci;
@@ -159,21 +134,11 @@ void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
         ERROR(1, "no child at this indice " + String(ci));
         #endif 
         stackClearSlot(vt, od, item);
-      } else if (stackEmptySlot(vt->children[ci], VT_STACK_DESTINATION)){
-        #ifdef OSAP_DEBUG
-        #ifdef LOOP_DEBUG
-        DEBUG("copy to child");
-        #endif 
-        #endif 
-        ptr -= 4;
-        pck[ptr ++] = PK_PARENT_KEY;
-        ts_writeUint16(0, pck, &ptr); // parent 'index' used bc packet length should be symmetric 
-        pck[ptr ++] = PK_PTR;
-        // do the copy-in, set fullness, etc 
-        stackLoadSlot(vt->children[ci], VT_STACK_DESTINATION, pck, len);
-        stackClearSlot(vt, od, item);
-      }
-      break;
+        break;
+      } 
+      vt->children[ci]->incomingItems[vt->children[ci]->incomingItemCount ++] = item;
+      break; // end child-fwd case 
+      // ---------------------------------------- Network Switches 
     case PK_PFWD_KEY:
       if(vt->vport == nullptr){
         #ifdef OSAP_DEBUG
@@ -278,4 +243,114 @@ void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigne
       stackClearSlot(vt, od, item);
       break;
   } // end main switch 
+}
+
+void transferRecursor(Vertex* vt){
+  transferHandler(vt);
+  for(uint8_t child = 0; child < vt->numChildren; child ++){
+    transferRecursor(vt->children[child]);
+  };
+}
+
+void transferHandler(Vertex* vt){
+  // this would be like... 
+  if(vt->incomingItemCount == 0) return;
+  // then do... item to serve,
+  uint16_t its = vt->lastIncomingServed;
+  // serve 'em, starting w/ next-from-last-served, 
+  for(uint16_t i = 0; i < vt->incomingItemCount; i ++){
+    digitalWrite(A4, !digitalRead(A4));
+    its ++;
+    if(its >= vt->incomingItemCount) its = 0;
+    if(transferSwitch(vt, vt->incomingItems[its])){
+      vt->lastIncomingServed = its;
+    }
+  }
+}
+
+// we're only concerned here w/ transfers vertex-to-vertex, 
+// pls note: vt here is *sink* 
+boolean transferSwitch(Vertex* vt, stackItem* item){
+  // mmkheeey, 
+  uint8_t* pck = item->data;
+  uint16_t len = item->len;
+  uint16_t ptr = item->ptr;
+  // do things, 
+  switch(pck[item->ptr]){
+    case PK_SIB_KEY: {  // instruction to pass to this sibling, 
+      // need the indice, 
+      uint16_t si;
+      ptr ++;
+      ts_readUint16(&si, pck, &ptr);
+      // now we can copy it in, only if there's space ahead to move it into 
+      if(stackEmptySlot(item->vt->parent->children[si], VT_STACK_DESTINATION)){
+        #ifdef OSAP_DEBUG
+        #ifdef LOOP_DEBUG
+        DEBUG("sib copy");
+        #endif 
+        #endif 
+        ptr -= 4; // write in reversed instruction (reverse ptr to PK_PTR here)
+        pck[ptr ++] = PK_SIB_KEY; // overwrite with instruction that would return to us, 
+        ts_writeUint16(item->vt->indice, pck, &ptr);
+        pck[ptr] = PK_PTR;
+        // copy-in, set fullness, update time 
+        stackLoadSlot(item->vt->parent->children[si], VT_STACK_DESTINATION, pck, len);
+        // now og is clear 
+        stackClearSlot(item->vt, item->od, item);
+        // and we can finish here 
+        return true; 
+      } else {
+        return false; 
+        // destination stack at target is full, msg stays in place, next loop checks 
+      }
+    }
+    case PK_PARENT_KEY:
+      #warning ... each of these, we could be "sure" that setup means we are looking to load into vt 
+      if(stackEmptySlot(item->vt->parent, VT_STACK_DESTINATION)){
+        #ifdef OSAP_DEBUG 
+        #ifdef LOOP_DEBUG
+        DEBUG("copy to parent");
+        #endif 
+        #endif 
+        ptr -= 1; // write in reversed instruction 
+        pck[ptr ++] = PK_CHILD_KEY;
+        ts_writeUint16(item->vt->indice, pck, &ptr);
+        pck[ptr ++] = PK_PTR;
+        // copy-in, set fullness and update time 
+        stackLoadSlot(item->vt->parent, VT_STACK_DESTINATION, pck, len);
+        stackClearSlot(item->vt, item->od, item);
+        return true;
+      } else {
+        return false;
+      }
+    case PK_CHILD_KEY:
+      // find child 
+      uint16_t ci;
+      ptr ++;
+      ts_readUint16(&ci, pck, &ptr);
+      if (stackEmptySlot(item->vt->children[ci], VT_STACK_DESTINATION)){
+        #ifdef OSAP_DEBUG
+        #ifdef LOOP_DEBUG
+        DEBUG("copy to child");
+        #endif 
+        #endif 
+        ptr -= 4;
+        pck[ptr ++] = PK_PARENT_KEY;
+        ts_writeUint16(0, pck, &ptr); // parent 'index' used bc packet length should be symmetric 
+        pck[ptr ++] = PK_PTR;
+        // do the copy-in, set fullness, etc 
+        stackLoadSlot(item->vt->children[ci], VT_STACK_DESTINATION, pck, len);
+        stackClearSlot(item->vt, item->od, item);
+        return true;
+      } else {
+        return false; 
+      }
+    default:
+      #ifdef OSAP_DEBUG
+      ERROR(1, "unrecognized ptr in transfer switch here at " + String(ptr) + ": " + String(pck[ptr]));
+      logPacket(pck, len);
+      #endif 
+      stackClearSlot(item->vt, item->od, item);
+      return true;
+  } // end transfer switch 
 }

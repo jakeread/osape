@@ -28,6 +28,9 @@ void stackReset(Vertex* vt){
       vt->stack[od][s].arrivalTime = 0;
       vt->stack[od][s].len = 0;
       vt->stack[od][s].indice = s;
+      // and ptrs to self, 
+      vt->stack[od][s].vt = vt;
+      vt->stack[od][s].od = od;
     }
     // set next ptrs, 
     for(uint8_t s = 0; s < vt->stackSize - 1; s ++){

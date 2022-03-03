@@ -17,9 +17,15 @@ no warranty is provided, and users accept all liability.
 
 #include "vertex.h"
 
+// we loop, 
 void loopRecursor(Vertex* vt);
-void handleRecursor(Vertex* vt);
-void handler(Vertex* vt);
-void packetSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now);
+// we setup, 
+void setupRecursor(Vertex* vt);
+void setupHandler(Vertex* vt);
+void setupSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now);
+// we transfer, 
+void transferRecursor(Vertex* vt);
+void transferHandler(Vertex* vt);
+boolean transferSwitch(Vertex* vt, stackItem* item);
 
 #endif 

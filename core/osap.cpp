@@ -19,8 +19,10 @@ is; no warranty is provided, and users accept all liability.
 #endif 
 
 void osapMainLoop(Vertex* root){
+  // operate, analyze, transmit 
   loopRecursor(root);
-  handleRecursor(root);
+  setupRecursor(root);
+  transferRecursor(root);
 }
 
 // user musn't fk tree 

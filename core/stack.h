@@ -29,7 +29,10 @@ typedef struct stackItem {
   uint8_t data[VT_SLOTSIZE];          // data bytes
   uint16_t len = 0;                   // data bytes count 
   unsigned long arrivalTime = 0;      // microseconds-since-system-alive, time at last hop 
+  Vertex* vt;                         // vertex to whomst we belong, 
+  uint8_t od;                         // origin / destination to which we belong, 
   uint8_t indice;                     // actual physical position in the stack 
+  uint16_t ptr = 0;                   // current data[ptr] == 88 
   stackItem* next = nullptr;          // linked ringbuffer next 
   stackItem* previous = nullptr;      // linked ringbuffer previous 
 } stackItem;

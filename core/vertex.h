@@ -62,6 +62,10 @@ class Vertex {
     //uint8_t lastStackHandled[2] = { 0, 0 };
     stackItem* queueStart[2] = { nullptr, nullptr };    // data is read from the tail  
     stackItem* firstFree[2] = { nullptr, nullptr };     // data is loaded into the head 
+    // loop fairness allocation 
+    stackItem* incomingItems[VT_MAXITEMSPERTURN];
+    uint16_t incomingItemCount = 0;
+    uint16_t lastIncomingServed = 0;
     // parent & children (other vertices)
     Vertex* parent = nullptr;
     Vertex* children[VT_MAXCHILDREN]; // I think this is OK on storage: just pointers 
