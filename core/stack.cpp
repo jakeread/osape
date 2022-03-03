@@ -91,6 +91,11 @@ uint8_t stackGetItems(Vertex* vt, uint8_t od, stackItem** items, uint8_t maxItem
   return count;
 }
 
+// pop from top of stack .. ? 
+stackItem* stackGetItem(Vertex* vt, uint8_t od){
+
+}
+
 // clear the item, 
 void stackClearSlot(Vertex* vt, uint8_t od, stackItem* item){
   // this would be deadly, so:

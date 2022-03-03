@@ -22,10 +22,18 @@ no warranty is provided, and users accept all liability.
 
 // recurse down vertex's children, 
 // ... would be breadth-first, ideally 
-void recursor(Vertex* vt){
+void loopRecursor(Vertex* vt){
+  vt->loop();
+  for(uint8_t child = 0; child < vt->numChildren; child ++){
+    loopRecursor(vt->children[child]);
+  };
+}
+
+// recurse again, this time calling handler, 
+void handleRecursor(Vertex* vt){
   handler(vt);
   for(uint8_t child = 0; child < vt->numChildren; child ++){
-    recursor(vt->children[child]);
+    handleRecursor(vt->children[child]);
   };
 }
 

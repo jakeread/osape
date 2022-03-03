@@ -123,8 +123,10 @@ void Endpoint::loop(void){
         stackClearSlot(this, VT_STACK_DESTINATION, item);
         break;
       case EP_ONDATA_WAIT:
-        // it wants to hang in the stack, so we update the stale time 
-        item->arrivalTime = now;
+        // endpoint code wants to deal w/ it later, so we hang until next loop
+        // option to update arrival time to wait indefinitly (cancelling timeout) w/ this:
+        // item->arrivalTime = now;
+        // doing so ^ will break other comms / sweeps in many cases, since we plug also i.e. mvc queries to us 
         break;
       default:
         // badness from the handler, doesn't make much sense but 
