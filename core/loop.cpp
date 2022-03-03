@@ -259,7 +259,6 @@ void transferHandler(Vertex* vt){
   uint16_t its = vt->lastIncomingServed;
   // serve 'em, starting w/ next-from-last-served, 
   for(uint16_t i = 0; i < vt->incomingItemCount; i ++){
-    digitalWrite(A4, !digitalRead(A4));
     its ++;
     if(its >= vt->incomingItemCount) its = 0;
     if(transferSwitch(vt, vt->incomingItems[its])){
