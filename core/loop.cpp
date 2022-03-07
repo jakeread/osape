@@ -20,13 +20,12 @@ no warranty is provided, and users accept all liability.
 
 //#define LOOP_DEBUG
 
-// recurse down vertex's children, 
 // ... would be breadth-first, ideally 
 void loopRecursor(Vertex* vt){
   // reset loop state, 
   vt->incomingItemCount = 0;
-  // vertex loop code, 
-  vt->loop();
+  // vertex loop code, but it's circular if parent calls itself 
+  if(vt->parent != nullptr) vt->loop();
   // now recurse, 
   for(uint8_t child = 0; child < vt->numChildren; child ++){
     loopRecursor(vt->children[child]);

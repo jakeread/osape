@@ -34,6 +34,9 @@ void vtLoopDefault(Vertex* vt);
 void vtOnOriginStackClearDefault(Vertex* vt, uint8_t slot);
 void vtOnDestinationStackClearDefault(Vertex* vt, uint8_t slot);
 
+// vertex nester, 
+boolean nestVertex(Vertex* parent, Vertex* child);
+
 // some kinda primal class, 
 class Vertex {
   public:

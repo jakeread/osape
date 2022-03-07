@@ -18,21 +18,13 @@ is; no warranty is provided, and users accept all liability.
 #include "./osap_debug.h"
 #endif 
 
-void osapMainLoop(Vertex* root){
-  // operate, analyze, transmit 
-  loopRecursor(root);
-  setupRecursor(root);
-  transferRecursor(root);
-}
+OSAP::OSAP(String _name) : Vertex(_name){};
 
-// user musn't fk tree 
-boolean osapAddVertex(Vertex* parent, Vertex* child) {
-  if (parent->numChildren >= VT_MAXCHILDREN) {
-    return false;
-  } else {
-    child->indice = parent->numChildren;
-    child->parent = parent;
-    parent->children[parent->numChildren ++] = child;
-    return true;
-  }
+void OSAP::loop(void){
+  // this is the root, so we kick all of the internal net operation from here 
+  loopRecursor(this);
+  // run setups, 
+  setupRecursor(this);
+  // run transfers, 
+  transferRecursor(this);
 }

@@ -17,12 +17,13 @@ is; no warranty is provided, and users accept all liability.
 
 #include "vertex.h"
 
-// vertex factory & root vertex 
+// largely semantic class, OSAP represents the root vertex in whichever context 
+// and it's where run the main loop from, etc... 
 
-extern Vertex* osap;
-
-void osapMainLoop(Vertex* root);
-
-boolean osapAddVertex(Vertex* parent, Vertex* child);
+class OSAP : public Vertex {
+  public: 
+    void loop(void) override;
+    OSAP(String _name);// : Vertex(_name);
+};
 
 #endif 

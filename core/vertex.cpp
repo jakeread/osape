@@ -19,6 +19,19 @@ no warranty is provided, and users accept all liability.
 #include "./osap_debug.h"
 #endif 
 
+// ---------------------------------------------- Nester 
+
+boolean nestVertex(Vertex* parent, Vertex* child){
+  if (parent->numChildren >= VT_MAXCHILDREN) {
+    return false;
+  } else {
+    child->indice = parent->numChildren;
+    child->parent = parent;
+    parent->children[parent->numChildren ++] = child;
+    return true;
+  }
+}
+
 // ---------------------------------------------- Vertex Constructor and Defaults 
 
 Vertex::Vertex( 
@@ -39,7 +52,7 @@ Vertex::Vertex(
     type = VT_TYPE_ROOT;
     indice = 0;
   } else {
-    osapAddVertex(_parent, this);
+    nestVertex(_parent, this);
   }
 }
 
