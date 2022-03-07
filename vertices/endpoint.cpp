@@ -236,12 +236,12 @@ EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr)
 				// NOTE: previous code had *ackless* using 'ptr + 1' offsets, but should be the same 
 				// as *acked* code, which uses 'ptr + 2' offset ... swapped back here 2021-07-07, ? 
 				// was rarely using ackless... so I presume this is it 
-				EP_ONDATA_RESPONSES resp = ep->onData_cb(&(item->data[ptr + 2]), item->len - ptr - 2);
+				EP_ONDATA_RESPONSES resp = ep->onData_cb(&(item->data[ptr + 1]), item->len - ptr - 2);
 				switch(resp){
 					case EP_ONDATA_REJECT: // nothing to do: msg will be deleted one level up 
 						break; 
 					case EP_ONDATA_ACCEPT: // data OK, copy it in:
-						memcpy(ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
+						memcpy(ep->data, &(item->data[ptr + 1]), item->len - ptr - 2);
 						ep->dataLen = item->len - ptr - 2;
 						break;
 					case EP_ONDATA_WAIT: // nothing to do, msg will be awaited one level up 
@@ -254,12 +254,12 @@ EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr)
 			{ // if there's not any space for an ack, we won't be able to ack, ask to wait 
 				if(!stackEmptySlot(ep, VT_STACK_ORIGIN)) return EP_ONDATA_WAIT;
 				// otherwise carry on to the handler, 
-				EP_ONDATA_RESPONSES resp = ep->onData_cb(&(item->data[ptr + 2]), item->len - ptr - 2);
+				EP_ONDATA_RESPONSES resp = ep->onData_cb(&(item->data[ptr + 2]), item->len - ptr - 3);
 				switch(resp){
 					case EP_ONDATA_ACCEPT:
 						// this means we copy the data in, it's the new endpoint data:
-						memcpy(ep->data, &(item->data[ptr + 2]), item->len - ptr - 2);
-						ep->dataLen = item->len - ptr - 2;
+						memcpy(ep->data, &(item->data[ptr + 2]), item->len - ptr - 3);
+						ep->dataLen = item->len - ptr - 3;
 						// carry on to generate the response (no break)
 					case EP_ONDATA_REJECT:
 						{
