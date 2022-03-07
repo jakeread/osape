@@ -19,19 +19,30 @@ no warranty is provided, and users accept all liability.
 
 // ---------------------------------------------- Routes
 
+// route macros 
+
+#define RT_SIB(ind) PK_SIB_KEY, ind, 0
+#define RT_PFWD PK_PFWD_KEY 
+
 enum EP_ROUTE_MODES { EP_ROUTE_ACKLESS, EP_ROUTE_ACKED };
 enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITING_AND_FRESH };
 
-struct endpointRoute_t {
-  uint8_t path[64];
-  uint8_t pathLen = 0;
-  uint8_t ackId = 0;    // this'll limit the # of simultaneously tx'd-to routes to 255, considering each needs unique ackid 
-  EP_ROUTE_STATES state = EP_TX_IDLE;
-  unsigned long txTime = 0;
-  unsigned long timeoutLength = 1000; // ms 
-  // properties likely to be exposed to mvc 
-  EP_ROUTE_MODES ackMode = EP_ROUTE_ACKLESS;
-  uint16_t segSize = 256;
+class EndpointRoute {
+  public: 
+    uint8_t path[64];
+    uint8_t pathLen = 0;
+    uint8_t ackId = 0;
+    EP_ROUTE_STATES state = EP_TX_IDLE;
+    unsigned long txTime = 0;
+    unsigned long timeoutLength = 1000;
+    EP_ROUTE_MODES ackMode = EP_ROUTE_ACKLESS;
+    uint16_t segSize = 256;
+    // constructor, 
+    EndpointRoute(EP_ROUTE_MODES _mode);
+    // pass-thru initialize, 
+    EndpointRoute* sib(uint16_t indice);
+    EndpointRoute* pfwd(uint16_t indice);
+    //EndpointRoute* bfwd(uint16_t indice, uint8_t rxAddr);
 };
 
 // ---------------------------------------------- Endpoints 
@@ -55,10 +66,10 @@ class Endpoint : public Vertex {
     void loop(void) override;
     // methods,
     void write(uint8_t* _data, uint16_t len);
-    void addRoute(uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
+    void addRoute(EndpointRoute* _route);
     boolean clearToWrite(void);
     // routes, for tx-ing to:
-    endpointRoute_t routes[ENDPOINT_MAX_ROUTES];
+    EndpointRoute* routes[ENDPOINT_MAX_ROUTES];
     uint16_t numRoutes = 0;
     uint16_t lastRouteServiced = 0;
     uint8_t nextAckId = 77;

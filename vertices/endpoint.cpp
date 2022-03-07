@@ -21,6 +21,24 @@ no warranty is provided, and users accept all liability.
 
 // -------------------------------------------------------- Constructors 
 
+// route constructor 
+EndpointRoute::EndpointRoute(EP_ROUTE_MODES _mode){
+  ackMode = _mode;
+}
+
+EndpointRoute* EndpointRoute::sib(uint16_t indice){
+  path[pathLen ++] = PK_SIB_KEY;
+  path[pathLen ++] = indice & 255;
+  path[pathLen ++] = 0;
+  return this; 
+}
+
+EndpointRoute* EndpointRoute::pfwd(uint16_t indice){
+  sib(indice);
+  path[pathLen ++] = PK_PFWD_KEY;
+  return this;
+}
+
 // base constructor, 
 Endpoint::Endpoint( 
   Vertex* _parent, String _name, 
@@ -53,29 +71,25 @@ void Endpoint::write(uint8_t* _data, uint16_t len){
   dataLen = len;
   // set route freshness 
   for(uint8_t r = 0; r < numRoutes; r ++){
-    if(routes[r].state == EP_TX_AWAITING_ACK){
-      routes[r].state = EP_TX_AWAITING_AND_FRESH;
+    if(routes[r]->state == EP_TX_AWAITING_ACK){
+      routes[r]->state = EP_TX_AWAITING_AND_FRESH;
     } else {
-      routes[r].state = EP_TX_FRESH;
+      routes[r]->state = EP_TX_FRESH;
     }
   }
 }
 
 // add a route to an endpoint 
-void Endpoint::addRoute(uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode){
+void Endpoint::addRoute(EndpointRoute* _route){
 	// guard against more-than-allowed routes 
 	if(numRoutes >= ENDPOINT_MAX_ROUTES) { ERROR(2, "route add oob"); return; }
-	// handle for the route we're going to modify (and increment # of active routes)
-	endpointRoute_t* rt = &(routes[numRoutes ++]);
-	// load the path -> the path 
-	memcpy(rt->path, path, pathLen);
-	rt->pathLen = pathLen;
-	rt->ackMode = mode;
+  // stash, increment 
+  routes[numRoutes ++] = _route;
 }
 
 boolean Endpoint::clearToWrite(void){
   for(uint8_t r = 0; r < numRoutes; r ++){
-    if(routes[r].state != EP_TX_IDLE){
+    if(routes[r]->state != EP_TX_IDLE){
       return false;
     }
   }
@@ -144,7 +158,7 @@ void Endpoint::loop(void){
 	for(uint8_t i = 0; i < numRoutes; i ++){
 		r ++;
 		if(r >= numRoutes) r = 0;
-		endpointRoute_t* rt = &(routes[r]);
+		EndpointRoute* rt = routes[r];
 		switch(rt->state){
 			case EP_TX_IDLE:
 				// no-op 
@@ -300,13 +314,13 @@ EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr)
       { // upd8 tx state on associated route 
         for(uint8_t r = 0; r < ep->numRoutes; r ++){
           // this is where the ackId is in the packet, we match to routes on that (for speed)
-          if(item->data[ptr + 1] == ep->routes[r].ackId){
-            switch(ep->routes[r].state){
+          if(item->data[ptr + 1] == ep->routes[r]->ackId){
+            switch(ep->routes[r]->state){
               case EP_TX_AWAITING_ACK:  // awaiting -> captured -> idle, 
-                ep->routes[r].state = EP_TX_IDLE;
+                ep->routes[r]->state = EP_TX_IDLE;
                 break;
               case EP_TX_AWAITING_AND_FRESH:  // awaiting -> captured -> fresh again 
-                ep->routes[r].state = EP_TX_FRESH;
+                ep->routes[r]->state = EP_TX_FRESH;
                 break;
               case EP_TX_FRESH:
               case EP_TX_IDLE:
