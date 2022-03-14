@@ -82,7 +82,12 @@ void Endpoint::write(uint8_t* _data, uint16_t len){
 // add a route to an endpoint 
 void Endpoint::addRoute(EndpointRoute* _route){
 	// guard against more-than-allowed routes 
-	if(numRoutes >= ENDPOINT_MAX_ROUTES) { ERROR(2, "route add oob"); return; }
+	if(numRoutes >= ENDPOINT_MAX_ROUTES) {
+		#ifdef OSAP_DEBUG 
+		ERROR(2, "route add oob"); 
+		#endif 
+		return; 
+	}
   // stash, increment 
   routes[numRoutes ++] = _route;
 }
