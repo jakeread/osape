@@ -56,8 +56,10 @@ void EndpointMultiSeg::loop(void){
     // pckt for us?
     ptr ++;
     if(item->data[ptr] != PK_DEST) continue;
-    // now switch on next key, 
-    ptr ++;
+    // item->data[ptr] == PK_DEST, so 
+    // item->data[ptr + 1, ptr + 2] == segsize, so we do:
+    ptr += 3;
+    // now we have 1st byte of 'application' layer 
     switch(item->data[ptr]){
       case EPMSEG_QUERY: {  // query case, should be [route][ptr][dest:1][query:1][startread:2][endread:2]
           // collect start, end to read back, 
