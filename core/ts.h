@@ -23,6 +23,7 @@ no warranty is provided, and users accept all liability.
 #define VT_TYPE_ROOT 22       // top level 
 #define VT_TYPE_MODULE 23     // collection of things (?) or something, idk yet 
 #define VT_TYPE_ENDPOINT 24   // software endpoint w/ read/write semantics 
+#define VT_TYPE_ENDPOINT_MULTISEG 26 // likewise, but requring multisegment transmission 
 #define VT_TYPE_CODE 25       // autonomous graph dwellers 
 #define VT_TYPE_VPORT 44      // virtual ports 
 #define VT_TYPE_VBUS 45       // maybe bus-drop / bus-head / bus-cohost are differentiated 
@@ -59,6 +60,11 @@ no warranty is provided, and users accept all liability.
 #define EP_SS_ACKED 122     // single segment, request ack 
 #define EP_QUERY 131        // query request 
 #define EP_QUERY_RESP 132   // reply to query request 
+
+// -------------------------------------------------------- Endpoint Multisegement Keys 
+
+#define EPMSEG_QUERY 141 
+#define EPMSEG_QUERY_RESP 142 
 
 // -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
 
