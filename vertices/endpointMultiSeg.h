@@ -20,12 +20,12 @@ no warranty is provided, and users accept all liability.
 
 class EndpointMultiSeg : public Vertex {
   public:
-    uint8_t* dataPtr;
+    void* dataPtr;
     uint32_t dataLen;
     // override vertex loop, 
     void loop(void) override;
   // constructor 
-  EndpointMultiSeg(Vertex* _parent, String _name, uint8_t* _dataPtr, uint32_t _dataLen);
+  EndpointMultiSeg(Vertex* _parent, String _name, void* _dataPtr, uint32_t _dataLen);
 };
 
 #endif 

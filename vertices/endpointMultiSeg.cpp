@@ -23,7 +23,7 @@ no warranty is provided, and users accept all liability.
 
 EndpointMultiSeg::EndpointMultiSeg(
   Vertex* _parent, String _name,
-  uint8_t* _dataPtr, uint32_t _dataLen
+  void* _dataPtr, uint32_t _dataLen
 ) : Vertex(_parent, "epmseg_" + _name){
   type = VT_TYPE_ENDPOINT_MULTISEG;
   // no callbacks, just 
@@ -84,7 +84,7 @@ void EndpointMultiSeg::loop(void){
               ts_writeUint16(start, tempResp, &tempWptr);
               ts_writeUint16(end, tempResp, &tempWptr);
               // memcpy from / to 
-              memcpy(&(tempResp[tempWptr]), &(dataPtr[start]), end - start);
+              memcpy(&(tempResp[tempWptr]), dataPtr + start, end - start);
               // that's a packet innit, 
               stackLoadSlot(this, VT_STACK_ORIGIN, tempResp, tempWptr + end - start);
             } else {
