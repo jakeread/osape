@@ -49,10 +49,11 @@ void EndpointMultiSeg::loop(void){
       ERROR(1, "mseg endpoint bad ptr loop walk");
       stackClearSlot(this, VT_STACK_DESTINATION, item);
       continue;
-    } else if (!stackEmptySlot(this, VT_STACK_ORIGIN)){
-      // can't write, carry on;
-      continue;
-    }
+    } 
+    // to reply, we need to have empty space, 
+    // note: not true if we can write-back directly into destination stack, 
+    // but we want to open incoming spaces... 
+    if (!stackEmptySlot(this, VT_STACK_ORIGIN)) continue;
     // pckt for us?
     ptr ++;
     if(item->data[ptr] != PK_DEST) continue;
@@ -61,24 +62,31 @@ void EndpointMultiSeg::loop(void){
     ptr += 3;
     // now we have 1st byte of 'application' layer 
     switch(item->data[ptr]){
-      case EPMSEG_QUERY: {  // query case, should be [route][ptr][dest:1][query:1][startread:2][endread:2]
+      case EPMSEG_QUERY: {  
+          // query case, should be [route][ptr][segsize:2][dest:1][query:1][startread:2][endread:2]
           // collect start, end to read back, 
           ptr ++;
           uint16_t start, end; 
           ts_readUint16(&start, item->data, &ptr); ts_readUint16(&end, item->data, &ptr);
           // reverse the route out, writing into our temporary pckt, 
           tempWptr = 0;
-          if(!reverseRoute(item->data, ptr - 6, tempResp, &tempWptr)){
+          if(!reverseRoute(item->data, ptr - 9, tempResp, &tempWptr)){
             ERROR(1, "reverse route fails on epmseg query");
           } else {  // reverse route OK, stuff pckt, 
+            // find end... 
+            if(end >= dataLen) end = dataLen;
             if(start < end && end <= dataLen && end - start + tempWptr < VT_SLOTSIZE){
-              tempResp[tempWptr ++] = EPMSEG_QUERY_RESP;
+              if(end == dataLen){
+                tempResp[tempWptr ++] = EPMSEG_QUERY_END_RESP;
+              } else {
+                tempResp[tempWptr ++] = EPMSEG_QUERY_RESP;
+              }
               ts_writeUint16(start, tempResp, &tempWptr);
               ts_writeUint16(end, tempResp, &tempWptr);
               // memcpy from / to 
-              memcpy(&(tempResp[tempWptr]), &(dataPtr[start]), end - start);
+              memcpy(&(tempResp[tempWptr]), &(dataPtr[start]), end - start + 1);
               // that's a packet innit, 
-              stackLoadSlot(this, VT_STACK_ORIGIN, tempResp, tempWptr + (end - start));
+              stackLoadSlot(this, VT_STACK_ORIGIN, tempResp, tempWptr + end - start + 1);
             } else {
               ERROR(2, "mseg query too long or ptrs backwards");
             }

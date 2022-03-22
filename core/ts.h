@@ -65,6 +65,7 @@ no warranty is provided, and users accept all liability.
 
 #define EPMSEG_QUERY 141 
 #define EPMSEG_QUERY_RESP 142 
+#define EPMSEG_QUERY_END_RESP 143 
 
 // -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
 
