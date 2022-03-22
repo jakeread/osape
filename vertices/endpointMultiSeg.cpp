@@ -84,9 +84,9 @@ void EndpointMultiSeg::loop(void){
               ts_writeUint16(start, tempResp, &tempWptr);
               ts_writeUint16(end, tempResp, &tempWptr);
               // memcpy from / to 
-              memcpy(&(tempResp[tempWptr]), &(dataPtr[start]), end - start + 1);
+              memcpy(&(tempResp[tempWptr]), &(dataPtr[start]), end - start);
               // that's a packet innit, 
-              stackLoadSlot(this, VT_STACK_ORIGIN, tempResp, tempWptr + end - start + 1);
+              stackLoadSlot(this, VT_STACK_ORIGIN, tempResp, tempWptr + end - start);
             } else {
               ERROR(2, "mseg query too long or ptrs backwards");
             }
