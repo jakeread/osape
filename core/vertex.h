@@ -184,6 +184,12 @@ struct VBus : public Vertex{
     ) : VBus (
       _parent, _name, _loop, _send, _cts, nullptr, nullptr
     ){};
+    // one w/ no callbacks, for inheriting classes 
+    VBus(
+      Vertex* _parent, String _name
+    ) : VBus (
+      _parent, _name, nullptr, nullptr, nullptr, nullptr, nullptr
+    ){};
 };
 
 

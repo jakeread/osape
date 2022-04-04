@@ -39,6 +39,14 @@ EndpointRoute* EndpointRoute::pfwd(uint16_t indice){
   return this;
 }
 
+EndpointRoute* EndpointRoute::bfwd(uint16_t indice, uint8_t rxAddr){
+	sib(indice);
+  path[pathLen ++] = PK_BFWD_KEY;
+  path[pathLen ++] = rxAddr & 255;
+  path[pathLen ++] = 0;
+  return this;
+}
+
 // base constructor, 
 Endpoint::Endpoint( 
   Vertex* _parent, String _name, 

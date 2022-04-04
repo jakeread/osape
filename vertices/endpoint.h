@@ -42,7 +42,7 @@ class EndpointRoute {
     // pass-thru initialize, 
     EndpointRoute* sib(uint16_t indice);
     EndpointRoute* pfwd(uint16_t indice);
-    //EndpointRoute* bfwd(uint16_t indice, uint8_t rxAddr);
+    EndpointRoute* bfwd(uint16_t indice, uint8_t rxAddr);
 };
 
 // ---------------------------------------------- Endpoints 
