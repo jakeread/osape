@@ -22,7 +22,10 @@ no warranty is provided, and users accept all liability.
 // -------------------------------------------------------- Constructors 
 
 // route constructor 
-EndpointRoute::EndpointRoute(EP_ROUTE_MODES _mode){
+EndpointRoute::EndpointRoute(uint8_t _mode){
+  if(_mode != EP_ROUTEMODE_ACKED || _mode != EP_ROUTEMODE_ACKLESS){
+    _mode = EP_ROUTEMODE_ACKLESS;
+  }
   ackMode = _mode;
 }
 
@@ -191,9 +194,9 @@ void Endpoint::loop(void){
 					EPOut[wptr ++] = PK_DEST;
 					ts_writeUint16(rt->segSize, EPOut, &wptr);
 					// mode-key, 
-					if(rt->ackMode == EP_ROUTE_ACKLESS){
+					if(rt->ackMode == EP_ROUTEMODE_ACKLESS){
             EPOut[wptr ++] = EP_SS_ACKLESS;
-					} else if(rt->ackMode == EP_ROUTE_ACKED){
+					} else if(rt->ackMode == EP_ROUTEMODE_ACKED){
 						EPOut[wptr ++] = EP_SS_ACKED;
 						EPOut[wptr ++] = nextAckId;
 						rt->ackId = nextAckId;
@@ -213,8 +216,8 @@ void Endpoint::loop(void){
           rt->txTime = now;
 					stackLoadSlot(this, VT_STACK_ORIGIN, EPOut, wptr);
 					// transition state:
-					if(rt->ackMode == EP_ROUTE_ACKLESS) rt->state = EP_TX_IDLE;
-					if(rt->ackMode == EP_ROUTE_ACKED) rt->state = EP_TX_AWAITING_ACK;
+					if(rt->ackMode == EP_ROUTEMODE_ACKLESS) rt->state = EP_TX_IDLE;
+					if(rt->ackMode == EP_ROUTEMODE_ACKED) rt->state = EP_TX_AWAITING_ACK;
 					// and track, so that we do *this recently serviced* thing *last* on next round 
 					lastRouteServiced = r;
 				} else {
@@ -356,6 +359,50 @@ EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr)
           ack[wptr ++] = EP_ROUTE_RESP;
           ack[wptr ++] = item->data[ptr + 1]; // has id matched to request 
           // do we have a route here?
+          uint16_t indice = item->data[ptr + 2];
+          if(indice >= ep->numRoutes){
+            ack[wptr ++] = 0;
+          } else {
+            ack[wptr ++] = ep->routes[indice]->ackMode;
+            ack[wptr ++] = ep->routes[indice]->pathLen;
+            // this is a kludge: js contexts store routes w/ ptr in the head,
+            // embedded contexts dont... embedded way should be system wide, thing needs a polish 
+            ack[wptr ++] = PK_PTR; 
+            memcpy(&(ack[wptr]), ep->routes[indice]->path, ep->routes[indice]->pathLen);
+            wptr += ep->routes[indice]->pathLen;
+          }
+          stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
+        }
+        return EP_ONDATA_REJECT; // this just dumps the message, we're done w/ it 
+      } else {
+        return EP_ONDATA_WAIT;
+      }
+    case EP_ROUTE_SET:
+      if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
+        uint16_t wptr = 0;
+        if(!reverseRoute(item->data, ptr - 4, ack, &wptr)){
+          #ifdef OSAP_DEBUG 
+					ERROR(1, "on route query, can't reverse a route, rming msg");
+          #endif 
+        } else {
+          ack[wptr ++] = EP_ROUTE_SET_RESP;
+          ack[wptr ++] = item->data[ptr + 1]; // has id matched to request 
+          uint8_t mode = item->data[ptr + 2]; // has mode, 
+          uint8_t len = item->data[ptr + 3];  // ... and length, 
+          // can we add a route?
+          if(ep->numRoutes >= ENDPOINT_MAX_ROUTES || len > ENDPOINT_ROUTE_MAX_LEN){
+            #ifdef OSAP_DEBUG
+            ERROR(1, "route set len: " + String(len) + " current count: " + String(ep->numRoutes));
+            #endif 
+            ack[wptr ++] = 0; // badness / noop 
+          } else {
+            ack[wptr ++] = 1; // confirm OK... going in blind though, haha 
+            EndpointRoute* epRoute = new EndpointRoute(mode);
+            // note: ptr + 5 below is to skip over the 88... likewise len - 1... 
+            memcpy(epRoute->path, &(item->data[ptr + 5]), len - 1);
+            epRoute->pathLen = len - 1;
+            ep->addRoute(epRoute);
+          }
           uint16_t indice = item->data[ptr + 2];
           if(indice >= ep->numRoutes){
             ack[wptr ++] = 0;

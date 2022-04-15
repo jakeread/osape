@@ -19,12 +19,6 @@ no warranty is provided, and users accept all liability.
 
 // ---------------------------------------------- Routes
 
-// route macros 
-
-#define RT_SIB(ind) PK_SIB_KEY, ind, 0
-#define RT_PFWD PK_PFWD_KEY 
-
-enum EP_ROUTE_MODES { EP_ROUTE_ACKLESS, EP_ROUTE_ACKED };
 enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITING_AND_FRESH };
 
 class EndpointRoute {
@@ -35,10 +29,10 @@ class EndpointRoute {
     EP_ROUTE_STATES state = EP_TX_IDLE;
     unsigned long txTime = 0;
     unsigned long timeoutLength = 1000;
-    EP_ROUTE_MODES ackMode = EP_ROUTE_ACKLESS;
+    uint8_t ackMode = EP_ROUTEMODE_ACKLESS;
     uint16_t segSize = 256;
     // constructor, 
-    EndpointRoute(EP_ROUTE_MODES _mode);
+    EndpointRoute(uint8_t _mode);
     // pass-thru initialize, 
     EndpointRoute* sib(uint16_t indice);
     EndpointRoute* pfwd(uint16_t indice);
@@ -102,17 +96,6 @@ class Endpoint : public Vertex {
       _parent, _name, nullptr, nullptr
     ){};
 };
-
-// ---------------------------------------------- Endpoint Route / Write API 
-
-// endpoint writer... 
-void endpointWrite(Endpoint* ep, uint8_t* data, uint16_t len);
-
-// route adder: 
-boolean endpointAddRoute(Endpoint* ep, uint8_t* path, uint16_t pathLen, EP_ROUTE_MODES mode);
-
-// endpoint api-to-check-all-clear:
-boolean endpointAllClear(Endpoint* ep);
 
 // ---------------------------------------------- Runtimes 
 
