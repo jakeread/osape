@@ -60,6 +60,10 @@ no warranty is provided, and users accept all liability.
 #define EP_SS_ACKED 122     // single segment, request ack 
 #define EP_QUERY 131        // query request 
 #define EP_QUERY_RESP 132   // reply to query request 
+#define EP_ROUTE_QUERY 141 
+#define EP_ROUTE_RESP 142
+#define EP_ROUTE_SET 143
+#define EP_ROUTE_SET_RESP 144 
 
 // -------------------------------------------------------- Endpoint Multisegement Keys 
 

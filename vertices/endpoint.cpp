@@ -345,10 +345,44 @@ EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr)
         }
       }
       return EP_ONDATA_ACCEPT;
+    case EP_ROUTE_QUERY:
+      if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
+        uint16_t wptr = 0;
+        if(!reverseRoute(item->data, ptr - 4, ack, &wptr)){
+          #ifdef OSAP_DEBUG 
+					ERROR(1, "on route query, can't reverse a route, rming msg");
+          #endif 
+        } else {
+          ack[wptr ++] = EP_ROUTE_RESP;
+          ack[wptr ++] = item->data[ptr + 1]; // has id matched to request 
+          // do we have a route here?
+          uint16_t indice = item->data[ptr + 2];
+          if(indice >= ep->numRoutes){
+            ack[wptr ++] = 0;
+          } else {
+            ack[wptr ++] = ep->routes[indice]->pathLen;
+            // this is a kludge: js contexts store routes w/ ptr in the head,
+            // embedded contexts dont... embedded way should be system wide, thing needs a polish 
+            ack[wptr ++] = PK_PTR; 
+            memcpy(&(ack[wptr]), ep->routes[indice]->path, ep->routes[indice]->pathLen);
+            wptr += ep->routes[indice]->pathLen;
+          }
+          stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
+        }
+        return EP_ONDATA_REJECT; // this just dumps the message, we're done w/ it 
+      } else {
+        return EP_ONDATA_WAIT;
+      }
 		case EP_QUERY_RESP:
 			// not yet having embedded query function 
+      #ifdef OSAP_DEBUG
+      ERROR(1, "recvd query_resp in embedded endpoint...");
+      #endif 
 		default:
 			// not recognized, bail city, get it outta here,
+      #ifdef OSAP_DEBUG
+      ERROR(1, "key to endpoint not recognized");
+      #endif 
 			return EP_ONDATA_REJECT;
 	}
 }
