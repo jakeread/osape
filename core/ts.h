@@ -64,6 +64,8 @@ no warranty is provided, and users accept all liability.
 #define EP_ROUTE_RESP 142
 #define EP_ROUTE_SET 143
 #define EP_ROUTE_SET_RESP 144 
+#define EP_ROUTE_RM 147
+#define EP_ROUTE_RM_RESP 148 
 
 #define EP_ROUTEMODE_ACKED 167
 #define EP_ROUTEMODE_ACKLESS 168 

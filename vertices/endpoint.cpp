@@ -420,6 +420,38 @@ EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr)
       } else {
         return EP_ONDATA_WAIT;
       }
+    case EP_ROUTE_RM:
+      if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
+        uint16_t wptr = 0;
+        if(!reverseRoute(item->data, ptr - 4, ack, &wptr)){
+          #ifdef OSAP_DEBUG 
+					ERROR(1, "on route query, can't reverse a route, rming msg");
+          #endif 
+        } else {
+          ack[wptr ++] = EP_ROUTE_RM_RESP;
+          ack[wptr ++] = item->data[ptr + 1]; // has id matched to request 
+          uint8_t indice = item->data[ptr + 2]; // indice to delete, 
+          // does the route exist ? if not, can't delete, 
+          if(ep->numRoutes > indice){
+            // we... rm that, let's see... just shift 'em back, 
+            for(uint8_t i = indice; i < ep->numRoutes - 1; i ++){
+              ep->routes[i] = ep->routes[i + 1];
+            }
+            // then the last is null, 
+            ep->routes[ep->numRoutes] = nullptr;
+            ep->numRoutes --;
+            // for sure the above is not very safe, but we are living fast and dying young out here 
+            ack[wptr ++] = 1;
+          } else {
+            // route... doesn't exist, 
+            ack[wptr ++] = 0;
+          }
+          stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
+        }
+        return EP_ONDATA_REJECT; // this just dumps the message, we're done w/ it 
+      } else {
+        return EP_ONDATA_WAIT;
+      }
 		case EP_QUERY_RESP:
 			// not yet having embedded query function 
       #ifdef OSAP_DEBUG
