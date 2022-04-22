@@ -1,5 +1,3 @@
-## Embedded OSAP
+## OSAP Embedded 
 
-networked machine viscera
-
-test sub-sub 
+This is a submodule for the [OSAP](http://osap.tools) project. 
