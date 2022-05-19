@@ -62,6 +62,8 @@ class Endpoint : public Vertex {
     void write(uint8_t* _data, uint16_t len);
     void addRoute(EndpointRoute* _route);
     boolean clearToWrite(void);
+    // for wait, on the receiving side
+    boolean allowInfiniteWait = false;
     // routes, for tx-ing to:
     EndpointRoute* routes[ENDPOINT_MAX_ROUTES];
     uint16_t numRoutes = 0;

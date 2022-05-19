@@ -155,7 +155,7 @@ void Endpoint::loop(void){
       case EP_ONDATA_WAIT:
         // endpoint code wants to deal w/ it later, so we hang until next loop
         // option to update arrival time to wait indefinitly (cancelling timeout) w/ this:
-        // item->arrivalTime = now;
+        if(this->allowInfiniteWait) item->arrivalTime = now;
         // doing so ^ will break other comms / sweeps in many cases, since we plug also i.e. mvc queries to us 
         break;
       default:
