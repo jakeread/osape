@@ -284,7 +284,7 @@ boolean transferSwitch(Vertex* vt, stackItem* item){
       if(stackEmptySlot(item->vt->parent->children[si], VT_STACK_DESTINATION)){
         #ifdef OSAP_DEBUG
         #ifdef LOOP_DEBUG
-        DEBUG("sib copy");
+        DEBUG("sib copy to " + String(si) + " from " + String(item->vt->indice));
         #endif 
         #endif 
         ptr -= 4; // write in reversed instruction (reverse ptr to PK_PTR here)
