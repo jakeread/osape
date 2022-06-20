@@ -45,6 +45,29 @@ no warranty is provided, and users accept all liability.
 #define PK_BBRD 96 
 #define PK_LLESCAPE 112 
 
+// to read *just the key* from key, arg pair
+#define PK_READKEY(data) (data & 0b11110000)
+
+// a route type... 
+class Route {
+  public:
+    uint8_t path[64];
+    uint16_t pathLen = 0;
+    uint16_t ttl = 1000;
+    uint16_t segSize = 128;
+    // constructor, 
+    Route(void);
+    // pass-thru initialize constructors, 
+    Route* sib(uint16_t indice);
+    Route* pfwd(void);
+    Route* bfwd(uint16_t rxAddr);
+    Route* bbrd(uint16_t channel);
+};
+
+void ts_writeKeyArgPair(uint8_t key, uint16_t arg, unsigned char* buf, uint16_t* ptr);
+// not sure how I want to do this yet... 
+uint16_t ts_readArg(uint8_t* buffer, uint16_t ptr);
+
 // -------------------------------------------------------- Endpoint Keys 
 
 #define EP_SS_ACK 101       // the ack 
@@ -127,6 +150,7 @@ void ts_writeInt16(int16_t val, unsigned char* buf, uint16_t* ptr);
 
 void ts_writeInt32(int32_t val, unsigned char* buf, uint16_t* ptr);
 
+uint16_t ts_readUint16(uint8_t* buf, uint16_t ptr);
 void ts_readUint16(uint16_t* val, uint8_t* buf, uint16_t* ptr);
 
 void ts_writeUint8(uint8_t val, unsigned char* buf, uint16_t* ptr);

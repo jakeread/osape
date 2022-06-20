@@ -133,7 +133,7 @@ void Endpoint::loop(void){
 		stackItem* item = items[i];
 		uint16_t ptr = 0;
     // find the ptr, 
-    if(!ptrLoop(item->data, &ptr)){
+    if(!findPtr(item->data, &ptr)){
       #ifdef OSAP_DEBUG
       ERROR(1, "endpoint loop bad ptr walk");
       logPacket(item->data, item->len);

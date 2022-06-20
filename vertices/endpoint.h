@@ -21,16 +21,12 @@ no warranty is provided, and users accept all liability.
 
 enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITING_AND_FRESH };
 
-class EndpointRoute {
+class EndpointRoute : Route {
   public: 
-    uint8_t path[64];
-    uint8_t pathLen = 0;
     uint8_t ackId = 0;
-    EP_ROUTE_STATES state = EP_TX_IDLE;
-    unsigned long txTime = 0;
-    unsigned long timeoutLength = 1000;
     uint8_t ackMode = EP_ROUTEMODE_ACKLESS;
-    uint16_t segSize = 256;
+    EP_ROUTE_STATES state = EP_TX_IDLE;
+    unsigned long lastTxTime = 0;
     // constructor, 
     EndpointRoute(uint8_t _mode);
     // pass-thru initialize, 

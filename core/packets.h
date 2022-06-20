@@ -16,8 +16,10 @@ no warranty is provided, and users accept all liability.
 #define OSAP_UTILS_H_
 
 #include <Arduino.h>
+#include "ts.h"
 
-boolean ptrLoop(uint8_t* pck, uint16_t* ptr);
-boolean reverseRoute(uint8_t* pck, uint16_t rptr, uint8_t* repl, uint16_t* replyPtr);
+boolean findPtr(uint8_t* pck, uint16_t* ptr);
+uint16_t writeDatagram(uint8_t* gram, uint16_t maxGramLength, Route* route, uint8_t* payload, uint16_t payloadLen);
+uint16_t writeReply(uint8_t* ogGram, uint8_t* gram, uint16_t maxGramLength, uint8_t* payload, uint16_t payloadLen);
 
 #endif 

@@ -14,6 +14,38 @@ no warranty is provided, and users accept all liability.
 
 #include "ts.h"
 
+Route::Route(void){}
+
+Route* Route::sib(uint16_t indice){
+  ts_writeKeyArgPair(PK_SIB, indice, path, &pathLen);
+  return this;
+}
+
+Route* Route::pfwd(void){
+  ts_writeKeyArgPair(PK_PFWD, 0, path, &pathLen);
+  return this;
+}
+
+Route* Route::bfwd(uint16_t rxAddr){
+  ts_writeKeyArgPair(PK_BFWD, rxAddr, path, &pathLen);
+  return this;
+}
+
+Route* Route::bbrd(uint16_t channel){
+  ts_writeKeyArgPair(PK_BBRD, channel, path, &pathLen);
+  return this; 
+}
+
+void ts_writeKeyArgPair(uint8_t key, uint16_t arg, unsigned char* buf, uint16_t* ptr){
+  buf[*ptr] = key | (0b00001111 & (arg >> 8));
+  buf[(*ptr) + 1] = arg & 0b11111111;
+  (*ptr) += 2;
+}
+// not sure how I want to do this yet... 
+uint16_t ts_readArg(uint8_t* buf, uint16_t ptr){
+  return ((buf[ptr] & 0b00001111) << 8) | buf[ptr + 1];
+}
+
 void ts_readBoolean(boolean* val, unsigned char* buf, uint16_t* ptr){
   if(buf[(*ptr) ++]){
     *val = true;
@@ -42,6 +74,10 @@ void ts_writeInt32(int32_t val, unsigned char* buf, uint16_t* ptr){
   buf[(*ptr) ++] = chunk.bytes[1];
   buf[(*ptr) ++] = chunk.bytes[2];
   buf[(*ptr) ++] = chunk.bytes[3];
+}
+
+uint16_t ts_readUint16(unsigned char* buf, uint16_t ptr){
+  return (buf[ptr + 1] << 8) | buf[ptr];
 }
 
 void ts_readUint16(uint16_t* val, unsigned char* buf, uint16_t* ptr){

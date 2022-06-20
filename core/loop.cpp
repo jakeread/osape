@@ -61,7 +61,7 @@ void setupHandler(Vertex* vt) {
         continue;
       }
       // check for decent ptr walk, 
-      if(!ptrLoop(item->data, &ptr)){
+      if(!findPtr(item->data, &ptr)){
         #ifdef OSAP_DEBUG
         ERROR(2, "main loop bad ptr walk, from vt->indice: " + String(vt->indice) + vt->name + " o/d: " + String(od) + " len: " + String(item->len));
         logPacket(item->data, item->len);

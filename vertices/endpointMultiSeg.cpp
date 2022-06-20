@@ -45,7 +45,7 @@ void EndpointMultiSeg::loop(void){
     stackItem* item = items[i];
     uint16_t ptr = 0;
     // find ptr,
-    if(!ptrLoop(item->data, &ptr)){
+    if(!findPtr(item->data, &ptr)){
       ERROR(1, "mseg endpoint bad ptr loop walk");
       stackClearSlot(this, VT_STACK_DESTINATION, item);
       continue;
