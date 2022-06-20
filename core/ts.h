@@ -23,35 +23,27 @@ no warranty is provided, and users accept all liability.
 #define VT_TYPE_ROOT 22       // top level 
 #define VT_TYPE_MODULE 23     // collection of things (?) or something, idk yet 
 #define VT_TYPE_ENDPOINT 24   // software endpoint w/ read/write semantics 
+#define VT_TYPE_QUERY 25 
 #define VT_TYPE_ENDPOINT_MULTISEG 26 // likewise, but requring multisegment transmission 
 #define VT_TYPE_CODE 25       // autonomous graph dwellers 
 #define VT_TYPE_VPORT 44      // virtual ports 
 #define VT_TYPE_VBUS 45       // maybe bus-drop / bus-head / bus-cohost are differentiated 
 
-// -------------------------------------------------------- TIMES
-
-#define TIMES_STALE_MSG 800
-
 // -------------------------------------------------------- Routing (Packet) Keys
 
-#define PK_PTR 88
-#define PK_DEST 99
-#define PK_SIB_KEY 15 
-#define PK_SIB_INC 3 
-#define PK_PARENT_KEY 16 
-#define PK_PARENT_INC 3 
-#define PK_CHILD_KEY 14 
-#define PK_CHILD_INC 3 
-#define PK_PFWD_KEY 11 
-#define PK_PFWD_INC 1 
-#define PK_BFWD_KEY 12
-#define PK_BFWD_INC 3
-#define PK_SCOPE_REQ_KEY 21
-#define PK_SCOPE_REQ_INC 1
-#define PK_SCOPE_RES_KEY 22 
-#define PK_SCOPE_RES_INC 1
-#define PK_LLESCAPE_KEY 44
-#define PK_LLESCAPE_INC 1
+#define PK_PTR 240
+#define PK_DEST 224
+#define PK_PINGREQ 192 
+#define PK_PINGRES 176 
+#define PK_SCOPEREQ 160 
+#define PK_SCOPERES 144 
+#define PK_SIB 16 
+#define PK_PARENT 32 
+#define PK_CHILD 48 
+#define PK_PFWD 64 
+#define PK_BFWD 80
+#define PK_BBRD 96 
+#define PK_LLESCAPE 112 
 
 // -------------------------------------------------------- Endpoint Keys 
 
