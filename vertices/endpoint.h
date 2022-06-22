@@ -15,6 +15,8 @@ no warranty is provided, and users accept all liability.
 #ifndef ENDPOINT_H_
 #define ENDPOINT_H_
 
+#if 0 
+
 #include "../core/vertex.h"
 
 // ---------------------------------------------- Routes
@@ -29,10 +31,6 @@ class EndpointRoute : Route {
     unsigned long lastTxTime = 0;
     // constructor, 
     EndpointRoute(uint8_t _mode);
-    // pass-thru initialize, 
-    EndpointRoute* sib(uint16_t indice);
-    EndpointRoute* pfwd(uint16_t indice);
-    EndpointRoute* bfwd(uint16_t indice, uint8_t rxAddr);
 };
 
 // ---------------------------------------------- Endpoints 
@@ -54,6 +52,7 @@ class Endpoint : public Vertex {
     boolean (*beforeQuery_cb)(void) = beforeQueryDefault;
     // we override vertex loop, 
     void loop(void) override;
+    #warning TODO: should override destHandler()... 
     // methods,
     void write(uint8_t* _data, uint16_t len);
     void addRoute(EndpointRoute* _route);
@@ -103,5 +102,7 @@ void endpointLoop(Endpoint* ep, unsigned long now);
 
 // a master handler: 
 EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr);
+
+#endif 
 
 #endif 

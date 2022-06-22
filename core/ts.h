@@ -64,7 +64,7 @@ class Route {
     Route* bbrd(uint16_t channel);
 };
 
-void ts_writeKeyArgPair(uint8_t key, uint16_t arg, unsigned char* buf, uint16_t* ptr);
+void ts_writeKeyArgPair(unsigned char* buf, uint16_t ptr, uint8_t key, uint16_t arg);
 // not sure how I want to do this yet... 
 uint16_t ts_readArg(uint8_t* buffer, uint16_t ptr);
 
@@ -84,12 +84,6 @@ uint16_t ts_readArg(uint8_t* buffer, uint16_t ptr);
 
 #define EP_ROUTEMODE_ACKED 167
 #define EP_ROUTEMODE_ACKLESS 168 
-
-// -------------------------------------------------------- Endpoint Multisegement Keys 
-
-#define EPMSEG_QUERY 141 
-#define EPMSEG_QUERY_RESP 142 
-#define EPMSEG_QUERY_END_RESP 143 
 
 // -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
 

@@ -14,9 +14,7 @@ no warranty is provided, and users accept all liability.
 
 #include "packets.h"
 #include "ts.h"
-#ifdef OSAP_DEBUG
-#include "./osap_debug.h"
-#endif 
+#include "osap.h"
 
 boolean findPtr(uint8_t* pck, uint16_t* pt){
   // 1st instruction is always at pck[4], pck[0][1] == ttl, pck[2][3] == segSize 
@@ -44,6 +42,73 @@ boolean findPtr(uint8_t* pck, uint16_t* pt){
   return false;
 }
 
+boolean walkPtr(uint8_t* pck, Vertex* source, uint8_t steps, uint16_t ptr){
+  // if the ptr we were handed isn't in the right spot, try to find it... 
+  if(pck[ptr] != PK_PTR){
+    // if that fails, bail... 
+    if(!findPtr(pck, &ptr)){
+      OSAP::error("before a ptr walk, ptr is out of place...");
+      return false;
+    }
+  }
+  // carry on w/ the walking algo, 
+  for(uint8_t s = 0; s < steps; s ++){
+    switch PK_READKEY(pck[ptr + 1]){
+      case PK_SIB:
+        {
+          // stash indice from-whence it came,
+          uint16_t txIndice = source->indice;
+          // for loop's next step, this is the source now, 
+          source = source->parent->children[ts_readArg(pck, ptr + 1)];
+          // where ptr is currently, we stash new key/pair for a reversal, 
+          ts_writeKeyArgPair(pck, ptr, PK_SIB, txIndice);
+          // increment packet's ptr, and our own... 
+          pck[ptr + 2] = PK_PTR; 
+          ptr += 2;
+        }
+        break;
+      case PK_PARENT:
+        // reversal for a 'parent' instruction is to bounce back down to the child, 
+        ts_writeKeyArgPair(pck, ptr, PK_CHILD, source->indice);
+        // next source is now...
+        source = source->parent;
+        // same increment, 
+        pck[ptr + 2] = PK_PTR;
+        ptr += 2;
+        break;
+      case PK_CHILD:
+        // next source is... 
+        source = source->children[ts_readArg(pck, ptr + 1)];
+        // reversal for 'child' instruction is to go back up to parent, 
+        ts_writeKeyArgPair(pck, ptr, PK_PARENT, 0);
+        // same increment, 
+        pck[ptr + 2] = PK_PTR;
+        ptr += 2; 
+        break;
+      case PK_PFWD:
+        // reversal for pfwd instruction is identical, 
+        ts_writeKeyArgPair(pck, ptr, PK_PFWD, 0);
+        pck[ptr + 2] = PK_PTR;
+        ptr += 2;
+        // though this should only ever be called w/ one step, 
+        if(steps != 1){
+          OSAP::error("likely bad call to walkPtr, we have port fwd w/ more than one step");
+          return false;
+        }
+        break;
+      case PK_BFWD:
+      case PK_BBRD:
+        OSAP::error("not going to write the bus codes yet...");
+        return false;
+        break;
+      default:
+        OSAP::error("have out of place keys in the ptr walk...");
+        return false;
+    }
+  } // end steps, alleged success,  
+  return true; 
+}
+
 uint16_t writeDatagram(uint8_t* gram, uint16_t maxGramLength, Route* route, uint8_t* payload, uint16_t payloadLen){
   uint16_t wptr = 0;
   ts_writeUint16(route->ttl, gram, &wptr);
@@ -51,9 +116,7 @@ uint16_t writeDatagram(uint8_t* gram, uint16_t maxGramLength, Route* route, uint
   memcpy(&(gram[wptr]), route->path, route->pathLen);
   wptr += route->pathLen;
   if(wptr + payloadLen > route->segSize){
-    #ifdef OSAP_DEBUG
-    ERROR(1, "writeDatagram asked to write packet that exceeds segSize, bailing");
-    #endif 
+    OSAP::error("writeDatagram asked to write packet that exceeds segSize, bailing", MEDIUM);
     return 0;
   }
   memcpy(&(gram[wptr]), payload, payloadLen);
@@ -68,17 +131,13 @@ uint16_t writeReply(uint8_t* ogGram, uint8_t* gram, uint16_t maxGramLength, uint
   // now find a ptr, 
   uint16_t ptr = 0;
   if(!findPtr(ogGram, &ptr)){
-    #ifdef OSAP_DEBUG
-    ERROR(1, "writeReply can't find the pointer...");
-    #endif 
+    OSAP::error("writeReply can't find the pointer...", MEDIUM);
     return 0;
   }
   // do we have enough space? it's the minimum of the allowed segsize & stated maxGramLength, 
   maxGramLength = min(maxGramLength, ts_readUint16(ogGram, 2));
   if(ptr + 1 + payloadLen > maxGramLength){
-    #ifdef OSAP_DEBUG
-    ERROR(1, "writeReply asked to write packet that exceeds maxGramLength, bailing");
-    #endif 
+    OSAP::error("writeReply asked to write packet that exceeds maxGramLength, bailing", MEDIUM);
     return 0;
   }
   // write the payload in, apres-pointer, 
@@ -104,54 +163,10 @@ uint16_t writeReply(uint8_t* ogGram, uint8_t* gram, uint16_t maxGramLength, uint
         gram[wptr ++] = ogGram[rptr + 1];
         break;
       default:
-        #ifdef OSAP_DEBUG
-        ERROR(1, "writeReply cannot reverse this packet, bailing");
-        #endif 
+        OSAP::error("writeReply fails to reverse this packet, bailing", MEDIUM);
         return 0;
     }
   } // end thru-loop, 
   // it's written, return the len  // we had gram[ptr] = PK_PTR, so len was ptr + 1, then added payloadLen, 
   return end + 1 + payloadLen;
 }
-
-/*
-PK.writeReply = (ogPck, payload) => {
-  // find the pointer, 
-  let ptr = PK.findPtr(ogPck)
-  if (!ptr) throw new Error(`during reply-write, couldn't find the pointer...`);
-  // our new datagram will be this long (ptr is location of ptr, len is there + 1) + the payload length, so 
-  let datagram = new Uint8Array(ptr + 1 + payload.length)
-  // we're using the OG ttl and segsize, so we can just write that in, 
-  datagram.set(ogPck.subarray(0, 4))
-  // and also write in the payload, which will come after the ptr's current position, 
-  datagram.set(payload, ptr + 1)
-  // now we want to do the walk-to-ptr, reversing... 
-  // we write at the head of the packet, whose first byte is the pointer, 
-  let wptr = 4
-  datagram[wptr++] = PK.PTR
-  // don't write past here, 
-  let end = ptr 
-  // read from the back, 
-  let rptr = ptr
-  walker: for (let h = 0; h < 16; h++) {
-    if(wptr >= end) break walker;
-    rptr -= 2
-    switch (TS.readKey(ogPck, rptr)) {
-      case PK.SIB:
-      case PK.PARENT:
-      case PK.CHILD:
-      case PK.PFWD:
-      case PK.BFWD:
-      case PK.BBRD:
-        // actually we can do the same action for each of these keys, 
-        datagram.set(ogPck.subarray(rptr, rptr + 2), wptr)
-        wptr += 2
-        break;
-      default:
-        throw new Error(`during writeReply route reversal, encountered unpredictable key ${ogPck[rptr]}`)
-    }
-  }
-  // that's it, 
-  return datagram
-}
-*/

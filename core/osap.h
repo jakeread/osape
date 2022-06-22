@@ -20,10 +20,15 @@ is; no warranty is provided, and users accept all liability.
 // largely semantic class, OSAP represents the root vertex in whichever context 
 // and it's where run the main loop from, etc... 
 
+enum OSAPErrorLevels { HALTING, MEDIUM, MINOR };
+enum OSAPDebugStreams { DEFAULT, LOOP };
+
 class OSAP : public Vertex {
   public: 
     void loop(void) override;
     OSAP(String _name);// : Vertex(_name);
+    static void error(String msg, OSAPErrorLevels lvl = MINOR );
+    static void debug(String msg, OSAPDebugStreams stream = DEFAULT );
 };
 
 #endif 

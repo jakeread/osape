@@ -34,10 +34,7 @@ void vtLoopDefault(Vertex* vt);
 void vtOnOriginStackClearDefault(Vertex* vt, uint8_t slot);
 void vtOnDestinationStackClearDefault(Vertex* vt, uint8_t slot);
 
-// vertex nester, 
-boolean nestVertex(Vertex* parent, Vertex* child);
-
-// some kinda primal class, 
+// addressable node in the graph ! 
 class Vertex {
   public:
     // -------------------------------- FN PTRS 
@@ -48,6 +45,9 @@ class Vertex {
     void (*onDestinationStackClear_cb)(Vertex* vt, uint8_t slot) = nullptr;
     // -------------------------------- Methods
     virtual void loop(void);
+    virtual void destHandler(stackItem* item, uint16_t ptr);
+    void pingRequestHandler(stackItem* item, uint16_t ptr);
+    void scopeRequestHandler(stackItem* item, uint16_t ptr);
     virtual void onOriginStackClear(uint8_t slot);
     virtual void onDestinationStackClear(uint8_t slot);
     // -------------------------------- DATA
@@ -65,10 +65,6 @@ class Vertex {
     //uint8_t lastStackHandled[2] = { 0, 0 };
     stackItem* queueStart[2] = { nullptr, nullptr };    // data is read from the tail  
     stackItem* firstFree[2] = { nullptr, nullptr };     // data is loaded into the head 
-    // loop fairness allocation 
-    stackItem* incomingItems[VT_MAXITEMSPERTURN];
-    uint16_t incomingItemCount = 0;
-    uint16_t lastIncomingServed = 0;
     // parent & children (other vertices)
     Vertex* parent = nullptr;
     Vertex* children[VT_MAXCHILDREN]; // I think this is OK on storage: just pointers 
@@ -149,10 +145,14 @@ struct VBus : public Vertex{
   public:
     // -------------------------------- FN *PTRS* ... not methods 
     void (*send_cb)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
+    void (*broadcast_cb)(VBus* vb, uint8_t* data, uint16_t len, uint8_t broadcastChannel) = nullptr;
     boolean (*cts_cb)(VBus* vb, uint8_t rxAddr) = nullptr;
+    boolean (*ctb_cb)(VBus* vb, uint8_t broadcastChannel) = nullptr;
     // -------------------------------- Methods 
     virtual void send(uint8_t* data, uint16_t len, uint8_t rxAddr);
+    virtual void broadcast(uint8_t* data, uint16_t len, uint8_t broadcastChannel);
     virtual boolean cts(uint8_t rxAddr);
+    virtual boolean ctb(uint8_t broadcastChannel);
     // has an rx addr, 
     uint16_t ownRxAddr = 0;
     // base constructor, 
@@ -161,11 +161,13 @@ struct VBus : public Vertex{
       void (*_loop)(Vertex* vt),
       void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
       boolean (*_cts)(VBus* vb, uint8_t rxAddr),
+      void (*_broadcast)(VBus* vb, uint8_t* data, uint16_t len, uint8_t broadcastChannel),
+      boolean (*_ctb)(VBus* vb, uint8_t broadcastChannel),
       void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
       void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
     );
     // and the delegates,
-    // one w/ just origin stack, 
+    // one w/ just origin stack & no broadcasting, 
     VBus(
       Vertex* _parent, String _name,
       void (*_loop)(Vertex* vt),
@@ -173,7 +175,7 @@ struct VBus : public Vertex{
       boolean (*_cts)(VBus* vb, uint8_t rxAddr),
       void (*_onOriginStackClear)(Vertex* vt, uint8_t slot)
     ) : VBus (
-      _parent, _name, _loop, _send, _cts, _onOriginStackClear, nullptr
+      _parent, _name, _loop, _send, _cts, nullptr, nullptr, _onOriginStackClear, nullptr
     ){};
     // one w/ no stack callbacks, 
     VBus(
@@ -182,13 +184,14 @@ struct VBus : public Vertex{
       void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
       boolean (*_cts)(VBus* vb, uint8_t rxAddr)
     ) : VBus (
-      _parent, _name, _loop, _send, _cts, nullptr, nullptr
+      _parent, _name, _loop, _send, _cts, nullptr, nullptr, nullptr, nullptr
     ){};
     // one w/ no callbacks, for inheriting classes 
+    // lol, there must be a better way to do this 
     VBus(
       Vertex* _parent, String _name
     ) : VBus (
-      _parent, _name, nullptr, nullptr, nullptr, nullptr, nullptr
+      _parent, _name, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
     ){};
 };
 

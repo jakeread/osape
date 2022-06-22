@@ -14,341 +14,228 @@ no warranty is provided, and users accept all liability.
 
 #include "loop.h"
 #include "packets.h"
-#ifdef OSAP_DEBUG 
-#include "./osap_debug.h"
-#endif 
+#include "osap.h"
 
+#define MAX_ITEMS_PER_LOOP 32
 //#define LOOP_DEBUG
 
-// ... would be breadth-first, ideally 
-void loopRecursor(Vertex* vt){
-  // reset loop state, 
-  vt->incomingItemCount = 0;
-  // vertex loop code, but it's circular if parent calls itself 
-  if(vt->parent != nullptr) vt->loop();
-  // now recurse, 
-  for(uint8_t child = 0; child < vt->numChildren; child ++){
-    loopRecursor(vt->children[child]);
-  };
-}
+// we'll stack up to 64 messages to handle per loop, 
+// more items would cause issues: will throw errors and design circular looping at that point 
+stackItem* itemList[MAX_ITEMS_PER_LOOP];
+uint16_t itemListLen = 0;
 
-// recurse again, this time calling handler, 
-void setupRecursor(Vertex* vt){
-  setupHandler(vt);
-  for(uint8_t child = 0; child < vt->numChildren; child ++){
-    setupRecursor(vt->children[child]);
-  };
-}
-
-void setupHandler(Vertex* vt) {
-  // time is now
-  unsigned long now = millis();
-  // handle origin stack, destination stack, in same manner 
+void listSetupRecursor(Vertex* vt){
+  // run the vertex' loop... but not if it's the root, yar 
+  if(vt->type != VT_TYPE_ROOT) vt->loop();
+  // for each input / output stack, try to collect all items... 
+  // alright I'm doing this collect... but want a kind of pickup-where-you-left-off thing, 
+  // so that we can have a fixed-length loop, i.e. 64 items per, but still do fairness... 
+  // otherwise our itemList has to be large enough to carry potentially every single item ? 
   for(uint8_t od = 0; od < 2; od ++){
-    // try one handle per stack item, per loop:
-    stackItem* items[vt->stackSize];
-    uint8_t count = stackGetItems(vt, od, items, vt->stackSize);
-    for(uint8_t i = 0; i < count; i ++){
-      // the item, and ptr
-      stackItem* item = items[i];
-      uint16_t ptr = 0;
-      // check timeouts, 
-      if(item->arrivalTime + TIMES_STALE_MSG < now){
-        #ifdef OSAP_DEBUG
-        ERROR(3, "setup loop T/O indice " + String(vt->indice) + " " + vt->name + " " + String(item->arrivalTime));
-        #endif 
-        stackClearSlot(vt, od, item);
-        continue;
-      }
-      // check for decent ptr walk, 
-      if(!findPtr(item->data, &ptr)){
-        #ifdef OSAP_DEBUG
-        ERROR(2, "main loop bad ptr walk, from vt->indice: " + String(vt->indice) + vt->name + " o/d: " + String(od) + " len: " + String(item->len));
-        logPacket(item->data, item->len);
-        #endif 
-        stackClearSlot(vt, od, item); // clears the msg 
-        continue; 
-      }
-      // count transmitters, 
-      setupSwitch(vt, od, item, ptr, now);
-    }
-  } // end lp over origin / destination stacks 
-}
-
-// this'll be the bigger switch: punts bad messages, etc. 
-void setupSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now){
-  // switch at pck[ptr + 1]
-  ptr ++;
-  uint8_t* pck = item->data;
-  uint16_t len = item->len;
-  item->ptr = ptr; // for the transfer switch, 
-  // do things, 
-  switch(pck[ptr]){
-    case PK_DEST: // instruction indicates pck is at vertex of destination, we try handler to rx data
-      #warning could speedup w/ stackItem cache as "atDest" 
-      break; // end PK_DEST case 
-    case PK_SIB_KEY: {  // instruction to pass to this sibling, 
-      // need the indice, 
-      uint16_t si;
-      ptr ++;      
-      ts_readUint16(&si, pck, &ptr);
-      // can't do this if no parent, 
-      if(vt->parent == nullptr){
-        #ifdef OSAP_DEBUG
-        ERROR(1, "no parent for sib traverse");
-        #endif 
-        stackClearSlot(vt, od, item);
-        break;
-      }
-      // nor if no target, 
-      if(si >= vt->parent->numChildren){
-        #ifdef OSAP_DEBUG
-        ERROR(1, "sib traverse oob");
-        #endif 
-        stackClearSlot(vt, od, item);
-        break;
-      }
-      // passes tests, track us at target source, 
-      vt->parent->children[si]->incomingItems[vt->parent->children[si]->incomingItemCount ++] = item;
-      break;
-    } // end sib-fwd case 
-    case PK_PARENT_KEY:
-      if(vt->parent == nullptr){
-        #ifdef OSAP_DEBUG
-        ERROR(1, "requests traverse to parent from top level");
-        #endif 
-        stackClearSlot(vt, od, item);
-        break;
-      } 
-      vt->parent->incomingItems[vt->parent->incomingItemCount ++] = item;
-      break; // end parent-fwd case 
-    case PK_CHILD_KEY:
-      // find child 
-      uint16_t ci;
-      ptr ++;
-      ts_readUint16(&ci, pck, &ptr);
-      // can't do it w/o the child, 
-      if(vt->numChildren <= ci){
-        #ifdef OSAP_DEBUG
-        ERROR(1, "no child at this indice " + String(ci));
-        #endif 
-        stackClearSlot(vt, od, item);
-        break;
-      } 
-      vt->children[ci]->incomingItems[vt->children[ci]->incomingItemCount ++] = item;
-      break; // end child-fwd case 
-      // ---------------------------------------- Network Switches 
-    case PK_PFWD_KEY:
-      if(vt->vport == nullptr){
-        #ifdef OSAP_DEBUG
-        ERROR(1, "pfwd to non-vport vertex");
-        #endif 
-        stackClearSlot(vt, od, item);
-      } else {
-        if(vt->vport->cts()){ // walk ptr fwds, transmit, and clear the msg 
-          pck[ptr - 1] = PK_PFWD_KEY;
-          pck[ptr] = PK_PTR;
-          vt->vport->send(pck, len);
-          stackClearSlot(vt, od, item);
-        } else {
-          // failed to pfwd this turn, code will return here next go-round 
-        }
-      }
-      break;
-    case PK_BFWD_KEY:
-      if(vt->vbus == nullptr){
-        #ifdef OSAP_DEBUG
-        ERROR(1, "bfwd to non-vbus vertex");
-        logPacket(item->data, item->len);
-        #endif 
-        stackClearSlot(vt, od, item);
-      } else {
-        // need tx rxaddr, for which drop on bus to tx to, 
-        uint16_t rxAddr;
-        ptr ++;      
-        ts_readUint16(&rxAddr, pck, &ptr);
-        if(vt->vbus->cts(rxAddr)){  // walk ptr fwds, transmit, and clear the msg 
-          #ifdef OSAP_DEBUG
-          #ifdef LOOP_DEBUG 
-          DEBUG("busf " + String(rxAddr));
-          #endif
-          #endif 
-          ptr -= 4;
-          pck[ptr ++] = PK_BFWD_KEY;
-          ts_writeUint16(vt->vbus->ownRxAddr, pck, &ptr);
-          pck[ptr] = PK_PTR;
-          //logPacket(pck, len);
-          vt->vbus->send(pck, len, rxAddr);
-          stackClearSlot(vt, od, item);
-        } else {
-          // failed to bfwd this turn, code will return here next go-round 
-        }
-      }
-      break;
-    case PK_SCOPE_REQ_KEY: 
-      {
-        // so we want to write a brief packet in here, and we should do it str8 into the same item, 
-        // we need to reverse the route into a temp object:
-        uint8_t route[VT_SLOTSIZE];
-        uint16_t wptr = 0;
-        if(!reverseRoute(item->data, ptr - 1, route, &wptr)){
-          #ifdef OSAP_DEBUG
-          ERROR(1, "reverse route badness at scope request");
-          #endif 
-          stackClearSlot(vt, od, item);
-        }
-        // because reverse route assumes dest, segsize / checksum, we actually want...
-        wptr -= 3;
-        // now we can write in:
-        // recall that item->data is the stack-item's little msg block... 
-        memcpy(item->data, route, wptr);
-        // and write response key
-        item->data[wptr ++] = PK_SCOPE_RES_KEY;
-        // id from the REQ, should actually be untouched, right?
-        wptr ++;
-        // want 2 of these 
-        uint16_t rptr = wptr;
-        // collect new timeTag: vertex keeps 'last-time-scoped' state
-        // here we write-in to the response our *previous* time-scoped, and replace that w/ this requests' tag 
-        uint32_t newScopeTimeTag;
-        ts_readUint32(&newScopeTimeTag, item->data, &rptr);
-        ts_writeUint32(vt->scopeTimeTag, item->data, &wptr);
-        vt->scopeTimeTag = newScopeTimeTag;
-        // our type 
-        item->data[wptr ++] = vt->type;
-        // our own indice, our # of siblings, our # of children:
-        ts_writeUint16(vt->indice, item->data, &wptr);
-        if(vt->parent != nullptr){
-          ts_writeUint16(vt->parent->numChildren, item->data, &wptr);
-        } else {
-          ts_writeUint16(0, item->data, &wptr);
-        }
-        ts_writeUint16(vt->numChildren, item->data, &wptr);
-        // and our name... 
-        ts_writeString(vt->name, item->data, &wptr);
-        // ok then, we can reset this item, basically:
-        item->len = wptr;
-        item->arrivalTime = now;
-        // osap will pick it up next loop, ship it back. 
-      }
-      break;
-    case PK_SCOPE_RES_KEY:
-    case PK_LLESCAPE_KEY:
-    default:
-      #ifdef OSAP_DEBUG
-      ERROR(1, "unrecognized ptr here at " + String(ptr) + ": " + String(pck[ptr]));
-      logPacket(pck, len);
-      #endif 
-      stackClearSlot(vt, od, item);
-      break;
-  } // end main switch 
-}
-
-void transferRecursor(Vertex* vt){
-  transferHandler(vt);
-  for(uint8_t child = 0; child < vt->numChildren; child ++){
-    transferRecursor(vt->children[child]);
-  };
-}
-
-void transferHandler(Vertex* vt){
-  // this would be like... 
-  if(vt->incomingItemCount == 0) return;
-  // then do... item to serve,
-  uint16_t its = vt->lastIncomingServed;
-  // serve 'em, starting w/ next-from-last-served, 
-  for(uint16_t i = 0; i < vt->incomingItemCount; i ++){
-    its ++;
-    if(its >= vt->incomingItemCount) its = 0;
-    if(transferSwitch(vt, vt->incomingItems[its])){
-      vt->lastIncomingServed = its;
-    }
+    uint8_t count = stackGetItems(vt, od, &(itemList[itemListLen]), MAX_ITEMS_PER_LOOP - itemListLen);
+    itemListLen += count;
+  }
+  // recurse children...
+  for(uint8_t c = 0; c < vt->numChildren; c ++){
+    listSetupRecursor(vt->children[c]);
   }
 }
 
-// we're only concerned here w/ transfers vertex-to-vertex, 
-// pls note: vt here is *sink* 
-boolean transferSwitch(Vertex* vt, stackItem* item){
-  // mmkheeey, 
-  uint8_t* pck = item->data;
-  uint16_t len = item->len;
-  uint16_t ptr = item->ptr;
-  // do things, 
-  switch(pck[item->ptr]){
-    case PK_SIB_KEY: {  // instruction to pass to this sibling, 
-      // need the indice, 
-      uint16_t si;
-      ptr ++;
-      ts_readUint16(&si, pck, &ptr);
-      // now we can copy it in, only if there's space ahead to move it into 
-      if(stackEmptySlot(item->vt->parent->children[si], VT_STACK_DESTINATION)){
-        #ifdef OSAP_DEBUG
-        #ifdef LOOP_DEBUG
-        DEBUG("sib copy");
-        #endif 
-        #endif 
-        ptr -= 4; // write in reversed instruction (reverse ptr to PK_PTR here)
-        pck[ptr ++] = PK_SIB_KEY; // overwrite with instruction that would return to us, 
-        ts_writeUint16(item->vt->indice, pck, &ptr);
-        pck[ptr] = PK_PTR;
-        // copy-in, set fullness, update time 
-        stackLoadSlot(item->vt->parent->children[si], VT_STACK_DESTINATION, pck, len);
-        // now og is clear 
-        stackClearSlot(item->vt, item->od, item);
-        // and we can finish here 
-        return true; 
-      } else {
-        return false; 
-        // destination stack at target is full, msg stays in place, next loop checks 
-      }
-    }
-    case PK_PARENT_KEY:
-      #warning ... each of these, we could be "sure" that setup means we are looking to load into vt 
-      if(stackEmptySlot(item->vt->parent, VT_STACK_DESTINATION)){
-        #ifdef OSAP_DEBUG 
-        #ifdef LOOP_DEBUG
-        DEBUG("copy to parent");
-        #endif 
-        #endif 
-        ptr -= 1; // write in reversed instruction 
-        pck[ptr ++] = PK_CHILD_KEY;
-        ts_writeUint16(item->vt->indice, pck, &ptr);
-        pck[ptr ++] = PK_PTR;
-        // copy-in, set fullness and update time 
-        stackLoadSlot(item->vt->parent, VT_STACK_DESTINATION, pck, len);
-        stackClearSlot(item->vt, item->od, item);
+// sort-in-place based on time-to-death, 
+void listSort(stackItem** list, uint16_t listLen){
+  // write each item's time-to-death, 
+  uint32_t now = millis();
+  for(uint16_t i = 0; i < listLen; i ++){
+    list[i]->timeToDeath = ts_readUint16(list[i]->data, 0) - (now - list[i]->arrivalTime);
+  }
+  // also... vertex arrivalTime should be uint32_t milliseconds of arrival... 
+  #warning not-yet sorted... 
+}
+
+// this handles internal transport... checking for errors along paths, and running flowcontrol 
+// returns true to wipe current item, false to leave-in-wait, 
+boolean internalTransport(stackItem* item, uint16_t ptr){
+  // we walk thru our little internal tree here, 
+  Vertex* vt = item->vt;
+  // ptr for the walk, use item->data[ptr] == PK_INSTRUCTION, not PK_PTR, 
+  uint16_t fwdPtr = ptr + 1;
+  // count # of ops, 
+  uint8_t opCount = 0;
+  // for a max. of 16 fwd steps, 
+  for(uint8_t s = 0; s < 16; s ++){
+    uint16_t arg = ts_readArg(item->data, fwdPtr);
+    switch(PK_READKEY(item->data[fwdPtr])){
+      // ---------------------------------------- Internal Dir Cases 
+      case PK_SIB:
+        // check validity of route & shift our reference vt,
+        if(vt->parent == nullptr){
+          OSAP::error("no parent at " + vt->name + " during sib transport"); return true;
+        } else if (arg >= vt->parent->numChildren){
+          OSAP::error("no sibling " + String(arg) + " at " + vt->name + " during sib transport"); return true;
+        } else {
+          // this is it: we go fwds to this vt & end-of-switch statements increment ptrs
+          vt = vt->parent->children[arg];
+        }
+        break;
+      case PK_PARENT:
+        if(vt->parent == nullptr){
+          OSAP::error("no parent at " + vt->name + " during parent transport"); return true;
+        } else {
+          // likewise... 
+          vt = vt->parent;
+        }
+        break;
+      case PK_CHILD:
+        if(arg >= vt->numChildren){
+          OSAP::error("no child " + String(arg) + " at " + vt->name + " during child transport"); return true;
+        } else {
+          // again, just walk fwds... 
+          vt = vt->children[arg];
+        }
+        break;
+      // ---------------------------------------- Terminal / Exit Cases 
+      case PK_PFWD:
+      case PK_BFWD:
+      case PK_BBRD: 
+      case PK_DEST:
+      case PK_PINGREQ:
+      case PK_SCOPEREQ:
+      case PK_LLESCAPE:
+        // check / transport...
+        if(stackEmptySlot(vt, VT_STACK_DESTINATION)){
+          // walk the ptr fwds, 
+          walkPtr(item->data, item->vt, opCount, ptr);
+          // ingest at the new place, 
+          stackLoadSlot(vt, VT_STACK_DESTINATION, item->data, item->len);
+          // return true to clear it out, 
+          return true;
+        } else {
+          return false; 
+        }
+      default:
+        OSAP::error("internal transport failure, ptr walk ends at unknown key");
         return true;
-      } else {
-        return false;
+    } // end switch 
+    fwdPtr += 2;
+    opCount ++;
+  } // end max-16-steps, 
+  // if we're past all 16 and didn't hit a terminal, pckt is eggregiously long, rm it 
+  return true;
+}
+
+// ... would be breadth-first, ideally 
+void osapLoop(Vertex* root){
+  // we want to build a list of items, recursing through... 
+  itemListLen = 0;
+  listSetupRecursor(root);
+  /*
+  // check now if items are nearly oversized...
+  // see notes in the log from 2022-06-22 if this error occurs, 
+  if(itemListLen >= MAX_ITEMS_PER_LOOP - 2){
+    OSAP::error("loop items exceeds " + String(MAX_ITEMS_PER_LOOP) + ", breaking per-loop transport properties... pls fix", HALTING);
+  }
+  // otherwise we can carry on... the item should be sorted, global vars, 
+  listSort(itemList, itemListLen);
+  // then we can handle 'em one by one 
+  for(uint16_t i = 0; i < itemListLen; i ++){
+    osapItemHandler(itemList[i]);
+  }
+  */
+}
+
+void osapItemHandler(stackItem* item){
+  // clear dead items, 
+  if(item->timeToDeath < 0){
+    OSAP::debug("item at " + item->vt->name + " times out", LOOP);
+    stackClearSlot(item);
+    return;
+  }
+  // get a ptr for the item, 
+  uint16_t ptr = 0;
+  if(!findPtr(item->data, &ptr)){    
+    OSAP::error("item at " + item->vt->name + " unable to find ptr, deleting...");
+    stackClearSlot(item);
+    return;
+  }
+  // now the handle-switch, item->data[ptr] = PK_PTR, we switch on instruction which is behind that, 
+  switch(PK_READKEY(item->data[ptr + 1])){
+    // ------------------------------------------ Terminal / Destination Switches 
+    case PK_DEST:
+      item->vt->destHandler(item, ptr);
+      break;
+    case PK_PINGREQ:
+      item->vt->pingRequestHandler(item, ptr);
+      break;
+    case PK_SCOPEREQ:
+      item->vt->scopeRequestHandler(item, ptr);
+      break;
+    case PK_PINGRES:
+    case PK_SCOPERES:
+      OSAP::error("ping or scope request issued to " + item->vt->name + " not handling those in embedded", MEDIUM);
+      stackClearSlot(item);
+      break;
+    // ------------------------------------------ Internal Transport 
+    case PK_SIB:
+    case PK_PARENT:
+    case PK_CHILD:  // transport handler returns true if msg should be wiped, false if it should be cycled
+      if(internalTransport(item, ptr)){
+        stackClearSlot(item);
       }
-    case PK_CHILD_KEY:
-      // find child 
-      uint16_t ci;
-      ptr ++;
-      ts_readUint16(&ci, pck, &ptr);
-      if (stackEmptySlot(item->vt->children[ci], VT_STACK_DESTINATION)){
-        #ifdef OSAP_DEBUG
-        #ifdef LOOP_DEBUG
-        DEBUG("copy to child");
-        #endif 
-        #endif 
-        ptr -= 4;
-        pck[ptr ++] = PK_PARENT_KEY;
-        ts_writeUint16(0, pck, &ptr); // parent 'index' used bc packet length should be symmetric 
-        pck[ptr ++] = PK_PTR;
-        // do the copy-in, set fullness, etc 
-        stackLoadSlot(item->vt->children[ci], VT_STACK_DESTINATION, pck, len);
-        stackClearSlot(item->vt, item->od, item);
-        return true;
+      break;
+    // ------------------------------------------ Network Transport 
+    case PK_PFWD:
+      // port forward...
+      if(item->vt->vport == nullptr){
+        OSAP::error("pfwd to non-vport " + item->vt->name, MEDIUM);
+        stackClearSlot(item);
       } else {
-        return false; 
+        if(item->vt->vport->cts()){
+          // walk one step, but only if fn returns true (having success) 
+          if(walkPtr(item->data, item->vt, 1, ptr)) item->vt->vport->send(item->data, item->len);
+          stackClearSlot(item);
+        } else {
+          // failed to send this turn (flow controlled), will return here next round 
+        }
       }
+      break;
+    case PK_BFWD:
+    case PK_BBRD:
+      // bus forward / bus broadcast: 
+      if(item->vt->vbus == nullptr){
+        OSAP::error("bfwd to non-vbus " + item->vt->name, MEDIUM);
+        stackClearSlot(item);
+      } else {
+        // arg is rxAddr for bus-forwards, is broadcastChannel for bus-broadcast, 
+        uint16_t arg = ts_readArg(item->data, ptr + 1);
+        if(item->data[ptr + 1] == PK_BFWD){
+          if(item->vt->vbus->cts(arg)){
+            if(walkPtr(item->data, item->vt, 1, ptr)) item->vt->vbus->send(item->data, item->len, arg);
+            stackClearSlot(item);
+          } else {
+            // failed to bfwd (flow controlled), returning here next round... 
+          }
+        } else if (item->data[ptr + 1] == PK_BBRD){
+          if(item->vt->vbus->ctb(arg)){
+            if(walkPtr(item->data, item->vt, 1, ptr)) item->vt->vbus->broadcast(item->data, item->len, arg);
+            stackClearSlot(item);
+          } else {
+            // failed to bbrd, returning next... 
+          }
+        } else {
+          // doesn't make any sense, we switched in on these terms... 
+          OSAP::error("absolute nonsense", MEDIUM);
+          stackClearSlot(item);
+        }
+      }
+      break;
+    case PK_LLESCAPE:
+      OSAP::error("lldebug to embedded, dumping", MINOR);
+      stackClearSlot(item);
+      break;
     default:
-      #ifdef OSAP_DEBUG
-      ERROR(1, "unrecognized ptr in transfer switch here at " + String(ptr) + ": " + String(pck[ptr]));
-      logPacket(pck, len);
-      #endif 
-      stackClearSlot(item->vt, item->od, item);
-      return true;
-  } // end transfer switch 
+      OSAP::error("unrecognized ptr to " + item->vt->name, MINOR);
+      stackClearSlot(item);
+      // error, delete, 
+      break;
+  } // end swiiiitch 
 }

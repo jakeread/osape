@@ -12,12 +12,11 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
+#if 0 
+
 #include "endpoint.h"
 #include "../core/osap.h"
 #include "../core/packets.h"
-#ifdef OSAP_DEBUG 
-#include "./osap_debug.h"
-#endif 
 
 // -------------------------------------------------------- Constructors 
 
@@ -29,29 +28,8 @@ EndpointRoute::EndpointRoute(uint8_t _mode){
   ackMode = _mode;
 }
 
-EndpointRoute* EndpointRoute::sib(uint16_t indice){
-  path[pathLen ++] = PK_SIB_KEY;
-  path[pathLen ++] = indice & 255;
-  path[pathLen ++] = 0;
-  return this; 
-}
-
-EndpointRoute* EndpointRoute::pfwd(uint16_t indice){
-  sib(indice);
-  path[pathLen ++] = PK_PFWD_KEY;
-  return this;
-}
-
-EndpointRoute* EndpointRoute::bfwd(uint16_t indice, uint8_t rxAddr){
-	sib(indice);
-  path[pathLen ++] = PK_BFWD_KEY;
-  path[pathLen ++] = rxAddr & 255;
-  path[pathLen ++] = 0;
-  return this;
-}
-
 // base constructor, 
-Endpoint::Endpoint( 
+Endpoint::Endpoint(
   Vertex* _parent, String _name, 
   EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
   boolean (*_beforeQuery)(void)
@@ -94,10 +72,7 @@ void Endpoint::write(uint8_t* _data, uint16_t len){
 void Endpoint::addRoute(EndpointRoute* _route){
 	// guard against more-than-allowed routes 
 	if(numRoutes >= ENDPOINT_MAX_ROUTES) {
-		#ifdef OSAP_DEBUG 
-		ERROR(2, "route add oob"); 
-		#endif 
-		return; 
+    OSAP::error("route add is oob", MEDIUM); return;
 	}
   // stash, increment 
   routes[numRoutes ++] = _route;
@@ -122,6 +97,7 @@ void Endpoint::loop(void){
   // need this: one speedup is including it in the loop fn call, 
   // but I'm pretty sure it's small beans 
   unsigned long now = micros();
+  /*
 	// ------------------------------------------ RX Check
 	// we run a similar loop as the main switch... 
 	// though we are only concerned with handling items in the destination stack 
@@ -239,6 +215,7 @@ void Endpoint::loop(void){
 				break;
 		}
 	}
+  */
 }
 
 // item->data[ptr] == PK_DEST here 
@@ -465,3 +442,5 @@ EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr)
 			return EP_ONDATA_REJECT;
 	}
 }
+
+#endif 
