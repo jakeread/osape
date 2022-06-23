@@ -14,9 +14,7 @@ no warranty is provided, and users accept all liability.
 
 #include "stack.h"
 #include "vertex.h"
-#ifdef OSAP_DEBUG
-#include "./osap_debug.h"
-#endif 
+#include "osap.h"
 
 // ---------------------------------------------- Stack Tools 
 
@@ -98,9 +96,7 @@ uint8_t stackGetItems(Vertex* vt, uint8_t od, stackItem** items, uint8_t maxItem
 void stackClearSlot(Vertex* vt, uint8_t od, stackItem* item){
   // this would be deadly, so:
   if(od > 1) {
-    #ifdef OSAP_DEBUG
-    ERROR(1, "stackClearSlot, od > 1, badness");
-    #endif 
+    OSAP::error("stackClearSlot, od > 1, badness", MEDIUM);
     return;
   }
   // item is 0-len, etc 

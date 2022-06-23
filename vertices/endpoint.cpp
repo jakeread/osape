@@ -12,8 +12,6 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-#if 0 
-
 #include "endpoint.h"
 #include "../core/osap.h"
 #include "../core/packets.h"
@@ -21,12 +19,12 @@ no warranty is provided, and users accept all liability.
 // -------------------------------------------------------- Constructors 
 
 // route constructor 
-EndpointRoute::EndpointRoute(uint8_t _mode){
-  if(_mode != EP_ROUTEMODE_ACKED || _mode != EP_ROUTEMODE_ACKLESS){
-    _mode = EP_ROUTEMODE_ACKLESS;
-  }
-  ackMode = _mode;
-}
+// EndpointRoute::EndpointRoute(uint8_t _mode){
+//   if(_mode != EP_ROUTEMODE_ACKED || _mode != EP_ROUTEMODE_ACKLESS){
+//     _mode = EP_ROUTEMODE_ACKLESS;
+//   }
+//   ackMode = _mode;
+// }
 
 // base constructor, 
 Endpoint::Endpoint(
@@ -55,43 +53,119 @@ boolean beforeQueryDefault(void){
 
 void Endpoint::write(uint8_t* _data, uint16_t len){
   // copy data in,
-  if(len > VT_SLOTSIZE) return; // no lol 
-  memcpy(data, _data, len);
-  dataLen = len;
-  // set route freshness 
-  for(uint8_t r = 0; r < numRoutes; r ++){
-    if(routes[r]->state == EP_TX_AWAITING_ACK){
-      routes[r]->state = EP_TX_AWAITING_AND_FRESH;
-    } else {
-      routes[r]->state = EP_TX_FRESH;
-    }
-  }
+  // if(len > VT_SLOTSIZE) return; // no lol 
+  // memcpy(data, _data, len);
+  // dataLen = len;
+  // // set route freshness 
+  // for(uint8_t r = 0; r < numRoutes; r ++){
+  //   if(routes[r]->state == EP_TX_AWAITING_ACK){
+  //     routes[r]->state = EP_TX_AWAITING_AND_FRESH;
+  //   } else {
+  //     routes[r]->state = EP_TX_FRESH;
+  //   }
+  // }
 }
 
 // add a route to an endpoint 
-void Endpoint::addRoute(EndpointRoute* _route){
-	// guard against more-than-allowed routes 
-	if(numRoutes >= ENDPOINT_MAX_ROUTES) {
-    OSAP::error("route add is oob", MEDIUM); return;
-	}
-  // stash, increment 
-  routes[numRoutes ++] = _route;
-}
+// void Endpoint::addRoute(EndpointRoute* _route){
+// 	// guard against more-than-allowed routes 
+// 	if(numRoutes >= ENDPOINT_MAX_ROUTES) {
+//     OSAP::error("route add is oob", MEDIUM); return;
+// 	}
+//   // stash, increment 
+//   routes[numRoutes ++] = _route;
+// }
 
 boolean Endpoint::clearToWrite(void){
-  for(uint8_t r = 0; r < numRoutes; r ++){
-    if(routes[r]->state != EP_TX_IDLE){
-      return false;
-    }
-  }
+  // for(uint8_t r = 0; r < numRoutes; r ++){
+  //   if(routes[r]->state != EP_TX_IDLE){
+  //     return false;
+  //   }
+  // }
   return true;
 }
 
-// -------------------------------------------------------- Runtimes 
+// -------------------------------------------------------- Destination Handler  
 
-// temp packet write 
-uint8_t ack[VT_SLOTSIZE];
-uint8_t EPOut[VT_SLOTSIZE];
+void Endpoint::destHandler(stackItem* item, uint16_t ptr){
+  // item->data[ptr] == PK_PTR, ptr + 1 == PK_DEST, ptr + 2 == EP_KEY, ptr + 3 = ID (if ack req.) 
+  switch(item->data[ptr + 2]){
+    case EP_SS_ACKLESS:
+      { // singlesegment transmit-to-us, w/o ack, 
+        uint8_t* rxData = &(item->data[ptr + 3]); uint16_t rxLen = item->len - (ptr + 4);
+        EP_ONDATA_RESPONSES resp = onData_cb(rxData, rxLen);
+        switch(resp){
+          case EP_ONDATA_WAIT:    // in a wait case, we no-op / escape, it comes back around 
+            break;
+          case EP_ONDATA_ACCEPT:  // here we copy it in, but carry on to the reject term to delete og gram
+            memcpy(data, rxData, rxLen);
+            dataLen = rxLen;
+          case EP_ONDATA_REJECT:  // here we simply reject it, 
+            stackClearSlot(item);
+            break;
+        } // end resp-handler, 
+      }
+      break;
+    case EP_SS_ACKED:
+      { // singlesegment transmit-to-us, w/ ack, 
+        uint8_t id = item->data[ptr + 3];
+        uint8_t* rxData = &(item->data[ptr + 4]); uint16_t rxLen = item->len - (ptr + 5);
+        EP_ONDATA_RESPONSES resp = onData_cb(rxData, rxLen);
+          switch(resp){
+            case EP_ONDATA_WAIT:
+              break;
+            case EP_ONDATA_ACCEPT:
+              memcpy(data, rxData, rxLen);
+              dataLen = rxLen;
+            case EP_ONDATA_REJECT:
+              // write the ack, ship it, 
+              reply[0] = PK_DEST;
+              reply[1] = EP_SS_ACK;
+              reply[2] = id;
+              uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, reply, 3);
+              stackClearSlot(item);
+              stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+              break;
+          }
+      }
+      break;
+    case EP_QUERY:
+      {
+        // request for our data, 
+        reply[0] = PK_DEST;
+        reply[1] = EP_QUERY_RESP;
+        reply[2] = item->data[ptr + 3];
+        memcpy(&(reply[3]), data, dataLen);
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, reply, dataLen + 3);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+      }
+      break;
+    case EP_SS_ACK:
+      // ack to us, 
+    case EP_ROUTE_QUERY:
+      // MVC request for a route of ours, 
+    case EP_ROUTE_SET:
+      // MVC request to set a new route, 
+    case EP_ROUTE_RM:
+      // MVC request to rm a route... 
+    default:
+      OSAP::error("endpoint rx msg w/ unrecognized endpoint key " + String(item->data[ptr + 2]) + " bailing", MINOR);
+      stackClearSlot(item);
+      break;
+  } // end switch... 
+}
+
+/*
+          // new payload for reply, keys are dest, query_resp, and ID from incoming, 
+          let payload = new Uint8Array(3 + this.data.length)
+          payload[0] = PK.DEST; payload[1] = EP.QUERY_RESP; payload[2] = item.data[ptr + 3];
+          // write-in data,
+          payload.set(this.data, 3)
+          // formulate packet, 
+          let datagram = PK.writeReply(item.data, payload)
+          this.handle(datagram, VT.STACK_ORIGIN)
+*/
 
 void Endpoint::loop(void){
   // need this: one speedup is including it in the loop fn call, 
@@ -214,10 +288,11 @@ void Endpoint::loop(void){
 			default:
 				break;
 		}
-	}
+	} // end for-each loop, 
   */
 }
 
+/*
 // item->data[ptr] == PK_DEST here 
 // item->data[ptr + 1, ptr + 2] = segsize !
 EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr){
@@ -442,5 +517,4 @@ EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr)
 			return EP_ONDATA_REJECT;
 	}
 }
-
-#endif 
+*/

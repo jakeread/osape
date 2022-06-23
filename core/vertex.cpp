@@ -18,11 +18,9 @@ no warranty is provided, and users accept all liability.
 #include "packets.h"
 
 // ---------------------------------------------- Temporary Stash 
-// to reduce memory... we could have one global stash-spot, since a lot of writing-prep happens,
-// we could also rewrite some things (i.e. replies) to work in-place... 
 
-uint8_t reply[VT_SLOTSIZE];
-uint8_t datagram[VT_SLOTSIZE];
+uint8_t Vertex::reply[VT_SLOTSIZE];
+uint8_t Vertex::datagram[VT_SLOTSIZE];
 
 // ---------------------------------------------- Vertex Constructor and Defaults 
 
