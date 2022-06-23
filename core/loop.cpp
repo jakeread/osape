@@ -123,30 +123,33 @@ boolean internalTransport(stackItem* item, uint16_t ptr){
   return true;
 }
 
+// -------------------------------------------------------- LOOP Begins Here 
+
 // ... would be breadth-first, ideally 
 void osapLoop(Vertex* root){
   // we want to build a list of items, recursing through... 
   itemListLen = 0;
   listSetupRecursor(root);
-  /*
   // check now if items are nearly oversized...
   // see notes in the log from 2022-06-22 if this error occurs, 
   if(itemListLen >= MAX_ITEMS_PER_LOOP - 2){
     OSAP::error("loop items exceeds " + String(MAX_ITEMS_PER_LOOP) + ", breaking per-loop transport properties... pls fix", HALTING);
   }
+  // log 'em 
+  OSAP::debug("list has " + String(itemListLen) + " elements", LOOP);
   // otherwise we can carry on... the item should be sorted, global vars, 
   listSort(itemList, itemListLen);
   // then we can handle 'em one by one 
   for(uint16_t i = 0; i < itemListLen; i ++){
     osapItemHandler(itemList[i]);
   }
-  */
 }
 
 void osapItemHandler(stackItem* item){
   // clear dead items, 
   if(item->timeToDeath < 0){
-    OSAP::debug("item at " + item->vt->name + " times out", LOOP);
+    OSAP::debug(  "item at " + item->vt->name + " times out w/ " + String(item->timeToDeath) + 
+                  " ms to live, of " + String(ts_readUint16(item->data, 0)) + " ttl", LOOP);
     stackClearSlot(item);
     return;
   }

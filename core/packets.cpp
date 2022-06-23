@@ -127,7 +127,7 @@ uint16_t writeDatagram(uint8_t* gram, uint16_t maxGramLength, Route* route, uint
 // original gram, payload, len, 
 uint16_t writeReply(uint8_t* ogGram, uint8_t* gram, uint16_t maxGramLength, uint8_t* payload, uint16_t payloadLen){
   // 1st up, we can straight copy the 1st 4 bytes, 
-  memcpy(ogGram, gram, 4);
+  memcpy(gram, ogGram, 4);
   // now find a ptr, 
   uint16_t ptr = 0;
   if(!findPtr(ogGram, &ptr)){
@@ -141,7 +141,7 @@ uint16_t writeReply(uint8_t* ogGram, uint8_t* gram, uint16_t maxGramLength, uint
     return 0;
   }
   // write the payload in, apres-pointer, 
-  memcpy(&(ogGram[ptr + 1]), payload, payloadLen);
+  memcpy(&(gram[ptr + 1]), payload, payloadLen);
   // now we can do a little reversing... 
   uint16_t wptr = 4;
   uint16_t end = ptr;

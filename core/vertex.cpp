@@ -15,6 +15,14 @@ no warranty is provided, and users accept all liability.
 #include "vertex.h"
 #include "stack.h"
 #include "osap.h"
+#include "packets.h"
+
+// ---------------------------------------------- Temporary Stash 
+// to reduce memory... we could have one global stash-spot, since a lot of writing-prep happens,
+// we could also rewrite some things (i.e. replies) to work in-place... 
+
+uint8_t reply[VT_SLOTSIZE];
+uint8_t datagram[VT_SLOTSIZE];
 
 // ---------------------------------------------- Vertex Constructor and Defaults 
 
@@ -56,9 +64,30 @@ void Vertex::destHandler(stackItem* item, uint16_t ptr){
   stackClearSlot(item);
 }
 
+/*
+pingRequestHandler = (item, ptr) => {
+    // item.data[ptr] == PK.PTR 
+    // we want to ack this... basically without modifying anything,
+    let id = item.data[ptr + 2]
+    let datagram = PK.writeReply(item.data, [PK.PINGRES, id])
+    // we'll ack "in place" by rm-ing this item from the destination stack & then replacing it, 
+    // no checks this way: pings and scope are always answered, even if i.e. single-stack endpoint
+    // is on an every-loop-update, etc... 
+    item.handled()
+    //PK.logPacket(datagram)
+    //console.log(item.vt.name)
+    this.handle(datagram, VT.STACK_DEST)
+}
+*/
+
 void Vertex::pingRequestHandler(stackItem* item, uint16_t ptr){
-  OSAP::debug("unfinished pingHandler at " + name);
+  reply[0] = PK_PINGRES;
+  reply[1] = item->data[ptr + 2];
+  uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, reply, 2);
+  // clear previous, 
   stackClearSlot(item);
+  // load next... there will be one empty, as this has just arrived here... & we just wiped it 
+  stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
 }
 
 void Vertex::scopeRequestHandler(stackItem* item, uint16_t ptr){
