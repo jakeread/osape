@@ -64,25 +64,11 @@ void Vertex::destHandler(stackItem* item, uint16_t ptr){
   stackClearSlot(item);
 }
 
-/*
-pingRequestHandler = (item, ptr) => {
-    // item.data[ptr] == PK.PTR 
-    // we want to ack this... basically without modifying anything,
-    let id = item.data[ptr + 2]
-    let datagram = PK.writeReply(item.data, [PK.PINGRES, id])
-    // we'll ack "in place" by rm-ing this item from the destination stack & then replacing it, 
-    // no checks this way: pings and scope are always answered, even if i.e. single-stack endpoint
-    // is on an every-loop-update, etc... 
-    item.handled()
-    //PK.logPacket(datagram)
-    //console.log(item.vt.name)
-    this.handle(datagram, VT.STACK_DEST)
-}
-*/
-
 void Vertex::pingRequestHandler(stackItem* item, uint16_t ptr){
+  // key & id, 
   reply[0] = PK_PINGRES;
   reply[1] = item->data[ptr + 2];
+  // write a new gram, 
   uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, reply, 2);
   // clear previous, 
   stackClearSlot(item);
@@ -91,8 +77,32 @@ void Vertex::pingRequestHandler(stackItem* item, uint16_t ptr){
 }
 
 void Vertex::scopeRequestHandler(stackItem* item, uint16_t ptr){
-  OSAP::debug("unfinished scopeHandler at " + name);
+  // key & id, 
+  reply[0] = PK_SCOPERES;
+  reply[1] = item->data[ptr + 2];
+  // next items write starting here, 
+  uint16_t wptr = 2;
+  // scope time-tag, 
+  ts_writeUint32(scopeTimeTag, reply, &wptr);
+  // and read in the previous scope (this is traversal state required to delineate loops in the graph) 
+  uint16_t rptr = ptr + 3;
+  ts_readUint32(&scopeTimeTag, item->data, &rptr);
+  // write the vertex type,  
+  reply[wptr ++] = type;
+  // our own indice, # siblings, and # children, 
+  ts_writeUint16(indice, reply, &wptr);
+  if(parent != nullptr){
+    ts_writeUint16(parent->numChildren, reply, &wptr);
+  } else {
+    ts_writeUint16(0, reply, &wptr);
+  }
+  ts_writeUint16(numChildren, reply, &wptr);
+  // finally, our string name:
+  ts_writeString(name, reply, &wptr);
+  // and roll that back up, rm old, and ship it, 
+  uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, reply, wptr);
   stackClearSlot(item);
+  stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
 }
 
 
