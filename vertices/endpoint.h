@@ -17,19 +17,21 @@ no warranty is provided, and users accept all liability.
 
 #include "../core/vertex.h"
 
-// ---------------------------------------------- Routes
+// ---------------------------------------------- Endpoint Routes, extends OSAP Core Routes 
 
-// enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITING_AND_FRESH };
+enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITING_AND_FRESH };
 
-// class EndpointRoute : Route {
-//   public: 
-//     uint8_t ackId = 0;
-//     uint8_t ackMode = EP_ROUTEMODE_ACKLESS;
-//     EP_ROUTE_STATES state = EP_TX_IDLE;
-//     unsigned long lastTxTime = 0;
-//     // constructor, 
-//     EndpointRoute(uint8_t _mode);
-// };
+class EndpointRoute {
+  public: 
+    Route* route;
+    uint8_t ackId = 0;
+    uint8_t ackMode = EP_ROUTEMODE_ACKLESS;
+    EP_ROUTE_STATES state = EP_TX_IDLE;
+    uint32_t lastTxTime = 0;
+    uint32_t timeoutLength;
+    // constructor, 
+    EndpointRoute(Route* _route, uint8_t _mode, uint32_t _timeoutLength = 1000);
+};
 
 // ---------------------------------------------- Endpoints 
 
@@ -54,12 +56,12 @@ class Endpoint : public Vertex {
     // methods,
     void write(uint8_t* _data, uint16_t len);
     boolean clearToWrite(void);
-    // void addRoute(EndpointRoute* _route);
+    void addRoute(Route* _route, uint8_t _mode = EP_ROUTEMODE_ACKLESS, uint32_t _timeoutLength = 1000);
     // routes, for tx-ing to:
-    // EndpointRoute* routes[ENDPOINT_MAX_ROUTES];
-    // uint16_t numRoutes = 0;
-    // uint16_t lastRouteServiced = 0;
-    // uint8_t nextAckId = 77;
+    EndpointRoute* routes[ENDPOINT_MAX_ROUTES];
+    uint16_t numRoutes = 0;
+    uint16_t lastRouteServiced = 0;
+    uint8_t nextAckID = 77;
     // base constructor, 
     Endpoint(   
       Vertex* _parent, String _name, 

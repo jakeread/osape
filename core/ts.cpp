@@ -14,7 +14,9 @@ no warranty is provided, and users accept all liability.
 
 #include "ts.h"
 
-Route::Route(void){}
+Route::Route(void){
+  path[pathLen ++] = PK_PTR;
+}
 
 Route* Route::sib(uint16_t indice){
   ts_writeKeyArgPair(path, pathLen, PK_SIB, indice);

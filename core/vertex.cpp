@@ -19,7 +19,7 @@ no warranty is provided, and users accept all liability.
 
 // ---------------------------------------------- Temporary Stash 
 
-uint8_t Vertex::reply[VT_SLOTSIZE];
+uint8_t Vertex::payload[VT_SLOTSIZE];
 uint8_t Vertex::datagram[VT_SLOTSIZE];
 
 // ---------------------------------------------- Vertex Constructor and Defaults 
@@ -64,10 +64,10 @@ void Vertex::destHandler(stackItem* item, uint16_t ptr){
 
 void Vertex::pingRequestHandler(stackItem* item, uint16_t ptr){
   // key & id, 
-  reply[0] = PK_PINGRES;
-  reply[1] = item->data[ptr + 2];
+  payload[0] = PK_PINGRES;
+  payload[1] = item->data[ptr + 2];
   // write a new gram, 
-  uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, reply, 2);
+  uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, 2);
   // clear previous, 
   stackClearSlot(item);
   // load next... there will be one empty, as this has just arrived here... & we just wiped it 
@@ -76,29 +76,29 @@ void Vertex::pingRequestHandler(stackItem* item, uint16_t ptr){
 
 void Vertex::scopeRequestHandler(stackItem* item, uint16_t ptr){
   // key & id, 
-  reply[0] = PK_SCOPERES;
-  reply[1] = item->data[ptr + 2];
+  payload[0] = PK_SCOPERES;
+  payload[1] = item->data[ptr + 2];
   // next items write starting here, 
   uint16_t wptr = 2;
   // scope time-tag, 
-  ts_writeUint32(scopeTimeTag, reply, &wptr);
+  ts_writeUint32(scopeTimeTag, payload, &wptr);
   // and read in the previous scope (this is traversal state required to delineate loops in the graph) 
   uint16_t rptr = ptr + 3;
   ts_readUint32(&scopeTimeTag, item->data, &rptr);
   // write the vertex type,  
-  reply[wptr ++] = type;
+  payload[wptr ++] = type;
   // our own indice, # siblings, and # children, 
-  ts_writeUint16(indice, reply, &wptr);
+  ts_writeUint16(indice, payload, &wptr);
   if(parent != nullptr){
-    ts_writeUint16(parent->numChildren, reply, &wptr);
+    ts_writeUint16(parent->numChildren, payload, &wptr);
   } else {
-    ts_writeUint16(0, reply, &wptr);
+    ts_writeUint16(0, payload, &wptr);
   }
-  ts_writeUint16(numChildren, reply, &wptr);
+  ts_writeUint16(numChildren, payload, &wptr);
   // finally, our string name:
-  ts_writeString(name, reply, &wptr);
+  ts_writeString(name, payload, &wptr);
   // and roll that back up, rm old, and ship it, 
-  uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, reply, wptr);
+  uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
   stackClearSlot(item);
   stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
 }

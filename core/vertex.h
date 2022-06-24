@@ -38,7 +38,7 @@ void vtOnDestinationStackClearDefault(Vertex* vt, uint8_t slot);
 class Vertex {
   public:
     // just temporary stashes, used all over the place to prep messages... 
-    static uint8_t reply[VT_SLOTSIZE];
+    static uint8_t payload[VT_SLOTSIZE];
     static uint8_t datagram[VT_SLOTSIZE];
     // -------------------------------- FN PTRS 
     // these are *genuine function ptrs* not member functions, my dudes 
