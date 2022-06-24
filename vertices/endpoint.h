@@ -31,6 +31,8 @@ class EndpointRoute {
     uint32_t timeoutLength;
     // constructor, 
     EndpointRoute(Route* _route, uint8_t _mode, uint32_t _timeoutLength = 1000);
+    // destructor...
+    ~EndpointRoute(void);
 };
 
 // ---------------------------------------------- Endpoints 

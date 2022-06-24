@@ -28,6 +28,10 @@ EndpointRoute::EndpointRoute(Route* _route, uint8_t _mode, uint32_t _timeoutLeng
   timeoutLength = _timeoutLength;
 }
 
+EndpointRoute::~EndpointRoute(void){
+  delete route;
+}
+
 // base constructor, 
 Endpoint::Endpoint(
   Vertex* _parent, String _name, 
@@ -129,7 +133,6 @@ void Endpoint::loop(void){
   // serve 'em... these are all EP_TX_FRESH state, 
   for(r = 0; r < numTxRoutes; r ++){
     if(stackEmptySlot(this, VT_STACK_ORIGIN)){
-      OSAP::debug("tx on route... " + String(r));
       // make sure we'll have enough space...
       if(dataLen + routeTxList[r]->route->pathLen + 3 >= VT_SLOTSIZE){
         OSAP::error("attempting to write oversized datagram at " + name, MEDIUM);
@@ -222,6 +225,7 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
       }
       break;
     case EP_SS_ACK:
+      // acks to us, 
       for(uint8_t r = 0; r < numRoutes; r ++){
         if(item->data[ptr + 3] == routes[r]->ackId){
           switch(routes[r]->state){
@@ -242,13 +246,98 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
       ackEnd:
       stackClearSlot(item);
       break;
-      // ack to us, 
     case EP_ROUTE_QUERY:
       // MVC request for a route of ours, 
+      {
+        uint8_t id = item->data[ptr + 3];
+        uint16_t r = ts_readUint16(item->data, ptr + 4);
+        uint16_t wptr = 0;
+        if(r < numRoutes){
+          // dest, key, id... mode, 
+          payload[wptr ++] = PK_DEST;
+          payload[wptr ++] = EP_ROUTE_RESP;
+          payload[wptr ++] = id;
+          payload[wptr ++] = routes[r]->ackMode;
+          // ttl, segsize, 
+          ts_writeUint16(routes[r]->route->ttl, payload, &wptr);
+          ts_writeUint16(routes[r]->route->segSize, payload, &wptr);
+          // path ! 
+          memcpy(&(payload[wptr]), routes[r]->route->path, routes[r]->route->pathLen);
+          wptr += routes[r]->route->pathLen;
+        } else {
+          payload[wptr ++] = PK_DEST;
+          payload[wptr ++] = EP_ROUTE_RESP;
+          payload[wptr ++] = id;
+          payload[wptr ++] = 0; // no-route-here, 
+        }
+        // clear request, write reply in place, 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+      }
+      break;
     case EP_ROUTE_SET:
       // MVC request to set a new route, 
+      {
+        // get an ID, 
+        uint8_t id = item->data[ptr + 3];
+        // prep a response, 
+        payload[0] = PK_DEST;
+        payload[1] = EP_ROUTE_SET_RESP;
+        payload[2] = id;
+        if(numRoutes + 1 <= ENDPOINT_MAX_ROUTES){
+          // tell call-er it should work, 
+          payload[3] = 1;
+          // gather & set route, 
+          uint8_t mode = item->data[ptr + 4];
+          uint16_t ttl = ts_readUint16(item->data, ptr + 5);
+          uint16_t segSize = ts_readUint16(item->data, ptr + 7);
+          uint8_t* path = &(item->data[ptr + 9]);
+          uint16_t pathLen = item->len - (ptr + 10);
+          OSAP::debug("adding path... w/ ttl " + String(ttl) + " ss " + String(segSize) + " pathLen " + String(pathLen));
+          addRoute(new Route(path, pathLen, ttl, segSize), mode);
+        } else {
+          // nope, 
+          payload[3] = 0;
+        }
+        // either case, write the reply, 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, 4);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+      }
+      break;
     case EP_ROUTE_RM:
       // MVC request to rm a route... 
+      {
+        // msg id, & indice to remove, 
+        uint8_t id = item->data[ptr + 3];
+        uint8_t r = item->data[ptr + 4];
+        // prep a response, 
+        payload[0] = PK_DEST;
+        payload[1] = EP_ROUTE_RM_RESP;
+        payload[2] = id;
+        if(r < numRoutes){
+          // RM ok, 
+          payload[3] = 1;
+          // delete / run destructor 
+          delete routes[r];
+          // shift...
+          for(uint8_t i = r; i < numRoutes - 1; i ++){
+            routes[i] = routes[i + 1];
+          }
+          // last is null, 
+          routes[numRoutes] = nullptr;
+          numRoutes --;
+        } else {
+          // rm not-ok
+          payload[3] = 0;
+        }
+        // either case, write reply 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, 4);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+      }
+      break;
     default:
       OSAP::error("endpoint rx msg w/ unrecognized endpoint key " + String(item->data[ptr + 2]) + " bailing", MINOR);
       stackClearSlot(item);

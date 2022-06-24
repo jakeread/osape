@@ -55,7 +55,9 @@ class Route {
     uint16_t pathLen = 0;
     uint16_t ttl = 1000;
     uint16_t segSize = 128;
-    // constructor, 
+    // write-direct constructor, 
+    Route(uint8_t* _path, uint16_t _pathLen, uint16_t _ttl, uint16_t _segSize);
+    // write-along constructor, 
     Route(void);
     // pass-thru initialize constructors, 
     Route* sib(uint16_t indice);

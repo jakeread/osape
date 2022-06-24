@@ -14,6 +14,17 @@ no warranty is provided, and users accept all liability.
 
 #include "ts.h"
 
+Route::Route(uint8_t* _path, uint16_t _pathLen, uint16_t _ttl, uint16_t _segSize){
+  ttl = _ttl;
+  segSize = _segSize;
+  // nope, 
+  if(_pathLen > 64){
+    _pathLen = 0;
+  }
+  memcpy(path, _path, _pathLen);
+  pathLen = _pathLen;
+}
+
 Route::Route(void){
   path[pathLen ++] = PK_PTR;
 }

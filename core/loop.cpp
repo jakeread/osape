@@ -136,7 +136,7 @@ void osapLoop(Vertex* root){
     OSAP::error("loop items exceeds " + String(MAX_ITEMS_PER_LOOP) + ", breaking per-loop transport properties... pls fix", HALTING);
   }
   // log 'em 
-  OSAP::debug("list has " + String(itemListLen) + " elements", LOOP);
+  // OSAP::debug("list has " + String(itemListLen) + " elements", LOOP);
   // otherwise we can carry on... the item should be sorted, global vars, 
   listSort(itemList, itemListLen);
   // then we can handle 'em one by one 
