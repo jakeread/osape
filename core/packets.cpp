@@ -16,6 +16,54 @@ no warranty is provided, and users accept all liability.
 #include "ts.h"
 #include "osap.h"
 
+void writeKeyArgPair(unsigned char* buf, uint16_t ptr, uint8_t key, uint16_t arg){
+  buf[ptr] = key | (0b00001111 & (arg >> 8));
+  buf[ptr + 1] = arg & 0b11111111;
+}
+// not sure how I want to do this yet... 
+uint16_t readArg(uint8_t* buf, uint16_t ptr){
+  return ((buf[ptr] & 0b00001111) << 8) | buf[ptr + 1];
+}
+
+Route::Route(uint8_t* _path, uint16_t _pathLen, uint16_t _ttl, uint16_t _segSize){
+  ttl = _ttl;
+  segSize = _segSize;
+  // nope, 
+  if(_pathLen > 64){
+    _pathLen = 0;
+  }
+  memcpy(path, _path, _pathLen);
+  pathLen = _pathLen;
+}
+
+Route::Route(void){
+  path[pathLen ++] = PK_PTR;
+}
+
+Route* Route::sib(uint16_t indice){
+  writeKeyArgPair(path, pathLen, PK_SIB, indice);
+  pathLen += 2;
+  return this;
+}
+
+Route* Route::pfwd(void){
+  writeKeyArgPair(path, pathLen, PK_PFWD, 0);
+  pathLen += 2;
+  return this;
+}
+
+Route* Route::bfwd(uint16_t rxAddr){
+  writeKeyArgPair(path, pathLen, PK_BFWD, rxAddr);
+  pathLen += 2;
+  return this;
+}
+
+Route* Route::bbrd(uint16_t channel){
+  writeKeyArgPair(path, pathLen, PK_BBRD, channel);
+  pathLen += 2;
+  return this; 
+}
+
 boolean findPtr(uint8_t* pck, uint16_t* pt){
   // 1st instruction is always at pck[4], pck[0][1] == ttl, pck[2][3] == segSize 
   uint16_t ptr = 4;
@@ -59,9 +107,9 @@ boolean walkPtr(uint8_t* pck, Vertex* source, uint8_t steps, uint16_t ptr){
           // stash indice from-whence it came,
           uint16_t txIndice = source->indice;
           // for loop's next step, this is the source now, 
-          source = source->parent->children[ts_readArg(pck, ptr + 1)];
+          source = source->parent->children[readArg(pck, ptr + 1)];
           // where ptr is currently, we stash new key/pair for a reversal, 
-          ts_writeKeyArgPair(pck, ptr, PK_SIB, txIndice);
+          writeKeyArgPair(pck, ptr, PK_SIB, txIndice);
           // increment packet's ptr, and our own... 
           pck[ptr + 2] = PK_PTR; 
           ptr += 2;
@@ -69,7 +117,7 @@ boolean walkPtr(uint8_t* pck, Vertex* source, uint8_t steps, uint16_t ptr){
         break;
       case PK_PARENT:
         // reversal for a 'parent' instruction is to bounce back down to the child, 
-        ts_writeKeyArgPair(pck, ptr, PK_CHILD, source->indice);
+        writeKeyArgPair(pck, ptr, PK_CHILD, source->indice);
         // next source is now...
         source = source->parent;
         // same increment, 
@@ -78,16 +126,16 @@ boolean walkPtr(uint8_t* pck, Vertex* source, uint8_t steps, uint16_t ptr){
         break;
       case PK_CHILD:
         // next source is... 
-        source = source->children[ts_readArg(pck, ptr + 1)];
+        source = source->children[readArg(pck, ptr + 1)];
         // reversal for 'child' instruction is to go back up to parent, 
-        ts_writeKeyArgPair(pck, ptr, PK_PARENT, 0);
+        writeKeyArgPair(pck, ptr, PK_PARENT, 0);
         // same increment, 
         pck[ptr + 2] = PK_PTR;
         ptr += 2; 
         break;
       case PK_PFWD:
         // reversal for pfwd instruction is identical, 
-        ts_writeKeyArgPair(pck, ptr, PK_PFWD, 0);
+        writeKeyArgPair(pck, ptr, PK_PFWD, 0);
         pck[ptr + 2] = PK_PTR;
         ptr += 2;
         // though this should only ever be called w/ one step, 

@@ -246,17 +246,17 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
       ackEnd:
       stackClearSlot(item);
       break;
-    case EP_ROUTE_QUERY:
+    case EP_ROUTE_QUERY_REQ:
       // MVC request for a route of ours, 
       {
         uint8_t id = item->data[ptr + 3];
         uint16_t r = ts_readUint16(item->data, ptr + 4);
         uint16_t wptr = 0;
+        // dest, key, id... mode, 
+        payload[wptr ++] = PK_DEST;
+        payload[wptr ++] = EP_ROUTE_QUERY_RES;
+        payload[wptr ++] = id;
         if(r < numRoutes){
-          // dest, key, id... mode, 
-          payload[wptr ++] = PK_DEST;
-          payload[wptr ++] = EP_ROUTE_RESP;
-          payload[wptr ++] = id;
           payload[wptr ++] = routes[r]->ackMode;
           // ttl, segsize, 
           ts_writeUint16(routes[r]->route->ttl, payload, &wptr);
@@ -265,9 +265,6 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
           memcpy(&(payload[wptr]), routes[r]->route->path, routes[r]->route->pathLen);
           wptr += routes[r]->route->pathLen;
         } else {
-          payload[wptr ++] = PK_DEST;
-          payload[wptr ++] = EP_ROUTE_RESP;
-          payload[wptr ++] = id;
           payload[wptr ++] = 0; // no-route-here, 
         }
         // clear request, write reply in place, 
@@ -276,14 +273,14 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
         stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
       }
       break;
-    case EP_ROUTE_SET:
+    case EP_ROUTE_SET_REQ:
       // MVC request to set a new route, 
       {
         // get an ID, 
         uint8_t id = item->data[ptr + 3];
         // prep a response, 
         payload[0] = PK_DEST;
-        payload[1] = EP_ROUTE_SET_RESP;
+        payload[1] = EP_ROUTE_SET_RES;
         payload[2] = id;
         if(numRoutes + 1 <= ENDPOINT_MAX_ROUTES){
           // tell call-er it should work, 
@@ -306,7 +303,7 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
         stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
       }
       break;
-    case EP_ROUTE_RM:
+    case EP_ROUTE_RM_REQ:
       // MVC request to rm a route... 
       {
         // msg id, & indice to remove, 
@@ -314,7 +311,7 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
         uint8_t r = item->data[ptr + 4];
         // prep a response, 
         payload[0] = PK_DEST;
-        payload[1] = EP_ROUTE_RM_RESP;
+        payload[1] = EP_ROUTE_RM_RES;
         payload[2] = id;
         if(r < numRoutes){
           // RM ok, 

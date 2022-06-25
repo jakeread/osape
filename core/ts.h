@@ -29,47 +29,6 @@ no warranty is provided, and users accept all liability.
 #define VT_TYPE_VPORT 44      // virtual ports 
 #define VT_TYPE_VBUS 45       // maybe bus-drop / bus-head / bus-cohost are differentiated 
 
-// -------------------------------------------------------- Routing (Packet) Keys
-
-#define PK_PTR 240
-#define PK_DEST 224
-#define PK_PINGREQ 192 
-#define PK_PINGRES 176 
-#define PK_SCOPEREQ 160 
-#define PK_SCOPERES 144 
-#define PK_SIB 16 
-#define PK_PARENT 32 
-#define PK_CHILD 48 
-#define PK_PFWD 64 
-#define PK_BFWD 80
-#define PK_BBRD 96 
-#define PK_LLESCAPE 112 
-
-// to read *just the key* from key, arg pair
-#define PK_READKEY(data) (data & 0b11110000)
-
-// a route type... 
-class Route {
-  public:
-    uint8_t path[64];
-    uint16_t pathLen = 0;
-    uint16_t ttl = 1000;
-    uint16_t segSize = 128;
-    // write-direct constructor, 
-    Route(uint8_t* _path, uint16_t _pathLen, uint16_t _ttl, uint16_t _segSize);
-    // write-along constructor, 
-    Route(void);
-    // pass-thru initialize constructors, 
-    Route* sib(uint16_t indice);
-    Route* pfwd(void);
-    Route* bfwd(uint16_t rxAddr);
-    Route* bbrd(uint16_t channel);
-};
-
-void ts_writeKeyArgPair(unsigned char* buf, uint16_t ptr, uint8_t key, uint16_t arg);
-// not sure how I want to do this yet... 
-uint16_t ts_readArg(uint8_t* buffer, uint16_t ptr);
-
 // -------------------------------------------------------- Endpoint Keys 
 
 #define EP_SS_ACK 101       // the ack 
@@ -77,12 +36,12 @@ uint16_t ts_readArg(uint8_t* buffer, uint16_t ptr);
 #define EP_SS_ACKED 122     // single segment, request ack 
 #define EP_QUERY 131        // query request 
 #define EP_QUERY_RESP 132   // reply to query request 
-#define EP_ROUTE_QUERY 141 
-#define EP_ROUTE_RESP 142
-#define EP_ROUTE_SET 143
-#define EP_ROUTE_SET_RESP 144 
-#define EP_ROUTE_RM 147
-#define EP_ROUTE_RM_RESP 148 
+#define EP_ROUTE_QUERY_REQ 141 
+#define EP_ROUTE_QUERY_RES 142
+#define EP_ROUTE_SET_REQ 143
+#define EP_ROUTE_SET_RES 144 
+#define EP_ROUTE_RM_REQ 147
+#define EP_ROUTE_RM_RES 148 
 
 #define EP_ROUTEMODE_ACKED 167
 #define EP_ROUTEMODE_ACKLESS 168 

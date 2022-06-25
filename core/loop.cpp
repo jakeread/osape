@@ -63,7 +63,7 @@ boolean internalTransport(stackItem* item, uint16_t ptr){
   uint8_t opCount = 0;
   // for a max. of 16 fwd steps, 
   for(uint8_t s = 0; s < 16; s ++){
-    uint16_t arg = ts_readArg(item->data, fwdPtr);
+    uint16_t arg = readArg(item->data, fwdPtr);
     switch(PK_READKEY(item->data[fwdPtr])){
       // ---------------------------------------- Internal Dir Cases 
       case PK_SIB:
@@ -209,7 +209,7 @@ void osapItemHandler(stackItem* item){
         stackClearSlot(item);
       } else {
         // arg is rxAddr for bus-forwards, is broadcastChannel for bus-broadcast, 
-        uint16_t arg = ts_readArg(item->data, ptr + 1);
+        uint16_t arg = readArg(item->data, ptr + 1);
         if(item->data[ptr + 1] == PK_BFWD){
           if(item->vt->vbus->cts(arg)){
             if(walkPtr(item->data, item->vt, 1, ptr)) item->vt->vbus->send(item->data, item->len, arg);

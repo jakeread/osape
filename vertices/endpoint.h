@@ -16,6 +16,7 @@ no warranty is provided, and users accept all liability.
 #define ENDPOINT_H_
 
 #include "../core/vertex.h"
+#include "../core/packets.h"
 
 // ---------------------------------------------- Endpoint Routes, extends OSAP Core Routes 
 

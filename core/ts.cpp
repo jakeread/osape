@@ -14,54 +14,6 @@ no warranty is provided, and users accept all liability.
 
 #include "ts.h"
 
-Route::Route(uint8_t* _path, uint16_t _pathLen, uint16_t _ttl, uint16_t _segSize){
-  ttl = _ttl;
-  segSize = _segSize;
-  // nope, 
-  if(_pathLen > 64){
-    _pathLen = 0;
-  }
-  memcpy(path, _path, _pathLen);
-  pathLen = _pathLen;
-}
-
-Route::Route(void){
-  path[pathLen ++] = PK_PTR;
-}
-
-Route* Route::sib(uint16_t indice){
-  ts_writeKeyArgPair(path, pathLen, PK_SIB, indice);
-  pathLen += 2;
-  return this;
-}
-
-Route* Route::pfwd(void){
-  ts_writeKeyArgPair(path, pathLen, PK_PFWD, 0);
-  pathLen += 2;
-  return this;
-}
-
-Route* Route::bfwd(uint16_t rxAddr){
-  ts_writeKeyArgPair(path, pathLen, PK_BFWD, rxAddr);
-  pathLen += 2;
-  return this;
-}
-
-Route* Route::bbrd(uint16_t channel){
-  ts_writeKeyArgPair(path, pathLen, PK_BBRD, channel);
-  pathLen += 2;
-  return this; 
-}
-
-void ts_writeKeyArgPair(unsigned char* buf, uint16_t ptr, uint8_t key, uint16_t arg){
-  buf[ptr] = key | (0b00001111 & (arg >> 8));
-  buf[ptr + 1] = arg & 0b11111111;
-}
-// not sure how I want to do this yet... 
-uint16_t ts_readArg(uint8_t* buf, uint16_t ptr){
-  return ((buf[ptr] & 0b00001111) << 8) | buf[ptr + 1];
-}
-
 void ts_readBoolean(boolean* val, unsigned char* buf, uint16_t* ptr){
   if(buf[(*ptr) ++]){
     *val = true;
