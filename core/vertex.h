@@ -156,51 +156,20 @@ struct VBus : public Vertex{
     void (*broadcast_cb)(VBus* vb, uint8_t* data, uint16_t len, uint8_t broadcastChannel) = nullptr;
     boolean (*cts_cb)(VBus* vb, uint8_t rxAddr) = nullptr;
     boolean (*ctb_cb)(VBus* vb, uint8_t broadcastChannel) = nullptr;
-    // -------------------------------- Methods 
-    virtual void send(uint8_t* data, uint16_t len, uint8_t rxAddr);
-    virtual void broadcast(uint8_t* data, uint16_t len, uint8_t broadcastChannel);
-    virtual boolean cts(uint8_t rxAddr);
-    virtual boolean ctb(uint8_t broadcastChannel);
+    // -------------------------------- Methods: these are purely virtual... 
+    virtual void send(uint8_t* data, uint16_t len, uint8_t rxAddr) = 0;
+    virtual void broadcast(uint8_t* data, uint16_t len, uint8_t broadcastChannel) = 0;
+    // clear to send, clear to broadcast, 
+    virtual boolean cts(uint8_t rxAddr) = 0;
+    virtual boolean ctb(uint8_t broadcastChannel) = 0;
+    // link state, 
+    virtual boolean isOpen(uint8_t rxAddr) = 0;
     // has an rx addr, 
     uint16_t ownRxAddr = 0;
-    // base constructor, 
-    VBus( 
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
-      boolean (*_cts)(VBus* vb, uint8_t rxAddr),
-      void (*_broadcast)(VBus* vb, uint8_t* data, uint16_t len, uint8_t broadcastChannel),
-      boolean (*_ctb)(VBus* vb, uint8_t broadcastChannel),
-      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
-      void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
-    );
-    // and the delegates,
-    // one w/ just origin stack & no broadcasting, 
-    VBus(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
-      boolean (*_cts)(VBus* vb, uint8_t rxAddr),
-      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot)
-    ) : VBus (
-      _parent, _name, _loop, _send, _cts, nullptr, nullptr, _onOriginStackClear, nullptr
-    ){};
-    // one w/ no stack callbacks, 
-    VBus(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
-      boolean (*_cts)(VBus* vb, uint8_t rxAddr)
-    ) : VBus (
-      _parent, _name, _loop, _send, _cts, nullptr, nullptr, nullptr, nullptr
-    ){};
-    // one w/ no callbacks, for inheriting classes 
-    // lol, there must be a better way to do this 
-    VBus(
-      Vertex* _parent, String _name
-    ) : VBus (
-      _parent, _name, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
-    ){};
+    // has a width-of-addr-space, 
+    uint16_t addrSpaceSize = 0;
+    // base constructor, children inherit... 
+    VBus( Vertex* _parent, String _name );
 };
 
 

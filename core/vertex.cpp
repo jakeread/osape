@@ -91,7 +91,9 @@ void Vertex::scopeRequestHandler(stackItem* item, uint16_t ptr){
   if(type == VT_TYPE_VPORT){
     payload[wptr ++] = (vport->isOpen() ? 1 : 0);
   } else if (type == VT_TYPE_VBUS){
-    OSAP::error("need to write this here as well...");
+    ts_writeUint16(vbus->addrSpaceSize, payload, &wptr);
+    // now do... increment thru addrSpaceSize, increasing bytes if necessary... bit-shifting, idk 
+    OSAP::debug("NOPE, you need to call i.e. vbus->isOpen(rxAddr) for all off vbus->addrSpaceSize");
   }
   // our own indice, # siblings, and # children, 
   ts_writeUint16(indice, payload, &wptr);
@@ -155,36 +157,9 @@ boolean VPort::isOpen(void){
 // ---------------------------------------------- VBus Constructor and Defaults 
 
 VBus::VBus(
-  Vertex* _parent, String _name,
-  void (*_loop)(Vertex* vt),
-  void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
-  boolean (*_cts)(VBus* vb, uint8_t rxAddr),
-  void (*_broadcast)(VBus* vb, uint8_t* data, uint16_t len, uint8_t broadcastChannel),
-  boolean (*_ctb)(VBus* vb, uint8_t broadcastChannel),
-  void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
-  void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
-) : Vertex(_parent, "vb_" + _name, _loop, _onOriginStackClear, _onDestinationStackClear) {
+  Vertex* _parent, String _name
+) : Vertex(_parent, "vb_" + _name, nullptr, nullptr, nullptr) {
   // set type, reacharound, & callbacks 
   type = VT_TYPE_VBUS;
   vbus = this;
-  send_cb = _send;
-  cts_cb = _cts;
-}
-
-void VBus::send(uint8_t* data, uint16_t len, uint8_t rxAddr){
-  if(send_cb) return send_cb(this, data, len, rxAddr);
-}
-
-void VBus::broadcast(uint8_t* data, uint16_t len, uint8_t broadcastChannel){
-  if(broadcast_cb) return broadcast_cb(this, data, len, broadcastChannel);
-}
-
-boolean VBus::cts(uint8_t rxAddr){
-  if(cts_cb) return cts_cb(this, rxAddr);
-  return true;
-}
-
-boolean VBus::ctb(uint8_t broadcastChannel){
-  if(ctb_cb) return ctb_cb(this, broadcastChannel);
-  return true;
 }
