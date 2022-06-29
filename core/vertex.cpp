@@ -87,6 +87,12 @@ void Vertex::scopeRequestHandler(stackItem* item, uint16_t ptr){
   ts_readUint32(&scopeTimeTag, item->data, &rptr);
   // write the vertex type,  
   payload[wptr ++] = type;
+  // vport / vbus link states, 
+  if(type == VT_TYPE_VPORT){
+    payload[wptr ++] = (vport->isOpen() ? 1 : 0);
+  } else if (type == VT_TYPE_VBUS){
+    OSAP::error("need to write this here as well...");
+  }
   // our own indice, # siblings, and # children, 
   ts_writeUint16(indice, payload, &wptr);
   if(parent != nullptr){
@@ -119,6 +125,7 @@ VPort::VPort(
   void (*_loop)(Vertex* vt),
   void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
   boolean (*_cts)(VPort* vp),
+  boolean (*_isOpen)(VPort* vp),
   void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
   void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
 ) : Vertex(_parent, "vp_" + _name, _loop, _onOriginStackClear, _onDestinationStackClear) {
@@ -128,6 +135,7 @@ VPort::VPort(
   // set callbacks, 
   send_cb = _send;
   cts_cb = _cts;
+  isOpen_cb = _isOpen;
 }
 
 void VPort::send(uint8_t* data, uint16_t len){
@@ -136,6 +144,11 @@ void VPort::send(uint8_t* data, uint16_t len){
 
 boolean VPort::cts(void){
   if(cts_cb) return cts_cb(this);
+  return true;
+}
+
+boolean VPort::isOpen(void){
+  if(isOpen_cb) return isOpen_cb(this);
   return true;
 }
 

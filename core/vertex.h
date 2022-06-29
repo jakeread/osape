@@ -94,15 +94,18 @@ class VPort : public Vertex {
     // -------------------------------- FN *PTRS* ... not methods 
     void (*send_cb)(VPort* vp, uint8_t* data, uint16_t len) = nullptr;
     boolean (*cts_cb)(VPort* vp) = nullptr;
+    boolean (*isOpen_cb)(VPort* vp) = nullptr;
     // -------------------------------- OK these bbs are methods, 
     virtual void send(uint8_t* data, uint16_t len);
     virtual boolean cts(void);
+    virtual boolean isOpen(void);
     // base constructor, 
     VPort( 
       Vertex* _parent, String _name,
       void (*_loop)(Vertex* vt),
       void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
       boolean (*_cts)(VPort* vp),
+      boolean (*_isOpen)(VPort* vp),
       void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
       void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
     );
@@ -113,18 +116,20 @@ class VPort : public Vertex {
       void (*_loop)(Vertex* vt),
       void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
       boolean (*_cts)(VPort* vp),
+      boolean (*_isOpen)(VPort* vp),
       void (*_onOriginStackClear)(Vertex* vt, uint8_t slot)
     ) : VPort (
-      _parent, _name, _loop, _send, _cts, _onOriginStackClear, nullptr
+      _parent, _name, _loop, _send, _cts, _isOpen, _onOriginStackClear, nullptr
     ){};
     // one w/ no stack callbacks, 
     VPort(
       Vertex* _parent, String _name,
       void (*_loop)(Vertex* vt),
       void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
-      boolean (*_cts)(VPort* vp)
+      boolean (*_cts)(VPort* vp),
+      boolean (*_isOpen)(VPort* vp)
     ) : VPort (
-      _parent, _name, _loop, _send, _cts, nullptr, nullptr
+      _parent, _name, _loop, _send, _cts, _isOpen, nullptr, nullptr
     ){};
     // w/ no CTS
     VPort(
