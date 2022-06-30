@@ -145,8 +145,18 @@ boolean walkPtr(uint8_t* pck, Vertex* source, uint8_t steps, uint16_t ptr){
         }
         break;
       case PK_BFWD:
+        // reversal for bfwd instruction is to return *up*... 
+        writeKeyArgPair(pck, ptr, PK_BFWD, source->vbus->ownRxAddr);
+        pck[ptr + 2] = PK_PTR;
+        ptr += 2;
+        // this also should only ever be called w/ one step, 
+        if(steps != 1){
+          OSAP::error("likely bad call to walkPtr, we have bus fwd w/ more than one step");
+          return false; 
+        }
+        break;
       case PK_BBRD:
-        OSAP::error("not going to write the bus codes yet...");
+        OSAP::error("not going to write the bus broadcast codes yet...");
         return false;
         break;
       default:
