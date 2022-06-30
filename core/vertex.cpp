@@ -93,10 +93,11 @@ void Vertex::scopeRequestHandler(stackItem* item, uint16_t ptr){
   } else if (type == VT_TYPE_VBUS){
     uint16_t addrSize = vbus->addrSpaceSize;
     uint16_t addr = 0;
-    // ok we write the address size in first, 
+    // ok we write the address size in first, then our own rxaddr, 
     ts_writeUint16(vbus->addrSpaceSize, payload, &wptr);
+    ts_writeUint16(vbus->ownRxAddr, payload, &wptr);
     // then *so long a we're not overwriting*, we stuff link-state bytes, 
-    while(wptr + 6 + name.length() <= VT_SLOTSIZE){
+    while(wptr + 8 + name.length() <= VT_SLOTSIZE){
       payload[wptr] = 0;
       for(uint8_t b = 0; b < 8; b ++){
         payload[wptr] |= (vbus->isOpen(addr) ? 1 : 0) << b;
