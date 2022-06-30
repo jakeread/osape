@@ -91,71 +91,18 @@ class Vertex {
 
 class VPort : public Vertex {
   public:
-    // -------------------------------- FN *PTRS* ... not methods 
-    void (*send_cb)(VPort* vp, uint8_t* data, uint16_t len) = nullptr;
-    boolean (*cts_cb)(VPort* vp) = nullptr;
-    boolean (*isOpen_cb)(VPort* vp) = nullptr;
     // -------------------------------- OK these bbs are methods, 
-    virtual void send(uint8_t* data, uint16_t len);
-    virtual boolean cts(void);
-    virtual boolean isOpen(void);
+    virtual void send(uint8_t* data, uint16_t len) = 0;
+    virtual boolean cts(void) = 0;
+    virtual boolean isOpen(void) = 0;
     // base constructor, 
-    VPort( 
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
-      boolean (*_cts)(VPort* vp),
-      boolean (*_isOpen)(VPort* vp),
-      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
-      void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
-    );
-    // and the delegates,
-    // one w/ just origin stack, 
-    VPort(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
-      boolean (*_cts)(VPort* vp),
-      boolean (*_isOpen)(VPort* vp),
-      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot)
-    ) : VPort (
-      _parent, _name, _loop, _send, _cts, _isOpen, _onOriginStackClear, nullptr
-    ){};
-    // one w/ no stack callbacks, 
-    VPort(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
-      boolean (*_cts)(VPort* vp),
-      boolean (*_isOpen)(VPort* vp)
-    ) : VPort (
-      _parent, _name, _loop, _send, _cts, _isOpen, nullptr, nullptr
-    ){};
-    // w/ no CTS
-    VPort(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VPort* vp, uint8_t* data, uint16_t len)
-    ) : VPort (
-      _parent, _name, _loop, _send, nullptr, nullptr, nullptr
-    ){};
-    // w/ just parent & name... 
-    VPort(
-      Vertex* _parent, String _name
-    ) : VPort (
-      _parent, _name, nullptr, nullptr, nullptr, nullptr, nullptr
-    ){};
+    VPort(Vertex* _parent, String _name);
 };
 
 // ---------------------------------------------- VBus 
 
 struct VBus : public Vertex{
   public:
-    // -------------------------------- FN *PTRS* ... not methods 
-    void (*send_cb)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
-    void (*broadcast_cb)(VBus* vb, uint8_t* data, uint16_t len, uint8_t broadcastChannel) = nullptr;
-    boolean (*cts_cb)(VBus* vb, uint8_t rxAddr) = nullptr;
-    boolean (*ctb_cb)(VBus* vb, uint8_t broadcastChannel) = nullptr;
     // -------------------------------- Methods: these are purely virtual... 
     virtual void send(uint8_t* data, uint16_t len, uint8_t rxAddr) = 0;
     virtual void broadcast(uint8_t* data, uint16_t len, uint8_t broadcastChannel) = 0;
@@ -169,7 +116,7 @@ struct VBus : public Vertex{
     // has a width-of-addr-space, 
     uint16_t addrSpaceSize = 0;
     // base constructor, children inherit... 
-    VBus( Vertex* _parent, String _name );
+    VBus(Vertex* _parent, String _name);
 };
 
 

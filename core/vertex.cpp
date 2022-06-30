@@ -136,35 +136,11 @@ void Vertex::onDestinationStackClear(uint8_t slot){
 // ---------------------------------------------- VPort Constructor and Defaults 
 
 VPort::VPort(
-  Vertex* _parent, String _name,
-  void (*_loop)(Vertex* vt),
-  void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
-  boolean (*_cts)(VPort* vp),
-  boolean (*_isOpen)(VPort* vp),
-  void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
-  void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
-) : Vertex(_parent, "vp_" + _name, _loop, _onOriginStackClear, _onDestinationStackClear) {
+  Vertex* _parent, String _name
+) : Vertex(_parent, "vp_" + _name, nullptr, nullptr, nullptr) {
   // set type, reacharound, & callbacks 
   type = VT_TYPE_VPORT;
   vport = this; 
-  // set callbacks, 
-  send_cb = _send;
-  cts_cb = _cts;
-  isOpen_cb = _isOpen;
-}
-
-void VPort::send(uint8_t* data, uint16_t len){
-  if(send_cb) return send_cb(this, data, len);
-}
-
-boolean VPort::cts(void){
-  if(cts_cb) return cts_cb(this);
-  return true;
-}
-
-boolean VPort::isOpen(void){
-  if(isOpen_cb) return isOpen_cb(this);
-  return true;
 }
 
 // ---------------------------------------------- VBus Constructor and Defaults 
