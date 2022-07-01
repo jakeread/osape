@@ -83,6 +83,12 @@ void ts_writeFloat32(float val, volatile unsigned char* buf, uint16_t* ptr){
   buf[(*ptr) ++] = chunk.bytes[3];
 }
 
+float ts_readFloat32(unsigned char* buf, uint16_t* ptr){
+  chunk_float32 chunk = { .bytes = { buf[(*ptr)], buf[(*ptr) + 1], buf[(*ptr) + 2], buf[(*ptr) + 3] } };
+  (*ptr) += 4;
+  return chunk.f;
+}
+
 void ts_writeFloat64(double val, volatile unsigned char* buf, uint16_t* ptr){
   chunk_float64 chunk;
   chunk.f = val;
