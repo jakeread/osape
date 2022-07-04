@@ -67,6 +67,12 @@ void ts_readUint32(uint32_t* val, unsigned char* buf, uint16_t* ptr){
   *ptr += 4;
 }
 
+int32_t ts_readInt32(unsigned char* buf, uint16_t* ptr){
+  chunk_int32 chunk = { .bytes = { buf[(*ptr)], buf[(*ptr) + 1], buf[(*ptr) + 2], buf[(*ptr) + 3] } };
+  (*ptr) += 4;
+  return chunk.i;
+}
+
 void ts_writeUint32(uint32_t val, unsigned char* buf, uint16_t* ptr){
   buf[(*ptr) ++] = val & 255;
   buf[(*ptr) ++] = (val >> 8) & 255;
