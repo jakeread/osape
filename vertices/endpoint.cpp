@@ -179,6 +179,7 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
         EP_ONDATA_RESPONSES resp = onData_cb(rxData, rxLen);
         switch(resp){
           case EP_ONDATA_WAIT:    // in a wait case, we no-op / escape, it comes back around 
+            item->arrivalTime = millis();
             break;
           case EP_ONDATA_ACCEPT:  // here we copy it in, but carry on to the reject term to delete og gram
             memcpy(data, rxData, rxLen);
@@ -195,7 +196,8 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
         uint8_t* rxData = &(item->data[ptr + 4]); uint16_t rxLen = item->len - (ptr + 5);
         EP_ONDATA_RESPONSES resp = onData_cb(rxData, rxLen);
           switch(resp){
-            case EP_ONDATA_WAIT:
+            case EP_ONDATA_WAIT: // this is a little danger-danger, 
+              item->arrivalTime = millis();
               break;
             case EP_ONDATA_ACCEPT:
               memcpy(data, rxData, rxLen);
