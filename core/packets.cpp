@@ -156,8 +156,10 @@ boolean walkPtr(uint8_t* pck, Vertex* source, uint8_t steps, uint16_t ptr){
         }
         break;
       case PK_BBRD:
-        OSAP::error("not going to write the bus broadcast codes yet...");
-        return false;
+        // broadcasts are a little strange, we also stuff the ownRxAddr in,
+        writeKeyArgPair(pck, ptr, PK_BBRD, source->vbus->ownRxAddr);
+        pck[ptr + 2] = PK_PTR;
+        ptr += 2;
         break;
       default:
         OSAP::error("have out of place keys in the ptr walk...");

@@ -212,14 +212,23 @@ void osapItemHandler(stackItem* item){
         uint16_t arg = readArg(item->data, ptr + 1);
         if(item->data[ptr + 1] == PK_BFWD){
           if(item->vt->vbus->cts(arg)){
-            if(walkPtr(item->data, item->vt, 1, ptr)) item->vt->vbus->send(item->data, item->len, arg);
+            if(walkPtr(item->data, item->vt, 1, ptr)){
+              item->vt->vbus->send(item->data, item->len, arg);
+            } else {
+              OSAP::error("bfwd fails for bad ptr walk");
+            }
             stackClearSlot(item);
           } else {
             // failed to bfwd (flow controlled), returning here next round... 
           }
         } else if (item->data[ptr + 1] == PK_BBRD){
           if(item->vt->vbus->ctb(arg)){
-            if(walkPtr(item->data, item->vt, 1, ptr)) item->vt->vbus->broadcast(item->data, item->len, arg);
+            if(walkPtr(item->data, item->vt, 1, ptr)){
+              OSAP::debug("broadcasting on ch " + String(arg));
+              item->vt->vbus->broadcast(item->data, item->len, arg);
+            } else {
+              OSAP::error("bbrd fails for bad ptr walk");
+            }
             stackClearSlot(item);
           } else {
             // failed to bbrd, returning next... 
