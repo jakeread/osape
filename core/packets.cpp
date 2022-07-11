@@ -1,5 +1,5 @@
 /*
-osap/osapUtils.cpp
+osap/packets.cpp
 
 common routines 
 
@@ -23,45 +23,6 @@ void writeKeyArgPair(unsigned char* buf, uint16_t ptr, uint8_t key, uint16_t arg
 // not sure how I want to do this yet... 
 uint16_t readArg(uint8_t* buf, uint16_t ptr){
   return ((buf[ptr] & 0b00001111) << 8) | buf[ptr + 1];
-}
-
-Route::Route(uint8_t* _path, uint16_t _pathLen, uint16_t _ttl, uint16_t _segSize){
-  ttl = _ttl;
-  segSize = _segSize;
-  // nope, 
-  if(_pathLen > 64){
-    _pathLen = 0;
-  }
-  memcpy(path, _path, _pathLen);
-  pathLen = _pathLen;
-}
-
-Route::Route(void){
-  path[pathLen ++] = PK_PTR;
-}
-
-Route* Route::sib(uint16_t indice){
-  writeKeyArgPair(path, pathLen, PK_SIB, indice);
-  pathLen += 2;
-  return this;
-}
-
-Route* Route::pfwd(void){
-  writeKeyArgPair(path, pathLen, PK_PFWD, 0);
-  pathLen += 2;
-  return this;
-}
-
-Route* Route::bfwd(uint16_t rxAddr){
-  writeKeyArgPair(path, pathLen, PK_BFWD, rxAddr);
-  pathLen += 2;
-  return this;
-}
-
-Route* Route::bbrd(uint16_t channel){
-  writeKeyArgPair(path, pathLen, PK_BBRD, channel);
-  pathLen += 2;
-  return this; 
 }
 
 boolean findPtr(uint8_t* pck, uint16_t* pt){

@@ -152,4 +152,36 @@ VBus::VBus(
   // set type, reacharound, & callbacks 
   type = VT_TYPE_VBUS;
   vbus = this;
+  // these should all init to nullptr, 
+  for(uint8_t ch = 0; ch < VBUS_BROADCAST_CHANNELS; ch ++){
+    broadcastChannels[ch] = nullptr;
+  }
+}
+
+void VBus::injestBroadcastPacket(uint8_t* data, uint16_t len, uint8_t broadcastChannel){
+  // ok so first we want to see if we have anything sub'd to this channel, so
+  if(broadcastChannels[broadcastChannel] != nullptr){
+    // we have a route, so we want to load this data *as we inject some new path segments* 
+    Route* route = broadcastChannels[broadcastChannel];
+    // we could definitely do this faster w/o using the stackLoadSlot fn, but we won't do that yet... 
+    // will use the vertex-global datagram stash for that 
+    uint16_t ptr = 0; 
+    if(!findPtr(data, &ptr)){ OSAP::error("can't find ptr during broadcast injest", MEDIUM); return; }
+    // packet should look like 
+    // ttl, segsize, <prev_instruct>, <bbrd_txAddr>, PTR, <payload>
+    // we want to inject the channel's route such that 
+    // ttl, segsize, <prev_instruct>, <bbrd_txAddr>, PTR, <ch_route>, <payload>
+    // shouldn't actually be too difficult, eh?
+    // we do need to guard on lengths, 
+    if(len + route->pathLen > VT_SLOTSIZE){ OSAP::error("datagram + channel route is too large", MEDIUM); return; }
+    // copy up to PTR: pck[ptr] == PK_PTR, so we want to *include* this byte, having len ptr + 1, 
+    memcpy(datagram, data, ptr + 1);
+    // copy in route, from ptr onwards... 
+    memcpy(&(datagram[ptr + 1]), route->path, route->pathLen);
+    // then the rest of the gram, from just after-the-ptr, to end, 
+    memcpy(&datagram[ptr + 1 + route->pathLen], &(datagram[ptr + 1]), len - ptr - 1);
+    // now we can load this in, 
+    stackLoadSlot(this, VT_STACK_ORIGIN, datagram, len + route->pathLen);
+    // aye that's it innit? 
+  }
 }

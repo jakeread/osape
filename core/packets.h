@@ -37,26 +37,7 @@ no warranty is provided, and users accept all liability.
 // to read *just the key* from key, arg pair
 #define PK_READKEY(data) (data & 0b11110000)
 
-// a route type... 
-class Route {
-  public:
-    uint8_t path[64];
-    uint16_t pathLen = 0;
-    uint16_t ttl = 1000;
-    uint16_t segSize = 128;
-    // write-direct constructor, 
-    Route(uint8_t* _path, uint16_t _pathLen, uint16_t _ttl, uint16_t _segSize);
-    // write-along constructor, 
-    Route(void);
-    // pass-thru initialize constructors, 
-    Route* sib(uint16_t indice);
-    Route* pfwd(void);
-    Route* bfwd(uint16_t rxAddr);
-    Route* bbrd(uint16_t channel);
-};
-
 // packet utes, 
-
 void writeKeyArgPair(unsigned char* buf, uint16_t ptr, uint8_t key, uint16_t arg);
 uint16_t readArg(uint8_t* buf, uint16_t ptr);
 boolean findPtr(uint8_t* pck, uint16_t* ptr);

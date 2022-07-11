@@ -17,6 +17,7 @@ no warranty is provided, and users accept all liability.
 
 #include <Arduino.h> 
 #include "ts.h"
+#include "routes.h"
 #include "stack.h"
 // vertex config is build dependent, define in <folder-containing-osape>/osapConfig.h 
 #include "./osap_config.h" 
@@ -101,7 +102,7 @@ class VPort : public Vertex {
 
 // ---------------------------------------------- VBus 
 
-struct VBus : public Vertex{
+class VBus : public Vertex{
   public:
     // -------------------------------- Methods: these are purely virtual... 
     virtual void send(uint8_t* data, uint16_t len, uint8_t rxAddr) = 0;
@@ -111,6 +112,10 @@ struct VBus : public Vertex{
     virtual boolean ctb(uint8_t broadcastChannel) = 0;
     // link state, 
     virtual boolean isOpen(uint8_t rxAddr) = 0;
+    // busses can read-in to broadcasts,
+    void injestBroadcastPacket(uint8_t* data, uint16_t len, uint8_t broadcastChannel);
+    // we have also... broadcast channels... these are little route stubs & channel pairs, which we just straight up index, 
+    Route* broadcastChannels[VBUS_BROADCAST_CHANNELS];
     // has an rx addr, 
     uint16_t ownRxAddr = 0;
     // has a width-of-addr-space, 
@@ -118,6 +123,5 @@ struct VBus : public Vertex{
     // base constructor, children inherit... 
     VBus(Vertex* _parent, String _name);
 };
-
 
 #endif 
