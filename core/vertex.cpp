@@ -176,12 +176,12 @@ void VBus::injestBroadcastPacket(uint8_t* data, uint16_t len, uint8_t broadcastC
     if(len + route->pathLen > VT_SLOTSIZE){ OSAP::error("datagram + channel route is too large", MEDIUM); return; }
     // copy up to PTR: pck[ptr] == PK_PTR, so we want to *include* this byte, having len ptr + 1, 
     memcpy(datagram, data, ptr + 1);
-    // copy in route, from ptr onwards... 
-    memcpy(&(datagram[ptr + 1]), route->path, route->pathLen);
+    // copy in route, but recall that as initialized, route->path[0] == PK_PTR, we don't want to double that up, 
+    memcpy(&(datagram[ptr + 1]), &(route->path[1]), route->pathLen - 1);
     // then the rest of the gram, from just after-the-ptr, to end, 
-    memcpy(&datagram[ptr + 1 + route->pathLen], &(datagram[ptr + 1]), len - ptr - 1);
+    memcpy(&datagram[ptr + 1 + route->pathLen - 1], &(data[ptr + 1]), len - ptr - 1);
     // now we can load this in, 
-    stackLoadSlot(this, VT_STACK_ORIGIN, datagram, len + route->pathLen);
+    stackLoadSlot(this, VT_STACK_ORIGIN, datagram, len + route->pathLen - 1);
     // aye that's it innit? 
   }
 }

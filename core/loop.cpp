@@ -245,7 +245,7 @@ void osapItemHandler(stackItem* item){
       stackClearSlot(item);
       break;
     default:
-      OSAP::error("unrecognized ptr to " + item->vt->name, MINOR);
+      OSAP::error("unrecognized ptr to " + item->vt->name + " " + String(PK_READKEY(item->data[ptr + 1])), MINOR);
       stackClearSlot(item);
       // error, delete, 
       break;
