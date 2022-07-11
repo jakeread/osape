@@ -118,6 +118,19 @@ void ts_writeString(String* val, unsigned char* buf, uint16_t* ptr){
   *ptr += len;
 }
 
+void ts_writeString(unsigned char* str, uint16_t strLen, unsigned char* buf, uint16_t* ptr, uint16_t maxLen){
+  if(strLen > maxLen) strLen = maxLen;
+  buf[(*ptr) ++] = strLen & 255;
+  buf[(*ptr) ++] = (strLen >> 8) & 255;
+  buf[(*ptr) ++] = (strLen >> 16) & 255;
+  buf[(*ptr) ++] = (strLen >> 24) & 255;
+  // write in one-by-one, surely there is a better way, 
+  for(uint16_t i = 0; i < strLen; i ++){
+    buf[(*ptr) ++] = str[i];
+  }
+  *ptr += strLen;
+}
+
 void ts_writeString(String val, unsigned char* buf, uint16_t* ptr){
   ts_writeString(&val, buf, ptr);
 }

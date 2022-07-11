@@ -19,6 +19,8 @@ is; no warranty is provided, and users accept all liability.
 
 // largely semantic class, OSAP represents the root vertex in whichever context 
 // and it's where run the main loop from, etc... 
+// here is where we coordinate context-level stuff: adding new instances, 
+// stashing error messages & counts, etc, 
 
 enum OSAPErrorLevels { HALTING, MEDIUM, MINOR };
 enum OSAPDebugStreams { DEFAULT, LOOP };
@@ -26,6 +28,7 @@ enum OSAPDebugStreams { DEFAULT, LOOP };
 class OSAP : public Vertex {
   public: 
     void loop(void) override;
+    void destHandler(stackItem* item, uint16_t ptr);
     OSAP(String _name);// : Vertex(_name);
     static void error(String msg, OSAPErrorLevels lvl = MINOR );
     static void debug(String msg, OSAPDebugStreams stream = DEFAULT );

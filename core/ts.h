@@ -46,6 +46,13 @@ no warranty is provided, and users accept all liability.
 #define EP_ROUTEMODE_ACKED 167
 #define EP_ROUTEMODE_ACKLESS 168 
 
+// -------------------------------------------------------- Root Keys 
+
+#define RT_ERR_QUERY 151
+#define RT_ERR_RES 152 
+#define RT_DBG_QUERY 161
+#define RT_DBG_RES 162
+
 // -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
 
 #define UB_AK_SETPOS 102
@@ -124,5 +131,6 @@ void ts_writeFloat64(double val, volatile unsigned char* buf, uint16_t* ptr);
 
 void ts_writeString(String* val, unsigned char* buf, uint16_t* ptr);
 void ts_writeString(String val, unsigned char* buf, uint16_t* ptr);
+void ts_writeString(unsigned char* str, uint16_t strLen, unsigned char* buf, uint16_t* ptr, uint16_t maxLen);
 
 #endif 
