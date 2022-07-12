@@ -17,7 +17,8 @@ is; no warranty is provided, and users accept all liability.
 #include "packets.h"
 #include "../utils/cobs.h"
 
-// stash most recents, and counts, 
+// stash most recents, and counts, and high water mark, 
+uint32_t OSAP::loopItemsHighWaterMark = 0;
 uint32_t errorCount = 0;
 uint32_t debugCount = 0;
 // strings...
@@ -26,7 +27,7 @@ unsigned char latestDebug[VT_SLOTSIZE];
 uint16_t latestErrorLen = 0;
 uint16_t latestDebugLen = 0;
 
-OSAP::OSAP(String _name) : Vertex(_name){};
+OSAP::OSAP(String _name) : Vertex("rt_" + _name){};
 
 void OSAP::loop(void){
   // this is the root, so we kick all of the internal net operation from here 
@@ -39,40 +40,27 @@ void OSAP::destHandler(stackItem* item, uint16_t ptr){
   uint16_t wptr = 0;
   uint16_t len = 0;
   switch(item->data[ptr + 2]){
-    case RT_ERR_QUERY:
-      // stuff error count & latest message 
-      payload[wptr ++] = PK_DEST;
-      payload[wptr ++] = RT_ERR_RES;
-      payload[wptr ++] = item->data[ptr + 3];
-      ts_writeUint32(errorCount, payload, &wptr);
-      // aye... there's more critical thinking to be done on packet-size errors, 
-      // previously I've just written lots of "bailing..." error codes in place, i.e. in 
-      // writeReply, but these *are* the error codes, haha, so we should just truncate them, 
-      // and writeReply, etc, is perhaps where we need to do that: since here we don't have 
-      // upfront info w/r/t i.e. how long the og route is, 
-      ts_writeString(latestError, latestErrorLen, payload, &wptr, VT_SLOTSIZE / 2);
-      // that's the payload, I figure, 
-      len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
-      stackClearSlot(item);
-      stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
-      break;
-    case RT_DBG_QUERY:
-            // stuff error count & latest message 
+    case RT_DBG_STAT:
+    case RT_DBG_ERRMSG:
+    case RT_DBG_DBGMSG:
+      // return w/ the res key & same issuing ID 
       payload[wptr ++] = PK_DEST;
       payload[wptr ++] = RT_DBG_RES;
       payload[wptr ++] = item->data[ptr + 3];
+      // stash high water mark, errormsg count, debugmsgcount 
+      ts_writeUint32(OSAP::loopItemsHighWaterMark, payload, &wptr);
+      ts_writeUint32(errorCount, payload, &wptr);
       ts_writeUint32(debugCount, payload, &wptr);
-      // aye... there's more critical thinking to be done on packet-size errors, 
-      // previously I've just written lots of "bailing..." error codes in place, i.e. in 
-      // writeReply, but these *are* the error codes, haha, so we should just truncate them, 
-      // and writeReply, etc, is perhaps where we need to do that: since here we don't have 
-      // upfront info w/r/t i.e. how long the og route is, 
-      ts_writeString(latestDebug, latestDebugLen, payload, &wptr, VT_SLOTSIZE / 2);
+      // optionally, a string... I know we switch() then if(), it's uggo, 
+      if(item->data[ptr + 2] == RT_DBG_ERRMSG){
+        ts_writeString(latestError, latestErrorLen, payload, &wptr, VT_SLOTSIZE / 2);
+      } else if (item->data[ptr + 2] == RT_DBG_DBGMSG){
+        ts_writeString(latestDebug, latestDebugLen, payload, &wptr, VT_SLOTSIZE / 2);
+      }
       // that's the payload, I figure, 
       len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
       stackClearSlot(item);
       stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
-      break;
       break;
     default:
       OSAP::error("unrecognized key to root node " + String(item->data[ptr + 2]));

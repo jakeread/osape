@@ -135,6 +135,8 @@ void osapLoop(Vertex* root){
   if(itemListLen >= MAX_ITEMS_PER_LOOP - 2){
     OSAP::error("loop items exceeds " + String(MAX_ITEMS_PER_LOOP) + ", breaking per-loop transport properties... pls fix", HALTING);
   }
+  // stash high-water mark,
+  if(itemListLen > OSAP::loopItemsHighWaterMark) OSAP::loopItemsHighWaterMark = itemListLen;
   // log 'em 
   // OSAP::debug("list has " + String(itemListLen) + " elements", LOOP);
   // otherwise we can carry on... the item should be sorted, global vars, 

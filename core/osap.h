@@ -32,6 +32,7 @@ class OSAP : public Vertex {
     OSAP(String _name);// : Vertex(_name);
     static void error(String msg, OSAPErrorLevels lvl = MINOR );
     static void debug(String msg, OSAPDebugStreams stream = DEFAULT );
+    static uint32_t loopItemsHighWaterMark;
 };
 
 #endif 

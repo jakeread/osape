@@ -48,10 +48,10 @@ no warranty is provided, and users accept all liability.
 
 // -------------------------------------------------------- Root Keys 
 
-#define RT_ERR_QUERY 151
-#define RT_ERR_RES 152 
-#define RT_DBG_QUERY 161
-#define RT_DBG_RES 162
+#define RT_DBG_STAT 151
+#define RT_DBG_ERRMSG 152 
+#define RT_DBG_DBGMSG 153
+#define RT_DBG_RES 161
 
 // -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
 
