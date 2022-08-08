@@ -197,7 +197,6 @@ void VBus::destHandler(stackItem* item, uint16_t ptr){
   switch(item->data[ptr + 2]){
     case VBUS_BROADCAST_MAP_REQ:
       // mvc request a map of our active broadcast channels, this is akin to bus link-state-scope packet
-      OSAP::debug("broadcast map req");
       {
         uint16_t wptr = 0;
         payload[wptr ++] = PK_DEST;
@@ -228,7 +227,7 @@ void VBus::destHandler(stackItem* item, uint16_t ptr){
         break;
       }
     case VBUS_BROADCAST_QUERY_REQ:
-      OSAP::debug("broadcast query req");
+      // mvc requests broadcast channel info on a particular channel, 
       {
         uint16_t wptr = 0;
         payload[wptr ++] = PK_DEST;
@@ -256,7 +255,7 @@ void VBus::destHandler(stackItem* item, uint16_t ptr){
         break;
       }
     case VBUS_BROADCAST_SET_REQ:
-      OSAP::debug("broadcast set req");
+      // mvc requests to set a broadcast channel route 
       {
         // get an ID, 
         uint8_t id = item->data[ptr + 3];
@@ -289,7 +288,8 @@ void VBus::destHandler(stackItem* item, uint16_t ptr){
         break;
       }
     case VBUS_BROADCAST_RM_REQ:
-      OSAP::debug("broadcast rm req");
+      // mvc requests to rm a broadcast channel, 
+      // todo / cleanliness: might be salient to 'write 0' to delete (?) who knows 
       {
         // id & indice to rm 
         uint8_t id = item->data[ptr + 3];
