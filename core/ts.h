@@ -53,6 +53,15 @@ no warranty is provided, and users accept all liability.
 #define RT_DBG_DBGMSG 153
 #define RT_DBG_RES 161
 
+// -------------------------------------------------------- VBus MVC Keys 
+
+#define VBUS_BROADCAST_MAP_REQ 145
+#define VBUS_BROADCAST_MAP_RES 146
+#define VBUS_BROADCAST_QUERY_REQ 141
+#define VBUS_BROADCAST_QUERY_RES 142
+#define VBUS_BROADCAST_SET_REQ 143
+#define VBUS_BROADCAST_SET_RES 144 
+
 // -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
 
 #define UB_AK_SETPOS 102

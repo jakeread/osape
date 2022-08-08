@@ -185,3 +185,25 @@ void VBus::injestBroadcastPacket(uint8_t* data, uint16_t len, uint8_t broadcastC
     // aye that's it innit? 
   }
 }
+
+void VBus::destHandler(stackItem* item, uint16_t ptr){
+  // item->data[ptr] == PK_PTR, ptr + 1 == PK_DEST, ptr + 2 == the key we're switching on...
+  switch(item->data[ptr + 2]){
+    case VBUS_BROADCAST_MAP_REQ:
+      OSAP::error("broadcast map req");
+      stackClearSlot(item);
+      break;
+    case VBUS_BROADCAST_QUERY_REQ:
+      OSAP::error("broadcast query req");
+      stackClearSlot(item);
+      break;
+    case VBUS_BROADCAST_SET_REQ:
+      OSAP::error("broadcast set req");
+      stackClearSlot(item);
+      break; 
+    default:
+      OSAP::error("vbus rx msg w/ unrecognized vbus key " + String(item->data[ptr + 2]) + " bailing", MINOR);
+      stackClearSlot(item);
+      break;
+  } 
+}

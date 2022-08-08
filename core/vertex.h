@@ -110,8 +110,10 @@ class VBus : public Vertex{
     // clear to send, clear to broadcast, 
     virtual boolean cts(uint8_t rxAddr) = 0;
     virtual boolean ctb(uint8_t broadcastChannel) = 0;
-    // link state, 
+    // link state per rx-addr,
     virtual boolean isOpen(uint8_t rxAddr) = 0;
+    // handle things aimed at us, for mvc etc 
+    void destHandler(stackItem* item, uint16_t ptr) override;
     // busses can read-in to broadcasts,
     void injestBroadcastPacket(uint8_t* data, uint16_t len, uint8_t broadcastChannel);
     // we have also... broadcast channels... these are little route stubs & channel pairs, which we just straight up index, 
