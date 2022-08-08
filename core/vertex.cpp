@@ -153,7 +153,7 @@ VBus::VBus(
   type = VT_TYPE_VBUS;
   vbus = this;
   // these should all init to nullptr, 
-  for(uint8_t ch = 0; ch < VBUS_BROADCAST_CHANNELS; ch ++){
+  for(uint8_t ch = 0; ch < VBUS_MAX_BROADCAST_CHANNELS; ch ++){
     broadcastChannels[ch] = nullptr;
   }
 }
@@ -186,21 +186,139 @@ void VBus::injestBroadcastPacket(uint8_t* data, uint16_t len, uint8_t broadcastC
   }
 }
 
+void VBus::setBroadcastChannel(uint8_t channel, Route* route){
+  if(channel >= VBUS_MAX_BROADCAST_CHANNELS) return;
+  // seems a little sus, idk 
+  broadcastChannels[channel] = route;
+}
+
 void VBus::destHandler(stackItem* item, uint16_t ptr){
   // item->data[ptr] == PK_PTR, ptr + 1 == PK_DEST, ptr + 2 == the key we're switching on...
   switch(item->data[ptr + 2]){
     case VBUS_BROADCAST_MAP_REQ:
-      OSAP::error("broadcast map req");
-      stackClearSlot(item);
-      break;
+      // mvc request a map of our active broadcast channels, this is akin to bus link-state-scope packet
+      OSAP::debug("broadcast map req");
+      {
+        uint16_t wptr = 0;
+        payload[wptr ++] = PK_DEST;
+        payload[wptr ++] = VBUS_BROADCAST_MAP_RES;
+        payload[wptr ++] = item->data[ptr + 3];
+        // max length of channels... max 255, same as max endpoint routes (?) 
+        // this is maybe an error, consult packet spec (transport layer) for completeness, 
+        // time being... rare to have > 255 broadcast channels, 
+        payload[wptr ++] = VBUS_MAX_BROADCAST_CHANNELS;
+        // then *so long a we're not overwriting*, we stuff link-state bytes, 
+        // idk, 32 is arbitrary, we have to account for return-route length properly... 
+        uint16_t channel = 0;
+        while(wptr + 32 <= VT_SLOTSIZE){
+          payload[wptr] = 0;
+          for(uint8_t b = 0; b < 8; b ++){
+            payload[wptr] |= (broadcastChannels[channel] == nullptr ? 0 : 1) << b;
+            channel ++;
+            if(channel >= VBUS_MAX_BROADCAST_CHANNELS) goto end;
+          }
+          wptr ++;
+        }
+        end:
+        wptr ++; // += 1 more, so we write into next, 
+        // we're ready to write the reply back, 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+        break;
+      }
     case VBUS_BROADCAST_QUERY_REQ:
-      OSAP::error("broadcast query req");
-      stackClearSlot(item);
-      break;
+      OSAP::debug("broadcast query req");
+      {
+        uint16_t wptr = 0;
+        payload[wptr ++] = PK_DEST;
+        payload[wptr ++] = VBUS_BROADCAST_QUERY_RES;
+        payload[wptr ++] = item->data[ptr + 3];
+        // the indice of the channel we're looking at, 
+        uint16_t ch = item->data[ptr + 4];
+        // if the ch exists, 
+        if(ch < VBUS_MAX_BROADCAST_CHANNELS && broadcastChannels[ch] != nullptr){
+          payload[wptr ++] = 1;
+          // now... these are route objects, but we only use the path part... 
+          // but we'll re-use route-object serialization schemes from EP_ROUTE_QUERY_REQ 
+          ts_writeUint16(broadcastChannels[ch]->ttl, payload, &wptr);
+          ts_writeUint16(broadcastChannels[ch]->segSize, payload, &wptr);
+          // path copy 
+          memcpy(&(payload[wptr]), broadcastChannels[ch]->path, broadcastChannels[ch]->pathLen);
+          wptr += broadcastChannels[ch]->pathLen;
+        } else {
+          payload[wptr ++] = 0;
+        }
+        // write reply, 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+        break;
+      }
     case VBUS_BROADCAST_SET_REQ:
-      OSAP::error("broadcast set req");
-      stackClearSlot(item);
-      break; 
+      OSAP::debug("broadcast set req");
+      {
+        // get an ID, 
+        uint8_t id = item->data[ptr + 3];
+        // ch to write into...
+        uint8_t ch = item->data[ptr + 4];
+        // reply-write-pointer 
+        uint16_t wptr = 0;
+        // prep a response, 
+        payload[wptr ++] = PK_DEST;
+        payload[wptr ++] = EP_ROUTE_SET_RES;
+        payload[wptr ++] = id;
+        if(ch >= VBUS_MAX_BROADCAST_CHANNELS){
+          // won't go 
+          OSAP::error("attempt to write to oob broadcast channel");
+          payload[wptr ++] = 0;
+        } else {
+          // should go 
+          payload[wptr ++] = 1;          
+          if(broadcastChannels[ch] != nullptr) OSAP::debug("overwriting previous broadcast ch at " + String(ch));
+          uint16_t ttl = ts_readUint16(item->data, ptr + 4);
+          uint16_t segSize = ts_readUint16(item->data, ptr + 6);
+          uint8_t* path = &(item->data[ptr + 8]);
+          uint16_t pathLen = item->len - (ptr + 9);
+          setBroadcastChannel(ch, new Route(path, pathLen, ttl, segSize));
+        }
+        // in any case, write the reply, 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+        break;
+      }
+    case VBUS_BROADCAST_RM_REQ:
+      OSAP::debug("broadcast rm req");
+      {
+        // id & indice to rm 
+        uint8_t id = item->data[ptr + 3];
+        uint8_t ch = item->data[ptr + 4];
+        uint16_t wptr = 0;
+        // prep res 
+        payload[wptr ++] = PK_DEST;
+        payload[wptr ++] = VBUS_BROADCAST_RM_RES;
+        payload[wptr ++] = id;
+        // can we rm ?
+        if(ch < VBUS_MAX_BROADCAST_CHANNELS){
+          if(broadcastChannels[ch] != nullptr) {
+            delete broadcastChannels[ch];
+            broadcastChannels[ch] = nullptr;
+            payload[wptr ++] = 1;
+          } else {
+            // didn't exist, so, a bad delete: 
+            payload[wptr ++] = 0;
+          }
+        } else {
+          // bad req, should throw errors... 
+          payload[wptr ++] = 0;
+        }
+        // can send now, 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+        break;
+      }
     default:
       OSAP::error("vbus rx msg w/ unrecognized vbus key " + String(item->data[ptr + 2]) + " bailing", MINOR);
       stackClearSlot(item);

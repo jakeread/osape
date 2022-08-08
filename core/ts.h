@@ -61,6 +61,8 @@ no warranty is provided, and users accept all liability.
 #define VBUS_BROADCAST_QUERY_RES 142
 #define VBUS_BROADCAST_SET_REQ 143
 #define VBUS_BROADCAST_SET_RES 144 
+#define VBUS_BROADCAST_RM_REQ 147 
+#define VBUS_BROADCAST_RM_RES 148 
 
 // -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
 

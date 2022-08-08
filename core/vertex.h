@@ -117,7 +117,9 @@ class VBus : public Vertex{
     // busses can read-in to broadcasts,
     void injestBroadcastPacket(uint8_t* data, uint16_t len, uint8_t broadcastChannel);
     // we have also... broadcast channels... these are little route stubs & channel pairs, which we just straight up index, 
-    Route* broadcastChannels[VBUS_BROADCAST_CHANNELS];
+    Route* broadcastChannels[VBUS_MAX_BROADCAST_CHANNELS];
+    // have to update those... 
+    void setBroadcastChannel(uint8_t channel, Route* route);
     // has an rx addr, 
     uint16_t ownRxAddr = 0;
     // has a width-of-addr-space, 
