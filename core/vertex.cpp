@@ -275,10 +275,10 @@ void VBus::destHandler(stackItem* item, uint16_t ptr){
           // should go 
           payload[wptr ++] = 1;          
           if(broadcastChannels[ch] != nullptr) OSAP::debug("overwriting previous broadcast ch at " + String(ch));
-          uint16_t ttl = ts_readUint16(item->data, ptr + 4);
-          uint16_t segSize = ts_readUint16(item->data, ptr + 6);
-          uint8_t* path = &(item->data[ptr + 8]);
-          uint16_t pathLen = item->len - (ptr + 9);
+          uint16_t ttl = ts_readUint16(item->data, ptr + 5);
+          uint16_t segSize = ts_readUint16(item->data, ptr + 7);
+          uint8_t* path = &(item->data[ptr + 9]);
+          uint16_t pathLen = item->len - (ptr + 10);
           setBroadcastChannel(ch, new Route(path, pathLen, ttl, segSize));
         }
         // in any case, write the reply, 
