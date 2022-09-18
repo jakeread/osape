@@ -113,30 +113,37 @@ union chunk_uint32 {
     uint32_t u;
 }; 
 
-// -------------------------------------------------------- Reading and Writing
+// -------------------------------------------------------- Reading 
 
 void ts_readBoolean(boolean* val, unsigned char* buf, uint16_t* ptr);
 
-void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr);
-
-void ts_writeInt16(int16_t val, unsigned char* buf, uint16_t* ptr);
-
-void ts_writeInt32(int32_t val, unsigned char* buf, uint16_t* ptr);
-int32_t ts_readInt32(unsigned char* buf, uint16_t* ptr);
+uint8_t ts_readUint8(unsigned char* buf, uint16_t* ptr);
 
 void ts_readUint16(uint16_t* val, uint8_t* buf, uint16_t* ptr);
 uint16_t ts_readUint16(uint8_t* buf, uint16_t ptr);
+
+void ts_readUint32(uint32_t* val, unsigned char* buf, uint16_t* ptr);
+uint32_t ts_readUint32(unsigned char* buf, uint16_t* ptr);
+
+int32_t ts_readInt32(unsigned char* buf, uint16_t* ptr);
+
+float ts_readFloat32(unsigned char* buf, uint16_t* ptr);
+
+// -------------------------------------------------------- Writing 
+
+void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr);
 
 void ts_writeUint8(uint8_t val, unsigned char* buf, uint16_t* ptr);
 
 void ts_writeUint16(uint16_t val, unsigned char* buf, uint16_t* ptr);
 
-void ts_readUint32(uint32_t* val, unsigned char* buf, uint16_t* ptr);
-
 void ts_writeUint32(uint32_t val, unsigned char* buf, uint16_t* ptr);
 
+void ts_writeInt16(int16_t val, unsigned char* buf, uint16_t* ptr);
+
+void ts_writeInt32(int32_t val, unsigned char* buf, uint16_t* ptr);
+
 void ts_writeFloat32(float val, volatile unsigned char* buf, uint16_t* ptr);
-float ts_readFloat32(unsigned char* buf, uint16_t* ptr);
 
 void ts_writeFloat64(double val, volatile unsigned char* buf, uint16_t* ptr);
 
