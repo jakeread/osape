@@ -59,7 +59,7 @@ class Endpoint : public Vertex {
     // methods,
     void write(uint8_t* _data, uint16_t len);
     boolean clearToWrite(void);
-    void addRoute(Route* _route, uint8_t _mode = EP_ROUTEMODE_ACKLESS, uint32_t _timeoutLength = 1000);
+    uint8_t addRoute(Route* _route, uint8_t _mode = EP_ROUTEMODE_ACKLESS, uint32_t _timeoutLength = 1000);
     // routes, for tx-ing to:
     EndpointRoute* routes[ENDPOINT_MAX_ROUTES];
     uint16_t numRoutes = 0;

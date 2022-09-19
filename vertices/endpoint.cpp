@@ -72,15 +72,17 @@ void Endpoint::write(uint8_t* _data, uint16_t len){
   }
 }
 
-// add a route to an endpoint 
-void Endpoint::addRoute(Route* _route, uint8_t _mode, uint32_t _timeoutLength){
+// add a route to an endpoint, returns indice where it's dropped, 
+uint8_t Endpoint::addRoute(Route* _route, uint8_t _mode, uint32_t _timeoutLength){
 	// guard against more-than-allowed routes 
 	if(numRoutes >= ENDPOINT_MAX_ROUTES) {
     OSAP::error("route add is oob", MEDIUM); 
-    return;
+    return 0;
 	}
   // build, stash, increment 
+  uint8_t indice = numRoutes;
   routes[numRoutes ++] = new EndpointRoute(_route, _mode, _timeoutLength);
+  return indice; 
 }
 
 boolean Endpoint::clearToWrite(void){
@@ -216,6 +218,8 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
       break;
     case EP_QUERY:
       {
+        // beforeQuery, 
+        beforeQuery_cb();
         // request for our data, 
         payload[0] = PK_DEST;
         payload[1] = EP_QUERY_RESP;
@@ -294,13 +298,15 @@ void Endpoint::destHandler(stackItem* item, uint16_t ptr){
           uint8_t* path = &(item->data[ptr + 9]);
           uint16_t pathLen = item->len - (ptr + 10);
           OSAP::debug("adding path... w/ ttl " + String(ttl) + " ss " + String(segSize) + " pathLen " + String(pathLen));
-          addRoute(new Route(path, pathLen, ttl, segSize), mode);
+          uint8_t routeIndice = addRoute(new Route(path, pathLen, ttl, segSize), mode);
+          payload[4] = routeIndice;
         } else {
           // nope, 
           payload[3] = 0;
+          payload[4] = 0;
         }
         // either case, write the reply, 
-        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, 4);
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, 5);
         stackClearSlot(item);
         stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
       }
