@@ -28,7 +28,8 @@ class Vertex;
 typedef struct stackItem {
   uint8_t data[VT_SLOTSIZE];          // data bytes
   uint16_t len = 0;                   // data bytes count 
-  unsigned long arrivalTime = 0;      // microseconds-since-system-alive, time at last hop 
+  uint32_t arrivalTime = 0;           // ms-since-system-alive, time at last ingest
+  int32_t timeToDeath = 0;            // ms of time until pckt vanishes on this hop
   Vertex* vt;                         // vertex to whomst we belong, 
   uint8_t od;                         // origin / destination to which we belong, 
   uint8_t indice;                     // actual physical position in the stack 
@@ -47,6 +48,7 @@ void stackLoadSlot(Vertex* vt, uint8_t od, uint8_t* data, uint16_t len);
 // stack exit side 
 uint8_t stackGetItems(Vertex* vt, uint8_t od, stackItem** items, uint8_t maxItems);
 void stackClearSlot(Vertex* vt, uint8_t od, stackItem* item);
+void stackClearSlot(stackItem* item);
 
 
 #endif 

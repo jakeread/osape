@@ -15,43 +15,25 @@ no warranty is provided, and users accept all liability.
 #include "endpoint.h"
 #include "../core/osap.h"
 #include "../core/packets.h"
-#ifdef OSAP_DEBUG 
-#include "./osap_debug.h"
-#endif 
 
 // -------------------------------------------------------- Constructors 
 
 // route constructor 
-EndpointRoute::EndpointRoute(uint8_t _mode){
-  if(_mode != EP_ROUTEMODE_ACKED || _mode != EP_ROUTEMODE_ACKLESS){
+EndpointRoute::EndpointRoute(Route* _route, uint8_t _mode, uint32_t _timeoutLength){
+  if(_mode != EP_ROUTEMODE_ACKED && _mode != EP_ROUTEMODE_ACKLESS){
     _mode = EP_ROUTEMODE_ACKLESS;
   }
+  route = _route;
   ackMode = _mode;
+  timeoutLength = _timeoutLength;
 }
 
-EndpointRoute* EndpointRoute::sib(uint16_t indice){
-  path[pathLen ++] = PK_SIB_KEY;
-  path[pathLen ++] = indice & 255;
-  path[pathLen ++] = 0;
-  return this; 
-}
-
-EndpointRoute* EndpointRoute::pfwd(uint16_t indice){
-  sib(indice);
-  path[pathLen ++] = PK_PFWD_KEY;
-  return this;
-}
-
-EndpointRoute* EndpointRoute::bfwd(uint16_t indice, uint8_t rxAddr){
-	sib(indice);
-  path[pathLen ++] = PK_BFWD_KEY;
-  path[pathLen ++] = rxAddr & 255;
-  path[pathLen ++] = 0;
-  return this;
+EndpointRoute::~EndpointRoute(void){
+  delete route;
 }
 
 // base constructor, 
-Endpoint::Endpoint( 
+Endpoint::Endpoint(
   Vertex* _parent, String _name, 
   EP_ONDATA_RESPONSES (*_onData)(uint8_t* data, uint16_t len),
   boolean (*_beforeQuery)(void)
@@ -90,17 +72,17 @@ void Endpoint::write(uint8_t* _data, uint16_t len){
   }
 }
 
-// add a route to an endpoint 
-void Endpoint::addRoute(EndpointRoute* _route){
+// add a route to an endpoint, returns indice where it's dropped, 
+uint8_t Endpoint::addRoute(Route* _route, uint8_t _mode, uint32_t _timeoutLength){
 	// guard against more-than-allowed routes 
 	if(numRoutes >= ENDPOINT_MAX_ROUTES) {
-		#ifdef OSAP_DEBUG 
-		ERROR(2, "route add oob"); 
-		#endif 
-		return; 
+    OSAP::error("route add is oob", MEDIUM); 
+    return 0;
 	}
-  // stash, increment 
-  routes[numRoutes ++] = _route;
+  // build, stash, increment 
+  uint8_t indice = numRoutes;
+  routes[numRoutes ++] = new EndpointRoute(_route, _mode, _timeoutLength);
+  return indice; 
 }
 
 boolean Endpoint::clearToWrite(void){
@@ -112,356 +94,258 @@ boolean Endpoint::clearToWrite(void){
   return true;
 }
 
-// -------------------------------------------------------- Runtimes 
-
-// temp packet write 
-uint8_t ack[VT_SLOTSIZE];
-uint8_t EPOut[VT_SLOTSIZE];
+// -------------------------------------------------------- Loop 
 
 void Endpoint::loop(void){
-  // need this: one speedup is including it in the loop fn call, 
-  // but I'm pretty sure it's small beans 
-  unsigned long now = micros();
-	// ------------------------------------------ RX Check
-	// we run a similar loop as the main switch... 
-	// though we are only concerned with handling items in the destination stack 
-	// so, start by collecting items,
-	stackItem* items[stackSize];
-	uint8_t count = stackGetItems(this, VT_STACK_DESTINATION, items, stackSize);
-	// now we check through 'em and try to handle 
-	for(uint8_t i = 0; i < count; i ++){
-		stackItem* item = items[i];
-		uint16_t ptr = 0;
-    // find the ptr, 
-    if(!ptrLoop(item->data, &ptr)){
-      #ifdef OSAP_DEBUG
-      ERROR(1, "endpoint loop bad ptr walk");
-      logPacket(item->data, item->len);
-      #endif 
-      stackClearSlot(this, VT_STACK_DESTINATION, item);
-      continue;
-    }
-    // only continue if pckt is for us
-    ptr ++;
-    if(item->data[ptr] != PK_DEST) continue;
-    // run the switch;
-    EP_ONDATA_RESPONSES resp = endpointHandler(this, item, ptr);
-    switch(resp){
-      case EP_ONDATA_REJECT:
-      case EP_ONDATA_ACCEPT:
-        // in either case, we are done and can clear it 
-        stackClearSlot(this, VT_STACK_DESTINATION, item);
+  // ok we are doing a time-based dispatch... 
+  unsigned long now = millis();
+  EndpointRoute* routeTxList[ENDPOINT_MAX_ROUTES];
+  uint8_t numTxRoutes = 0;
+  // stack fresh routes, and also transition timeouts / etc, 
+  // we make & sort this list, but set it up round-robin, since many 
+  // cases will see the same TTL & same write-to time, meaning routes that 
+  // happen to be in low indices would chance on "higher priority" 
+  uint8_t r = lastRouteServiced;
+  for(uint8_t i = 0; i < numRoutes; i ++){
+    r ++; if(r >= numRoutes) r = 0;
+    switch(routes[r]->state){
+      case EP_TX_FRESH:
+        routeTxList[numTxRoutes ++] = routes[r];
         break;
-      case EP_ONDATA_WAIT:
-        // endpoint code wants to deal w/ it later, so we hang until next loop
-        // option to update arrival time to wait indefinitly (cancelling timeout) w/ this:
-        if(this->allowInfiniteWait) item->arrivalTime = now;
-        // doing so ^ will break other comms / sweeps in many cases, since we plug also i.e. mvc queries to us 
-        break;
-      default:
-        // badness from the handler, doesn't make much sense but 
-        #ifdef OSAP_DEBUG 
-        ERROR(1, "on endpoint dest. handle, unknown ondata response");
-        #endif 
-        stackClearSlot(this, VT_STACK_DESTINATION, item);
-        break;
-    } // end dest switch 
-	}
-
-	// ------------------------------------------ TX Check 
-	// we want to pluck 'em out on round-robin...
-	uint8_t r = lastRouteServiced;
-	for(uint8_t i = 0; i < numRoutes; i ++){
-		r ++;
-		if(r >= numRoutes) r = 0;
-		EndpointRoute* rt = routes[r];
-		switch(rt->state){
-			case EP_TX_IDLE:
-				// no-op 
-				break;
-			case EP_TX_FRESH:
-				// foruml8 pck & tx it 
-				if(stackEmptySlot(this, VT_STACK_ORIGIN)){
-					// load it w/ data, 
-					#warning slow-load code, should write str8 to stack 
-					// write ptr in the head, 
-					uint16_t wptr = 0;
-					EPOut[wptr ++] = PK_PTR;
-					// the path next, 
-					memcpy(&(EPOut[wptr]), rt->path, rt->pathLen);
-					wptr += rt->pathLen;
-					// destination key, segment size 
-					EPOut[wptr ++] = PK_DEST;
-					ts_writeUint16(rt->segSize, EPOut, &wptr);
-					// mode-key, 
-					if(rt->ackMode == EP_ROUTEMODE_ACKLESS){
-            EPOut[wptr ++] = EP_SS_ACKLESS;
-					} else if(rt->ackMode == EP_ROUTEMODE_ACKED){
-						EPOut[wptr ++] = EP_SS_ACKED;
-						EPOut[wptr ++] = nextAckId;
-						rt->ackId = nextAckId;
-						nextAckId ++; // increment and wrap: only one ID per endpoint per tx, for demux 
-          }
-					// check against write into stray memory 
-					if(dataLen + wptr >= VT_SLOTSIZE){
-            #ifdef OSAP_DEBUG 
-						ERROR(1, "write-to-endpoint exceeds slotsize");
-            #endif 
-						return;
-					}
-					// the data, 
-					memcpy(&(EPOut[wptr]), data, dataLen);
-					wptr += dataLen;
-					// that's a packet? we load it into stack, we're done 
-          rt->txTime = now;
-					stackLoadSlot(this, VT_STACK_ORIGIN, EPOut, wptr);
-					// transition state:
-					if(rt->ackMode == EP_ROUTEMODE_ACKLESS) rt->state = EP_TX_IDLE;
-					if(rt->ackMode == EP_ROUTEMODE_ACKED) rt->state = EP_TX_AWAITING_ACK;
-					// and track, so that we do *this recently serviced* thing *last* on next round 
-					lastRouteServiced = r;
-				} else {
-					// no space... await... 
-				}
-			case EP_TX_AWAITING_ACK:
+      case EP_TX_AWAITING_ACK:
 				// check timeout & transition to idle state 
-        if(rt->txTime + rt->timeoutLength > now){
-          rt->state = EP_TX_IDLE;
+        if(routes[r]->lastTxTime + routes[r]->timeoutLength > now){
+          routes[r]->state = EP_TX_IDLE;
         }
 				break;
       case EP_TX_AWAITING_AND_FRESH:
         // check timeout & transition to fresh state 
-        if(rt->txTime + rt->timeoutLength > now){
-          rt->state = EP_TX_FRESH;
+        if(routes[r]->lastTxTime + routes[r]->timeoutLength > now){
+          routes[r]->state = EP_TX_FRESH;
         }
+      default:
+        // noop for IDLE / otherwise...
         break;
-			default:
-				break;
-		}
-	}
+    }
+  }
+  // now, would do a sort... they're all fresh at the same time, so lowest TTL would win,
+  // this one we would want to be stable, meaning original order is preserved in 
+  // otherwise identical cases, since we round-robin fairness as well as TTL / TTD  
+  #warning no sort algo yet, 
+  // serve 'em... these are all EP_TX_FRESH state, 
+  for(r = 0; r < numTxRoutes; r ++){
+    if(stackEmptySlot(this, VT_STACK_ORIGIN)){
+      // make sure we'll have enough space...
+      if(dataLen + routeTxList[r]->route->pathLen + 3 >= VT_SLOTSIZE){
+        OSAP::error("attempting to write oversized datagram at " + name, MEDIUM);
+        routeTxList[r]->state = EP_TX_IDLE;
+        continue;
+      }
+      // write dest key, mode key, & id if acked, 
+      uint16_t wptr = 0;
+      payload[wptr ++] = PK_DEST;
+      if(routeTxList[r]->ackMode == EP_ROUTEMODE_ACKLESS){
+        payload[wptr ++] = EP_SS_ACKLESS;
+      } else {
+        payload[wptr ++] = EP_SS_ACKED;
+        payload[wptr ++] = nextAckID;
+        routeTxList[r]->ackId = nextAckID;
+        nextAckID ++;
+      } 
+      // write data into the payload, 
+      memcpy(&(payload[wptr]), data, dataLen);
+      wptr += dataLen;
+      // write the packet, 
+      uint16_t len = writeDatagram(datagram, VT_SLOTSIZE, routeTxList[r]->route, payload, wptr);
+      // tx time is now, and state is awaiting ack, 
+      routeTxList[r]->lastTxTime = now;
+      routeTxList[r]->state = EP_TX_AWAITING_ACK;
+      lastRouteServiced = r;
+      // ingest it...
+      stackLoadSlot(this, VT_STACK_ORIGIN, datagram, len);
+    } else {
+      // stack has no more empty slots, bail from the loop, 
+      break;
+    }
+  } // end fresh-tx-awaiting state checks, 
 }
 
-// item->data[ptr] == PK_DEST here 
-// item->data[ptr + 1, ptr + 2] = segsize !
-EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr){
-	ptr += 3;
-	switch(item->data[ptr]){
-		case EP_SS_ACKLESS: // ah right, these were 'single segment' msgs... yikes 
-			{ // endpoints can REJECT, ACCEPT or ask for a WAIT for new data... 
-				// with an ackless write, WAIT is risky... but here we are 
-				// NOTE: previous code had *ackless* using 'ptr + 1' offsets, but should be the same 
-				// as *acked* code, which uses 'ptr + 2' offset ... swapped back here 2021-07-07, ? 
-				// was rarely using ackless... so I presume this is it 
-				EP_ONDATA_RESPONSES resp = ep->onData_cb(&(item->data[ptr + 1]), item->len - ptr - 2);
-				switch(resp){
-					case EP_ONDATA_REJECT: // nothing to do: msg will be deleted one level up 
-						break; 
-					case EP_ONDATA_ACCEPT: // data OK, copy it in:
-						memcpy(ep->data, &(item->data[ptr + 1]), item->len - ptr - 2);
-						ep->dataLen = item->len - ptr - 2;
-						break;
-					case EP_ONDATA_WAIT: // nothing to do, msg will be awaited one level up 
-						break;
-				} // end resp switch 
-				return resp; // return the response one level up... 
-			} // end ackless case closure 
-			break;
-		case EP_SS_ACKED:
-			{ // if there's not any space for an ack, we won't be able to ack, ask to wait 
-				if(!stackEmptySlot(ep, VT_STACK_ORIGIN)) return EP_ONDATA_WAIT;
-				// otherwise carry on to the handler, 
-				EP_ONDATA_RESPONSES resp = ep->onData_cb(&(item->data[ptr + 2]), item->len - ptr - 3);
-				switch(resp){
-					case EP_ONDATA_ACCEPT:
-						// this means we copy the data in, it's the new endpoint data:
-						memcpy(ep->data, &(item->data[ptr + 2]), item->len - ptr - 3);
-						ep->dataLen = item->len - ptr - 3;
-						// carry on to generate the response (no break)
-					case EP_ONDATA_REJECT:
-						{
-							// for reject *or* accept, we acknowledge that we got the data: 
-							// now generate are reply, 
-							uint16_t wptr = 0;
-							if(!reverseRoute(item->data, ptr - 4, ack, &wptr)){
-								// if we can't reverse it, bail, but issue same response to 
-								// osapLoop.cpp
-								return resp; 
-							}
-							// the ack, 
-              #warning acks can write in place, my dude 
-							ack[wptr ++] = EP_SS_ACK; // the ack ID is here in prv packet 
-							ack[wptr ++] = item->data[ptr + 1];
-							stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
-						}
-						break; // end accept / reject 
-					case EP_ONDATA_WAIT: // again: will mirror this reponse up, wait will happen there 
-						break;
-					default:
-						break;
-				}
-				return resp; // mirror response to osapLoop.cpp 
-			} // end acked case closure 
-			break;
-		case EP_QUERY:
-			// if can generate new message, 
-			if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
-				// run the 'beforeQuery' call, which doesn't need to return anything: 
-				ep->beforeQuery_cb();
-				uint16_t wptr = 0;
-				// if the route can't be reversed, trouble:
-				if(!reverseRoute(item->data, ptr - 4, ack, &wptr)) {
-          #ifdef OSAP_DEBUG 
-					ERROR(1, "on a query, can't reverse a route, rming msg");
-          #endif 
-					return EP_ONDATA_REJECT;
-				} else {
-					ack[wptr ++] = EP_QUERY_RESP;		// reply is response 
-					ack[wptr ++] = item->data[ptr + 1];	// has ID matched to request 
-					memcpy(&(ack[wptr]), ep->data, ep->dataLen);
-					wptr += ep->dataLen;
-					stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
-					return EP_ONDATA_ACCEPT;
-				}
-			} else {
-				// no space to ack w/ a query, pls wait 
-				return EP_ONDATA_WAIT;
-			}
-		case EP_SS_ACK:
-      { // upd8 tx state on associated route 
-        for(uint8_t r = 0; r < ep->numRoutes; r ++){
-          // this is where the ackId is in the packet, we match to routes on that (for speed)
-          if(item->data[ptr + 1] == ep->routes[r]->ackId){
-            switch(ep->routes[r]->state){
-              case EP_TX_AWAITING_ACK:  // awaiting -> captured -> idle, 
-                ep->routes[r]->state = EP_TX_IDLE;
-                break;
-              case EP_TX_AWAITING_AND_FRESH:  // awaiting -> captured -> fresh again 
-                ep->routes[r]->state = EP_TX_FRESH;
-                break;
-              case EP_TX_FRESH:
-              case EP_TX_IDLE:
-              default:
-                // these are all nonsense states for receipt of an ack, 
-                break;
-            }
-          }
-        }
+// -------------------------------------------------------- Destination Handler  
+
+void Endpoint::destHandler(stackItem* item, uint16_t ptr){
+  // item->data[ptr] == PK_PTR, ptr + 1 == PK_DEST, ptr + 2 == EP_KEY, ptr + 3 = ID (if ack req.) 
+  switch(item->data[ptr + 2]){
+    case EP_SS_ACKLESS:
+      { // singlesegment transmit-to-us, w/o ack, 
+        uint8_t* rxData = &(item->data[ptr + 3]); uint16_t rxLen = item->len - (ptr + 4);
+        EP_ONDATA_RESPONSES resp = onData_cb(rxData, rxLen);
+        switch(resp){
+          case EP_ONDATA_WAIT:    // in a wait case, we no-op / escape, it comes back around 
+            item->arrivalTime = millis();
+            break;
+          case EP_ONDATA_ACCEPT:  // here we copy it in, but carry on to the reject term to delete og gram
+            memcpy(data, rxData, rxLen);
+            dataLen = rxLen;
+          case EP_ONDATA_REJECT:  // here we simply reject it, 
+            stackClearSlot(item);
+            break;
+        } // end resp-handler, 
       }
-      return EP_ONDATA_ACCEPT;
-    case EP_ROUTE_QUERY:
-      if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
+      break;
+    case EP_SS_ACKED:
+      { // singlesegment transmit-to-us, w/ ack, 
+        uint8_t id = item->data[ptr + 3];
+        uint8_t* rxData = &(item->data[ptr + 4]); uint16_t rxLen = item->len - (ptr + 5);
+        EP_ONDATA_RESPONSES resp = onData_cb(rxData, rxLen);
+          switch(resp){
+            case EP_ONDATA_WAIT: // this is a little danger-danger, 
+              item->arrivalTime = millis();
+              break;
+            case EP_ONDATA_ACCEPT:
+              memcpy(data, rxData, rxLen);
+              dataLen = rxLen;
+            case EP_ONDATA_REJECT:
+              // write the ack, ship it, 
+              payload[0] = PK_DEST;
+              payload[1] = EP_SS_ACK;
+              payload[2] = id;
+              uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, 3);
+              stackClearSlot(item);
+              stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+              break;
+          }
+      }
+      break;
+    case EP_QUERY:
+      {
+        // beforeQuery, 
+        beforeQuery_cb();
+        // request for our data, 
+        payload[0] = PK_DEST;
+        payload[1] = EP_QUERY_RESP;
+        payload[2] = item->data[ptr + 3];
+        memcpy(&(payload[3]), data, dataLen);
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, dataLen + 3);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
+      }
+      break;
+    case EP_SS_ACK:
+      // acks to us, 
+      for(uint8_t r = 0; r < numRoutes; r ++){
+        if(item->data[ptr + 3] == routes[r]->ackId){
+          switch(routes[r]->state){
+            case EP_TX_AWAITING_ACK:
+              routes[r]->state = EP_TX_IDLE;
+              goto ackEnd;
+            case EP_TX_AWAITING_AND_FRESH:
+              routes[r]->state = EP_TX_FRESH;
+              goto ackEnd;
+            case EP_TX_FRESH:
+            case EP_TX_IDLE:
+            default:
+              // these are nonsense states, likely double-transmits, likely safely ignored,
+              goto ackEnd;
+          } // end switch 
+        }
+      } // end for-each route, if we've reached this point, still dump it;
+      ackEnd:
+      stackClearSlot(item);
+      break;
+    case EP_ROUTE_QUERY_REQ:
+      // MVC request for a route of ours, 
+      {
+        uint8_t id = item->data[ptr + 3];
+        uint16_t r = ts_readUint16(item->data, ptr + 4);
         uint16_t wptr = 0;
-        if(!reverseRoute(item->data, ptr - 4, ack, &wptr)){
-          #ifdef OSAP_DEBUG 
-					ERROR(1, "on route query, can't reverse a route, rming msg");
-          #endif 
+        // dest, key, id... mode, 
+        payload[wptr ++] = PK_DEST;
+        payload[wptr ++] = EP_ROUTE_QUERY_RES;
+        payload[wptr ++] = id;
+        if(r < numRoutes){
+          payload[wptr ++] = routes[r]->ackMode;
+          // ttl, segsize, 
+          ts_writeUint16(routes[r]->route->ttl, payload, &wptr);
+          ts_writeUint16(routes[r]->route->segSize, payload, &wptr);
+          // path ! 
+          memcpy(&(payload[wptr]), routes[r]->route->path, routes[r]->route->pathLen);
+          wptr += routes[r]->route->pathLen;
         } else {
-          ack[wptr ++] = EP_ROUTE_RESP;
-          ack[wptr ++] = item->data[ptr + 1]; // has id matched to request 
-          // do we have a route here?
-          uint16_t indice = item->data[ptr + 2];
-          if(indice >= ep->numRoutes){
-            ack[wptr ++] = 0;
-          } else {
-            ack[wptr ++] = ep->routes[indice]->ackMode;
-            ack[wptr ++] = ep->routes[indice]->pathLen;
-            // this is a kludge: js contexts store routes w/ ptr in the head,
-            // embedded contexts dont... embedded way should be system wide, thing needs a polish 
-            ack[wptr ++] = PK_PTR; 
-            memcpy(&(ack[wptr]), ep->routes[indice]->path, ep->routes[indice]->pathLen);
-            wptr += ep->routes[indice]->pathLen;
-          }
-          stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
+          payload[wptr ++] = 0; // no-route-here, 
         }
-        return EP_ONDATA_REJECT; // this just dumps the message, we're done w/ it 
-      } else {
-        return EP_ONDATA_WAIT;
+        // clear request, write reply in place, 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, wptr);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
       }
-    case EP_ROUTE_SET:
-      if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
-        uint16_t wptr = 0;
-        if(!reverseRoute(item->data, ptr - 4, ack, &wptr)){
-          #ifdef OSAP_DEBUG 
-					ERROR(1, "on route query, can't reverse a route, rming msg");
-          #endif 
+      break;
+    case EP_ROUTE_SET_REQ:
+      // MVC request to set a new route, 
+      {
+        // get an ID, 
+        uint8_t id = item->data[ptr + 3];
+        // prep a response, 
+        payload[0] = PK_DEST;
+        payload[1] = EP_ROUTE_SET_RES;
+        payload[2] = id;
+        if(numRoutes + 1 <= ENDPOINT_MAX_ROUTES){
+          // tell call-er it should work, 
+          payload[3] = 1;
+          // gather & set route, 
+          uint8_t mode = item->data[ptr + 4];
+          uint16_t ttl = ts_readUint16(item->data, ptr + 5);
+          uint16_t segSize = ts_readUint16(item->data, ptr + 7);
+          uint8_t* path = &(item->data[ptr + 9]);
+          uint16_t pathLen = item->len - (ptr + 10);
+          OSAP::debug("adding path... w/ ttl " + String(ttl) + " ss " + String(segSize) + " pathLen " + String(pathLen));
+          uint8_t routeIndice = addRoute(new Route(path, pathLen, ttl, segSize), mode);
+          payload[4] = routeIndice;
         } else {
-          ack[wptr ++] = EP_ROUTE_SET_RESP;
-          ack[wptr ++] = item->data[ptr + 1]; // has id matched to request 
-          uint8_t mode = item->data[ptr + 2]; // has mode, 
-          uint8_t len = item->data[ptr + 3];  // ... and length, 
-          // can we add a route?
-          if(ep->numRoutes >= ENDPOINT_MAX_ROUTES || len > ENDPOINT_ROUTE_MAX_LEN){
-            #ifdef OSAP_DEBUG
-            ERROR(1, "route set len: " + String(len) + " current count: " + String(ep->numRoutes));
-            #endif 
-            ack[wptr ++] = 0; // badness / noop 
-          } else {
-            ack[wptr ++] = 1; // confirm OK... going in blind though, haha 
-            EndpointRoute* epRoute = new EndpointRoute(mode);
-            // note: ptr + 5 below is to skip over the 88... likewise len - 1... 
-            memcpy(epRoute->path, &(item->data[ptr + 5]), len - 1);
-            epRoute->pathLen = len - 1;
-            ep->addRoute(epRoute);
-          }
-          uint16_t indice = item->data[ptr + 2];
-          if(indice >= ep->numRoutes){
-            ack[wptr ++] = 0;
-          } else {
-            ack[wptr ++] = ep->routes[indice]->pathLen;
-            // this is a kludge: js contexts store routes w/ ptr in the head,
-            // embedded contexts dont... embedded way should be system wide, thing needs a polish 
-            ack[wptr ++] = PK_PTR; 
-            memcpy(&(ack[wptr]), ep->routes[indice]->path, ep->routes[indice]->pathLen);
-            wptr += ep->routes[indice]->pathLen;
-          }
-          stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
+          // nope, 
+          payload[3] = 0;
+          payload[4] = 0;
         }
-        return EP_ONDATA_REJECT; // this just dumps the message, we're done w/ it 
-      } else {
-        return EP_ONDATA_WAIT;
+        // either case, write the reply, 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, 5);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
       }
-    case EP_ROUTE_RM:
-      if(stackEmptySlot(ep, VT_STACK_ORIGIN)){
-        uint16_t wptr = 0;
-        if(!reverseRoute(item->data, ptr - 4, ack, &wptr)){
-          #ifdef OSAP_DEBUG 
-					ERROR(1, "on route query, can't reverse a route, rming msg");
-          #endif 
+      break;
+    case EP_ROUTE_RM_REQ:
+      // MVC request to rm a route... 
+      {
+        // msg id, & indice to remove, 
+        uint8_t id = item->data[ptr + 3];
+        uint8_t r = item->data[ptr + 4];
+        // prep a response, 
+        payload[0] = PK_DEST;
+        payload[1] = EP_ROUTE_RM_RES;
+        payload[2] = id;
+        if(r < numRoutes){
+          // RM ok, 
+          payload[3] = 1;
+          // delete / run destructor 
+          delete routes[r];
+          // shift...
+          for(uint8_t i = r; i < numRoutes - 1; i ++){
+            routes[i] = routes[i + 1];
+          }
+          // last is null, 
+          routes[numRoutes] = nullptr;
+          numRoutes --;
         } else {
-          ack[wptr ++] = EP_ROUTE_RM_RESP;
-          ack[wptr ++] = item->data[ptr + 1]; // has id matched to request 
-          uint8_t indice = item->data[ptr + 2]; // indice to delete, 
-          // does the route exist ? if not, can't delete, 
-          if(ep->numRoutes > indice){
-            // we... rm that, let's see... just shift 'em back, 
-            for(uint8_t i = indice; i < ep->numRoutes - 1; i ++){
-              ep->routes[i] = ep->routes[i + 1];
-            }
-            // then the last is null, 
-            ep->routes[ep->numRoutes] = nullptr;
-            ep->numRoutes --;
-            // for sure the above is not very safe, but we are living fast and dying young out here 
-            ack[wptr ++] = 1;
-          } else {
-            // route... doesn't exist, 
-            ack[wptr ++] = 0;
-          }
-          stackLoadSlot(ep, VT_STACK_ORIGIN, ack, wptr);
+          // rm not-ok
+          payload[3] = 0;
         }
-        return EP_ONDATA_REJECT; // this just dumps the message, we're done w/ it 
-      } else {
-        return EP_ONDATA_WAIT;
+        // either case, write reply 
+        uint16_t len = writeReply(item->data, datagram, VT_SLOTSIZE, payload, 4);
+        stackClearSlot(item);
+        stackLoadSlot(this, VT_STACK_DESTINATION, datagram, len);
       }
-		case EP_QUERY_RESP:
-			// not yet having embedded query function 
-      #ifdef OSAP_DEBUG
-      ERROR(1, "recvd query_resp in embedded endpoint...");
-      #endif 
-		default:
-			// not recognized, bail city, get it outta here,
-      #ifdef OSAP_DEBUG
-      ERROR(1, "key to endpoint not recognized");
-      #endif 
-			return EP_ONDATA_REJECT;
-	}
+      break;
+    default:
+      OSAP::error("endpoint rx msg w/ unrecognized endpoint key " + String(item->data[ptr + 2]) + " bailing", MINOR);
+      stackClearSlot(item);
+      break;
+  } // end switch... 
 }

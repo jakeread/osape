@@ -16,27 +16,24 @@ no warranty is provided, and users accept all liability.
 #define ENDPOINT_H_
 
 #include "../core/vertex.h"
+#include "../core/packets.h"
 
-// ---------------------------------------------- Routes
+// ---------------------------------------------- Endpoint Routes, extends OSAP Core Routes 
 
 enum EP_ROUTE_STATES { EP_TX_IDLE, EP_TX_FRESH, EP_TX_AWAITING_ACK, EP_TX_AWAITING_AND_FRESH };
 
 class EndpointRoute {
   public: 
-    uint8_t path[64];
-    uint8_t pathLen = 0;
+    Route* route;
     uint8_t ackId = 0;
-    EP_ROUTE_STATES state = EP_TX_IDLE;
-    unsigned long txTime = 0;
-    unsigned long timeoutLength = 1000;
     uint8_t ackMode = EP_ROUTEMODE_ACKLESS;
-    uint16_t segSize = 256;
+    EP_ROUTE_STATES state = EP_TX_IDLE;
+    uint32_t lastTxTime = 0;
+    uint32_t timeoutLength;
     // constructor, 
-    EndpointRoute(uint8_t _mode);
-    // pass-thru initialize, 
-    EndpointRoute* sib(uint16_t indice);
-    EndpointRoute* pfwd(uint16_t indice);
-    EndpointRoute* bfwd(uint16_t indice, uint8_t rxAddr);
+    EndpointRoute(Route* _route, uint8_t _mode, uint32_t _timeoutLength = 1000);
+    // destructor...
+    ~EndpointRoute(void);
 };
 
 // ---------------------------------------------- Endpoints 
@@ -58,17 +55,16 @@ class Endpoint : public Vertex {
     boolean (*beforeQuery_cb)(void) = beforeQueryDefault;
     // we override vertex loop, 
     void loop(void) override;
+    void destHandler(stackItem* item, uint16_t ptr) override;
     // methods,
     void write(uint8_t* _data, uint16_t len);
-    void addRoute(EndpointRoute* _route);
     boolean clearToWrite(void);
-    // for wait, on the receiving side
-    boolean allowInfiniteWait = false;
+    uint8_t addRoute(Route* _route, uint8_t _mode = EP_ROUTEMODE_ACKLESS, uint32_t _timeoutLength = 1000);
     // routes, for tx-ing to:
     EndpointRoute* routes[ENDPOINT_MAX_ROUTES];
     uint16_t numRoutes = 0;
     uint16_t lastRouteServiced = 0;
-    uint8_t nextAckId = 77;
+    uint8_t nextAckID = 77;
     // base constructor, 
     Endpoint(   
       Vertex* _parent, String _name, 
@@ -98,16 +94,5 @@ class Endpoint : public Vertex {
       _parent, _name, nullptr, nullptr
     ){};
 };
-
-// ---------------------------------------------- Runtimes 
-
-// loop over all endpoints, 
-void endpointMainLoop(void);
-
-// loop per-endpoint, 
-void endpointLoop(Endpoint* ep, unsigned long now);
-
-// a master handler: 
-EP_ONDATA_RESPONSES endpointHandler(Endpoint* ep, stackItem* item, uint16_t ptr);
 
 #endif 

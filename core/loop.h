@@ -18,14 +18,8 @@ no warranty is provided, and users accept all liability.
 #include "vertex.h"
 
 // we loop, 
-void loopRecursor(Vertex* vt);
-// we setup, 
-void setupRecursor(Vertex* vt);
-void setupHandler(Vertex* vt);
-void setupSwitch(Vertex* vt, uint8_t od, stackItem* item, uint16_t ptr, unsigned long now);
-// we transfer, 
-void transferRecursor(Vertex* vt);
-void transferHandler(Vertex* vt);
-boolean transferSwitch(Vertex* vt, stackItem* item);
+void osapLoop(Vertex* root);
+// we handle, 
+void osapItemHandler(stackItem* item);
 
 #endif 

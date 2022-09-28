@@ -23,35 +23,11 @@ no warranty is provided, and users accept all liability.
 #define VT_TYPE_ROOT 22       // top level 
 #define VT_TYPE_MODULE 23     // collection of things (?) or something, idk yet 
 #define VT_TYPE_ENDPOINT 24   // software endpoint w/ read/write semantics 
+#define VT_TYPE_QUERY 25 
 #define VT_TYPE_ENDPOINT_MULTISEG 26 // likewise, but requring multisegment transmission 
 #define VT_TYPE_CODE 25       // autonomous graph dwellers 
 #define VT_TYPE_VPORT 44      // virtual ports 
 #define VT_TYPE_VBUS 45       // maybe bus-drop / bus-head / bus-cohost are differentiated 
-
-// -------------------------------------------------------- TIMES
-
-#define TIMES_STALE_MSG 800
-
-// -------------------------------------------------------- Routing (Packet) Keys
-
-#define PK_PTR 88
-#define PK_DEST 99
-#define PK_SIB_KEY 15 
-#define PK_SIB_INC 3 
-#define PK_PARENT_KEY 16 
-#define PK_PARENT_INC 3 
-#define PK_CHILD_KEY 14 
-#define PK_CHILD_INC 3 
-#define PK_PFWD_KEY 11 
-#define PK_PFWD_INC 1 
-#define PK_BFWD_KEY 12
-#define PK_BFWD_INC 3
-#define PK_SCOPE_REQ_KEY 21
-#define PK_SCOPE_REQ_INC 1
-#define PK_SCOPE_RES_KEY 22 
-#define PK_SCOPE_RES_INC 1
-#define PK_LLESCAPE_KEY 44
-#define PK_LLESCAPE_INC 1
 
 // -------------------------------------------------------- Endpoint Keys 
 
@@ -60,21 +36,33 @@ no warranty is provided, and users accept all liability.
 #define EP_SS_ACKED 122     // single segment, request ack 
 #define EP_QUERY 131        // query request 
 #define EP_QUERY_RESP 132   // reply to query request 
-#define EP_ROUTE_QUERY 141 
-#define EP_ROUTE_RESP 142
-#define EP_ROUTE_SET 143
-#define EP_ROUTE_SET_RESP 144 
-#define EP_ROUTE_RM 147
-#define EP_ROUTE_RM_RESP 148 
+#define EP_ROUTE_QUERY_REQ 141 
+#define EP_ROUTE_QUERY_RES 142
+#define EP_ROUTE_SET_REQ 143
+#define EP_ROUTE_SET_RES 144 
+#define EP_ROUTE_RM_REQ 147
+#define EP_ROUTE_RM_RES 148 
 
 #define EP_ROUTEMODE_ACKED 167
 #define EP_ROUTEMODE_ACKLESS 168 
 
-// -------------------------------------------------------- Endpoint Multisegement Keys 
+// -------------------------------------------------------- Root Keys 
 
-#define EPMSEG_QUERY 141 
-#define EPMSEG_QUERY_RESP 142 
-#define EPMSEG_QUERY_END_RESP 143 
+#define RT_DBG_STAT 151
+#define RT_DBG_ERRMSG 152 
+#define RT_DBG_DBGMSG 153
+#define RT_DBG_RES 161
+
+// -------------------------------------------------------- VBus MVC Keys 
+
+#define VBUS_BROADCAST_MAP_REQ 145
+#define VBUS_BROADCAST_MAP_RES 146
+#define VBUS_BROADCAST_QUERY_REQ 141
+#define VBUS_BROADCAST_QUERY_RES 142
+#define VBUS_BROADCAST_SET_REQ 143
+#define VBUS_BROADCAST_SET_RES 144 
+#define VBUS_BROADCAST_RM_REQ 147 
+#define VBUS_BROADCAST_RM_RES 148 
 
 // -------------------------------------------------------- BUS ACTION KEYS (outside OSAP scope)
 
@@ -125,25 +113,36 @@ union chunk_uint32 {
     uint32_t u;
 }; 
 
-// -------------------------------------------------------- Reading and Writing
+// -------------------------------------------------------- Reading 
 
 void ts_readBoolean(boolean* val, unsigned char* buf, uint16_t* ptr);
+boolean ts_readBoolean(unsigned char* buf, uint16_t* ptr);
 
-void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr);
-
-void ts_writeInt16(int16_t val, unsigned char* buf, uint16_t* ptr);
-
-void ts_writeInt32(int32_t val, unsigned char* buf, uint16_t* ptr);
+uint8_t ts_readUint8(unsigned char* buf, uint16_t* ptr);
 
 void ts_readUint16(uint16_t* val, uint8_t* buf, uint16_t* ptr);
+uint16_t ts_readUint16(uint8_t* buf, uint16_t ptr);
+
+void ts_readUint32(uint32_t* val, unsigned char* buf, uint16_t* ptr);
+uint32_t ts_readUint32(unsigned char* buf, uint16_t* ptr);
+
+int32_t ts_readInt32(unsigned char* buf, uint16_t* ptr);
+
+float ts_readFloat32(unsigned char* buf, uint16_t* ptr);
+
+// -------------------------------------------------------- Writing 
+
+void ts_writeBoolean(boolean val, unsigned char* buf, uint16_t* ptr);
 
 void ts_writeUint8(uint8_t val, unsigned char* buf, uint16_t* ptr);
 
 void ts_writeUint16(uint16_t val, unsigned char* buf, uint16_t* ptr);
 
-void ts_readUint32(uint32_t* val, unsigned char* buf, uint16_t* ptr);
-
 void ts_writeUint32(uint32_t val, unsigned char* buf, uint16_t* ptr);
+
+void ts_writeInt16(int16_t val, unsigned char* buf, uint16_t* ptr);
+
+void ts_writeInt32(int32_t val, unsigned char* buf, uint16_t* ptr);
 
 void ts_writeFloat32(float val, volatile unsigned char* buf, uint16_t* ptr);
 
@@ -153,5 +152,6 @@ void ts_writeFloat64(double val, volatile unsigned char* buf, uint16_t* ptr);
 
 void ts_writeString(String* val, unsigned char* buf, uint16_t* ptr);
 void ts_writeString(String val, unsigned char* buf, uint16_t* ptr);
+void ts_writeString(unsigned char* str, uint16_t strLen, unsigned char* buf, uint16_t* ptr, uint16_t maxLen);
 
 #endif 

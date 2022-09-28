@@ -17,6 +17,7 @@ no warranty is provided, and users accept all liability.
 
 #include <Arduino.h> 
 #include "ts.h"
+#include "routes.h"
 #include "stack.h"
 // vertex config is build dependent, define in <folder-containing-osape>/osapConfig.h 
 #include "./osap_config.h" 
@@ -34,12 +35,12 @@ void vtLoopDefault(Vertex* vt);
 void vtOnOriginStackClearDefault(Vertex* vt, uint8_t slot);
 void vtOnDestinationStackClearDefault(Vertex* vt, uint8_t slot);
 
-// vertex nester, 
-boolean nestVertex(Vertex* parent, Vertex* child);
-
-// some kinda primal class, 
+// addressable node in the graph ! 
 class Vertex {
   public:
+    // just temporary stashes, used all over the place to prep messages... 
+    static uint8_t payload[VT_SLOTSIZE];
+    static uint8_t datagram[VT_SLOTSIZE];
     // -------------------------------- FN PTRS 
     // these are *genuine function ptrs* not member functions, my dudes 
     void (*loop_cb)(Vertex* vt) = nullptr;
@@ -48,6 +49,9 @@ class Vertex {
     void (*onDestinationStackClear_cb)(Vertex* vt, uint8_t slot) = nullptr;
     // -------------------------------- Methods
     virtual void loop(void);
+    virtual void destHandler(stackItem* item, uint16_t ptr);
+    void pingRequestHandler(stackItem* item, uint16_t ptr);
+    void scopeRequestHandler(stackItem* item, uint16_t ptr);
     virtual void onOriginStackClear(uint8_t slot);
     virtual void onDestinationStackClear(uint8_t slot);
     // -------------------------------- DATA
@@ -65,10 +69,6 @@ class Vertex {
     //uint8_t lastStackHandled[2] = { 0, 0 };
     stackItem* queueStart[2] = { nullptr, nullptr };    // data is read from the tail  
     stackItem* firstFree[2] = { nullptr, nullptr };     // data is loaded into the head 
-    // loop fairness allocation 
-    stackItem* incomingItems[VT_MAXITEMSPERTURN];
-    uint16_t incomingItemCount = 0;
-    uint16_t lastIncomingServed = 0;
     // parent & children (other vertices)
     Vertex* parent = nullptr;
     Vertex* children[VT_MAXCHILDREN]; // I think this is OK on storage: just pointers 
@@ -92,105 +92,40 @@ class Vertex {
 
 class VPort : public Vertex {
   public:
-    // -------------------------------- FN *PTRS* ... not methods 
-    void (*send_cb)(VPort* vp, uint8_t* data, uint16_t len) = nullptr;
-    boolean (*cts_cb)(VPort* vp) = nullptr;
     // -------------------------------- OK these bbs are methods, 
-    virtual void send(uint8_t* data, uint16_t len);
-    virtual boolean cts(void);
+    virtual void send(uint8_t* data, uint16_t len) = 0;
+    virtual boolean cts(void) = 0;
+    virtual boolean isOpen(void) = 0;
     // base constructor, 
-    VPort( 
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
-      boolean (*_cts)(VPort* vp),
-      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
-      void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
-    );
-    // and the delegates,
-    // one w/ just origin stack, 
-    VPort(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
-      boolean (*_cts)(VPort* vp),
-      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot)
-    ) : VPort (
-      _parent, _name, _loop, _send, _cts, _onOriginStackClear, nullptr
-    ){};
-    // one w/ no stack callbacks, 
-    VPort(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VPort* vp, uint8_t* data, uint16_t len),
-      boolean (*_cts)(VPort* vp)
-    ) : VPort (
-      _parent, _name, _loop, _send, _cts, nullptr, nullptr
-    ){};
-    // w/ no CTS
-    VPort(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VPort* vp, uint8_t* data, uint16_t len)
-    ) : VPort (
-      _parent, _name, _loop, _send, nullptr, nullptr, nullptr
-    ){};
-    // w/ just parent & name... 
-    VPort(
-      Vertex* _parent, String _name
-    ) : VPort (
-      _parent, _name, nullptr, nullptr, nullptr, nullptr, nullptr
-    ){};
+    VPort(Vertex* _parent, String _name);
 };
 
 // ---------------------------------------------- VBus 
 
-struct VBus : public Vertex{
+class VBus : public Vertex{
   public:
-    // -------------------------------- FN *PTRS* ... not methods 
-    void (*send_cb)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr) = nullptr;
-    boolean (*cts_cb)(VBus* vb, uint8_t rxAddr) = nullptr;
-    // -------------------------------- Methods 
-    virtual void send(uint8_t* data, uint16_t len, uint8_t rxAddr);
-    virtual boolean cts(uint8_t rxAddr);
+    // -------------------------------- Methods: these are purely virtual... 
+    virtual void send(uint8_t* data, uint16_t len, uint8_t rxAddr) = 0;
+    virtual void broadcast(uint8_t* data, uint16_t len, uint8_t broadcastChannel) = 0;
+    // clear to send, clear to broadcast, 
+    virtual boolean cts(uint8_t rxAddr) = 0;
+    virtual boolean ctb(uint8_t broadcastChannel) = 0;
+    // link state per rx-addr,
+    virtual boolean isOpen(uint8_t rxAddr) = 0;
+    // handle things aimed at us, for mvc etc 
+    void destHandler(stackItem* item, uint16_t ptr) override;
+    // busses can read-in to broadcasts,
+    void injestBroadcastPacket(uint8_t* data, uint16_t len, uint8_t broadcastChannel);
+    // we have also... broadcast channels... these are little route stubs & channel pairs, which we just straight up index, 
+    Route* broadcastChannels[VBUS_MAX_BROADCAST_CHANNELS];
+    // have to update those... 
+    void setBroadcastChannel(uint8_t channel, Route* route);
     // has an rx addr, 
     uint16_t ownRxAddr = 0;
-    // base constructor, 
-    VBus( 
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
-      boolean (*_cts)(VBus* vb, uint8_t rxAddr),
-      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot),
-      void (*_onDestinationStackClear)(Vertex* vt, uint8_t slot)
-    );
-    // and the delegates,
-    // one w/ just origin stack, 
-    VBus(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
-      boolean (*_cts)(VBus* vb, uint8_t rxAddr),
-      void (*_onOriginStackClear)(Vertex* vt, uint8_t slot)
-    ) : VBus (
-      _parent, _name, _loop, _send, _cts, _onOriginStackClear, nullptr
-    ){};
-    // one w/ no stack callbacks, 
-    VBus(
-      Vertex* _parent, String _name,
-      void (*_loop)(Vertex* vt),
-      void (*_send)(VBus* vb, uint8_t* data, uint16_t len, uint8_t rxAddr),
-      boolean (*_cts)(VBus* vb, uint8_t rxAddr)
-    ) : VBus (
-      _parent, _name, _loop, _send, _cts, nullptr, nullptr
-    ){};
-    // one w/ no callbacks, for inheriting classes 
-    VBus(
-      Vertex* _parent, String _name
-    ) : VBus (
-      _parent, _name, nullptr, nullptr, nullptr, nullptr, nullptr
-    ){};
+    // has a width-of-addr-space, 
+    uint16_t addrSpaceSize = 0;
+    // base constructor, children inherit... 
+    VBus(Vertex* _parent, String _name);
 };
-
 
 #endif 
